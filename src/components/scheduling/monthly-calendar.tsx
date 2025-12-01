@@ -74,8 +74,8 @@ export default function MonthlyCalendar({
         month: currentMonth,
         year: currentYear,
         doctors,
-        shiftsPerDay: 2,
-        shiftsPerNight: 2,
+        shiftsPerDay: 3,
+        shiftsPerNight: 3,
       });
 
       const newShifts = engine.generateSchedule();
@@ -208,7 +208,7 @@ export default function MonthlyCalendar({
                         Night: {nightShiftCount}
                       </div>
                     )}
-                    {dayShifts.slice(0, 2).map((shift) => {
+                    {dayShifts.slice(0, 6).map((shift) => {
                       const doctor = getDoctorById(shift.doctor_id);
                       const team = doctor ? getTeamById(doctor.team_id) : null;
                       return (

@@ -28,7 +28,7 @@ export class SchedulingEngine {
   generateSchedule(): Shift[] {
     const daysInMonth = new Date(this.year, this.month + 1, 0).getDate();
     const shifts: Shift[] = [];
-    
+
     const workingDoctors = this.doctors.filter(d => !d.is_floating);
     const floatingDoctors = this.doctors.filter(d => d.is_floating);
     
@@ -102,10 +102,11 @@ export class SchedulingEngine {
 
     const hoursSinceLastShift = (date.getTime() - lastShift.date.getTime()) / (1000 * 60 * 60);
 
-    if (lastShift.type === 'day' && hoursSinceLastShift < 12) {
+    if (lastShift.type === 'day' && hoursSinceLastShift < 24) {
       return false;
     }
 
+    // ari.. check why night shift doesnt respect the 48h pause
     if (lastShift.type === 'night' && hoursSinceLastShift < 48) {
       return false;
     }
@@ -114,7 +115,8 @@ export class SchedulingEngine {
   }
 
   private formatDate(date: Date): string {
-    return date.toISOString().split('T')[0];
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
   }
 
   static detectConflicts(shifts: Shift[], doctors: Doctor[]): ScheduleConflict[] {
@@ -170,12 +172,12 @@ export class SchedulingEngine {
         const currDate = new Date(currShift.shift_date);
         const hoursBetween = (currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60);
 
-        if (prevShift.shift_type === 'day' && hoursBetween < 12) {
+        if (prevShift.shift_type === 'day' && hoursBetween < 24) {
           conflicts.push({
             type: 'rest_violation',
             date: currShift.shift_date,
             doctor_id: doctorId,
-            message: `Rest violation: Less than 12 hours after day shift`,
+            message: `Rest violation: Less than 24 hours after day shift`,
           });
         }
 
