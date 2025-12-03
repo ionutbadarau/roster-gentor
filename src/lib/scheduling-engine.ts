@@ -1,24 +1,28 @@
-import { Doctor, Shift, ScheduleConflict } from '@/types/scheduling';
+import { Doctor, Shift, ScheduleConflict, Team, DoctorWithTeam } from '@/types/scheduling';
 
 export interface ScheduleGenerationOptions {
   month: number;
   year: number;
-  doctors: Doctor[];
+  doctors: DoctorWithTeam[];
+  teams: Team[];
   shiftsPerDay: number;
   shiftsPerNight: number;
 }
 
 export class SchedulingEngine {
-  private doctors: Doctor[];
+  private doctors: DoctorWithTeam[];
+  private teams: Team[];
   private month: number;
   private year: number;
   private shiftsPerDay: number;
   private shiftsPerNight: number;
   private schedule: Map<string, Shift[]> = new Map();
   private doctorLastShift: Map<string, { date: Date; type: 'day' | 'night' }> = new Map();
+  private doctorShiftCount: Map<string, number> = new Map();
 
   constructor(options: ScheduleGenerationOptions) {
     this.doctors = options.doctors;
+    this.teams = options.teams.sort((a, b) => a.order - b.order);
     this.month = options.month;
     this.year = options.year;
     this.shiftsPerDay = options.shiftsPerDay;
@@ -29,17 +33,42 @@ export class SchedulingEngine {
     const daysInMonth = new Date(this.year, this.month + 1, 0).getDate();
     const shifts: Shift[] = [];
 
-    const teamDoctors = this.doctors.filter(d => !d.is_floating);
+    // Group doctors by team, sorted by team order
+    const doctorsByTeam = new Map<string, DoctorWithTeam[]>();
     const floatingDoctors = this.doctors.filter(d => d.is_floating);
     
-    let doctorIndex = 0;
+    // Initialize doctorsByTeam for each team in order
+    this.teams.forEach(team => {
+      doctorsByTeam.set(team.id, []);
+    });
+    
+    // Assign doctors to their teams
+    this.doctors.filter(d => !d.is_floating && d.team_id).forEach(doctor => {
+      const teamDoctors = doctorsByTeam.get(doctor.team_id!);
+      if (teamDoctors) {
+        teamDoctors.push(doctor);
+      }
+    });
+
+    // Initialize shift counts for all doctors
+    this.doctors.forEach(d => this.doctorShiftCount.set(d.id, 0));
+    
+    let currentTeamIndex = 0;
+    const teamIds = this.teams.map(t => t.id);
 
     for (let day = 1; day <= daysInMonth; day++) {
       const currentDate = new Date(this.year, this.month, day);
       const dateStr = this.formatDate(currentDate);
 
+      // Assign day shifts
       for (let i = 0; i < this.shiftsPerDay; i++) {
-        const doctor = this.getNextAvailableDoctor(teamDoctors, floatingDoctors, currentDate, doctorIndex);
+        const doctor = this.getNextAvailableDoctor(
+          doctorsByTeam,
+          floatingDoctors,
+          teamIds,
+          currentTeamIndex,
+          currentDate
+        );
         if (doctor) {
           shifts.push({
             id: crypto.randomUUID(),
@@ -50,12 +79,20 @@ export class SchedulingEngine {
             end_time: '20:00',
           });
           this.doctorLastShift.set(doctor.id, { date: currentDate, type: 'day' });
-          doctorIndex = (doctorIndex + 1) % teamDoctors.length;
+          this.doctorShiftCount.set(doctor.id, (this.doctorShiftCount.get(doctor.id) || 0) + 1);
+          currentTeamIndex = (currentTeamIndex + 1) % teamIds.length;
         }
       }
 
+      // Assign night shifts
       for (let i = 0; i < this.shiftsPerNight; i++) {
-        const doctor = this.getNextAvailableDoctor(teamDoctors, floatingDoctors, currentDate, doctorIndex);
+        const doctor = this.getNextAvailableDoctor(
+          doctorsByTeam,
+          floatingDoctors,
+          teamIds,
+          currentTeamIndex,
+          currentDate
+        );
         if (doctor) {
           shifts.push({
             id: crypto.randomUUID(),
@@ -66,7 +103,8 @@ export class SchedulingEngine {
             end_time: '08:00',
           });
           this.doctorLastShift.set(doctor.id, { date: currentDate, type: 'night' });
-          doctorIndex = (doctorIndex + 1) % teamDoctors.length;
+          this.doctorShiftCount.set(doctor.id, (this.doctorShiftCount.get(doctor.id) || 0) + 1);
+          currentTeamIndex = (currentTeamIndex + 1) % teamIds.length;
         }
       }
     }
@@ -75,40 +113,63 @@ export class SchedulingEngine {
   }
 
   private getNextAvailableDoctor(
-    teamDoctors: Doctor[],
-    floatingDoctors: Doctor[],
-    currentDate: Date,
-    startIndex: number
-  ): Doctor | null {
-    // fixme: get next doctor of the same team first, then of the next team (just introduced a `order` column in `teams` table). 
-    // floating doctors will be used to fill in gaps and make hours for doctors equal for all
-
-    const allDoctors = [...teamDoctors, ...floatingDoctors];
-    
-    for (let i = 0; i < allDoctors.length; i++) {
-      const index = (startIndex + i) % allDoctors.length;
-      const doctor = allDoctors[index];
+    doctorsByTeam: Map<string, DoctorWithTeam[]>,
+    floatingDoctors: DoctorWithTeam[],
+    teamIds: string[],
+    startTeamIndex: number,
+    currentDate: Date
+  ): DoctorWithTeam | null {
+    // First, try to find an available doctor from teams in order
+    for (let t = 0; t < teamIds.length; t++) {
+      const teamIndex = (startTeamIndex + t) % teamIds.length;
+      const teamId = teamIds[teamIndex];
+      const teamDoctors = doctorsByTeam.get(teamId) || [];
       
+      // Sort team doctors by shift count to balance hours
+      const sortedTeamDoctors = [...teamDoctors].sort((a, b) => 
+        (this.doctorShiftCount.get(a.id) || 0) - (this.doctorShiftCount.get(b.id) || 0)
+      );
+      
+      for (const doctor of sortedTeamDoctors) {
+        if (this.canDoctorWork(doctor, currentDate)) {
+          return doctor;
+        }
+      }
+    }
+    
+    // If no team doctor is available, use floating doctors to fill gaps
+    // Sort floating doctors by shift count to equalize hours
+    const sortedFloatingDoctors = [...floatingDoctors].sort((a, b) => 
+      (this.doctorShiftCount.get(a.id) || 0) - (this.doctorShiftCount.get(b.id) || 0)
+    );
+    
+    for (const doctor of sortedFloatingDoctors) {
       if (this.canDoctorWork(doctor, currentDate)) {
         return doctor;
       }
     }
     
-    return allDoctors[startIndex % allDoctors.length] || null;
+    // Fallback: return any available doctor
+    const allDoctors = [...this.doctors].sort((a, b) => 
+      (this.doctorShiftCount.get(a.id) || 0) - (this.doctorShiftCount.get(b.id) || 0)
+    );
+    
+    return allDoctors.find(d => this.canDoctorWork(d, currentDate)) || null;
   }
 
-  private canDoctorWork(doctor: Doctor, date: Date): boolean {
+  private canDoctorWork(doctor: DoctorWithTeam, date: Date): boolean {
     const lastShift = this.doctorLastShift.get(doctor.id);
     
     if (!lastShift) return true;
 
     const hoursSinceLastShift = (date.getTime() - lastShift.date.getTime()) / (1000 * 60 * 60);
 
+    // 24 hours mandatory rest after day shifts
     if (lastShift.type === 'day' && hoursSinceLastShift < 24) {
       return false;
     }
 
-    //fixme: night shifts dont respect the 48h pause
+    // 48 hours mandatory rest after night shifts
     if (lastShift.type === 'night' && hoursSinceLastShift < 48) {
       return false;
     }

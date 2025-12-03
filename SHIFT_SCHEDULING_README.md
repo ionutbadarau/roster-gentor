@@ -11,10 +11,11 @@ A comprehensive Next.js shift scheduling system that automatically generates mon
 
 ### 2. Automated Scheduling Engine
 - **Smart Generation**: Automatically generates monthly schedules based on configured teams and doctors
+- **Team-Based Rotation**: Assigns shifts by team order, cycling through teams sequentially
 - **Rest Period Enforcement**: 
-  - 12 hours mandatory rest after day shifts
+  - 24 hours mandatory rest after day shifts
   - 48 hours mandatory rest after night shifts
-- **Team Rotation**: Respects team assignments while ensuring adequate coverage
+- **Hour Equalization**: Balances shift counts across doctors within teams and floating staff
 - **Conflict Detection**: Identifies and reports scheduling conflicts and understaffed shifts
 
 ### 3. Monthly Calendar View
@@ -97,6 +98,7 @@ A comprehensive Next.js shift scheduling system that automatically generates mon
 - Team definitions
 - Color coding
 - Member limits
+- Order field for rotation priority
 
 **shifts**
 - Individual shift assignments
@@ -108,9 +110,19 @@ A comprehensive Next.js shift scheduling system that automatically generates mon
 
 1. **Day Shifts**: 8:00 AM - 8:00 PM (12 hours)
 2. **Night Shifts**: 8:00 PM - 8:00 AM (12 hours)
-3. **Rest After Day Shift**: Minimum 12 hours
+3. **Rest After Day Shift**: Minimum 24 hours
 4. **Rest After Night Shift**: Minimum 48 hours
 5. **Coverage Requirements**: 2 doctors per shift (day and night)
+
+### Team Rotation Logic
+
+The scheduling engine follows a priority-based team rotation:
+
+1. **Team Order**: Teams are assigned shifts based on their `order` field (configurable in the database)
+2. **Same Team First**: When assigning a shift, the engine first tries to find an available doctor from the current team in rotation
+3. **Next Team Fallback**: If no doctor from the current team is available, it moves to the next team in order
+4. **Floating Doctors**: Floating staff are used to fill gaps when no team doctors are available
+5. **Hour Equalization**: Within each team and among floating doctors, those with fewer shifts are prioritized to balance workload
 
 ### Conflict Types
 
