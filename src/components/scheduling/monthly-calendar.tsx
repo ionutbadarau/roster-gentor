@@ -74,6 +74,7 @@ export default function MonthlyCalendar({
         month: currentMonth,
         year: currentYear,
         doctors,
+        teams,
         shiftsPerDay: 3,
         shiftsPerNight: 3,
       });

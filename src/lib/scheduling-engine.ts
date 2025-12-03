@@ -29,6 +29,24 @@ export class SchedulingEngine {
     this.shiftsPerNight = options.shiftsPerNight;
   }
 
+  // generateSchedule2(): Shift[] {
+    //// Method 1(leave the floating doctors at the end to equilibrate):
+
+    // for (let day = 1; day <= daysInMonth; day++) {
+      // first find the most rested doctor (according to his last shift (getNextAvailableDoctor)) and get his team
+      // (try to) alocate the whole team to that shift
+      // 
+    // }
+
+    // Then fill floating Ds:
+    // go by each shift - search the team for day shift for day 1 (Z1) and de-allocate 1 doctor to fill first floating Dr instead
+    // then on next shift [night shift day 1(N1)] replace one Dr with floating Dr 2
+    // find the next shift any floating Dr can work on (in our case it is [N2])
+    // check if it makes sense to switch with one Dr from that team 
+    // actually compare this shift with the next, and pick the best! ()
+    // for N2 it doesn't make sense, so we pick next which is [z3].. ari
+  // }
+
   generateSchedule(): Shift[] {
     const daysInMonth = new Date(this.year, this.month + 1, 0).getDate();
     const shifts: Shift[] = [];
