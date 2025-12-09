@@ -3,7 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Doctor, Team, Shift, ScheduleConflict } from '@/types/scheduling';
 import { Users, Calendar, AlertTriangle, CheckCircle2, Clock, TrendingUp } from 'lucide-react';
-import { SchedulingEngine } from '@/lib/scheduling-engine';
+import { SchedulingEngine, SCHEDULING_CONSTANTS } from '@/lib/scheduling-engine';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import QuickStartGuide from './quick-start-guide';
@@ -24,23 +24,26 @@ export default function SummaryDashboard({
   currentYear,
 }: SummaryDashboardProps) {
   const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
+    'Ianuarie', 'Februarie', 'Martie', 'Aprilie', 'Mai', 'Iunie',
+    'Iulie', 'August', 'Septembrie', 'Octombrie', 'Noiembrie', 'Decembrie'
   ];
 
   const conflicts = SchedulingEngine.detectConflicts(shifts, doctors);
   const dayShifts = shifts.filter((s) => s.shift_type === 'day').length;
   const nightShifts = shifts.filter((s) => s.shift_type === 'night').length;
-  const totalHours = (dayShifts + nightShifts) * 12;
+  const totalHours = (dayShifts + nightShifts) * SCHEDULING_CONSTANTS.SHIFT_DURATION;
 
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-  const requiredDayShifts = daysInMonth * 2;
-  const requiredNightShifts = daysInMonth * 2;
-  const dayCoverage = (dayShifts / requiredDayShifts) * 100;
-  const nightCoverage = (nightShifts / requiredNightShifts) * 100;
+  const requiredDayShifts = daysInMonth * 3; // 3 doctors per day shift
+  const requiredNightShifts = daysInMonth * 3; // 3 doctors per night shift
+  const dayCoverage = requiredDayShifts > 0 ? (dayShifts / requiredDayShifts) * 100 : 0;
+  const nightCoverage = requiredNightShifts > 0 ? (nightShifts / requiredNightShifts) * 100 : 0;
 
   const floatingDoctors = doctors.filter((d) => d.is_floating).length;
   const teamDoctors = doctors.filter((d) => !d.is_floating).length;
+
+  const workingDays = SchedulingEngine.getWorkingDaysInMonthStatic(currentMonth, currentYear);
+  const baseNormPerDoctor = SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * workingDays;
 
   const teamStats = teams.map((team) => {
     const teamDoctorsList = doctors.filter((d) => d.team_id === team.id);
@@ -65,46 +68,46 @@ export default function SummaryDashboard({
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Doctors</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Doctori</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{doctors.length}</div>
             <p className="text-xs text-muted-foreground">
-              {teamDoctors} in teams, {floatingDoctors} floating
+              {teamDoctors} în echipe, {floatingDoctors} flotanți
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Shifts</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Ture</CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{shifts.length}</div>
             <p className="text-xs text-muted-foreground">
-              {dayShifts} day, {nightShifts} night
+              {dayShifts} zi, {nightShifts} noapte
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Hours</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Ore</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalHours}h</div>
             <p className="text-xs text-muted-foreground">
-              For {monthNames[currentMonth]} {currentYear}
+              Pentru {monthNames[currentMonth]} {currentYear}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Conflicts</CardTitle>
+            <CardTitle className="text-sm font-medium">Conflicte</CardTitle>
             {conflicts.length > 0 ? (
               <AlertTriangle className="h-4 w-4 text-yellow-600" />
             ) : (
@@ -116,7 +119,7 @@ export default function SummaryDashboard({
               {conflicts.length}
             </div>
             <p className="text-xs text-muted-foreground">
-              {conflicts.length === 0 ? 'All clear' : 'Issues detected'}
+              {conflicts.length === 0 ? 'Totul în regulă' : 'Probleme detectate'}
             </p>
           </CardContent>
         </Card>
@@ -125,50 +128,60 @@ export default function SummaryDashboard({
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Coverage Statistics</CardTitle>
+            <CardTitle>Statistici Acoperire</CardTitle>
             <CardDescription>
-              Shift coverage for {monthNames[currentMonth]} {currentYear}
+              Acoperire ture pentru {monthNames[currentMonth]} {currentYear}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Day Shift Coverage</span>
+                <span className="text-muted-foreground">Acoperire Ture de Zi</span>
                 <span className="font-medium">{Math.round(dayCoverage)}%</span>
               </div>
-              <Progress value={dayCoverage} className="h-2" />
+              <Progress value={Math.min(dayCoverage, 100)} className="h-2" />
               <p className="text-xs text-muted-foreground">
-                {dayShifts} of {requiredDayShifts} required shifts filled
+                {dayShifts} din {requiredDayShifts} ture necesare
               </p>
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Night Shift Coverage</span>
+                <span className="text-muted-foreground">Acoperire Ture de Noapte</span>
                 <span className="font-medium">{Math.round(nightCoverage)}%</span>
               </div>
-              <Progress value={nightCoverage} className="h-2" />
+              <Progress value={Math.min(nightCoverage, 100)} className="h-2" />
               <p className="text-xs text-muted-foreground">
-                {nightShifts} of {requiredNightShifts} required shifts filled
+                {nightShifts} din {requiredNightShifts} ture necesare
               </p>
             </div>
 
             <div className="pt-4 border-t">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Overall Coverage</span>
+                <span className="text-sm font-medium">Acoperire Totală</span>
                 <span className="text-lg font-bold">
-                  {Math.round(((dayShifts + nightShifts) / (requiredDayShifts + requiredNightShifts)) * 100)}%
+                  {Math.round(((dayShifts + nightShifts) / (requiredDayShifts + requiredNightShifts)) * 100) || 0}%
                 </span>
               </div>
+            </div>
+
+            <div className="pt-4 border-t">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Normă de bază / doctor</span>
+                <span className="font-medium">{baseNormPerDoctor}h</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                ({workingDays} zile lucrătoare × {SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY}h)
+              </p>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Team Overview</CardTitle>
+            <CardTitle>Prezentare Echipe</CardTitle>
             <CardDescription>
-              {teams.length} teams configured
+              {teams.length} echipe configurate
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -183,19 +196,19 @@ export default function SummaryDashboard({
                     <div>
                       <p className="font-medium">{team.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {doctorCount} doctor{doctorCount !== 1 ? 's' : ''}
+                        {doctorCount} doctor{doctorCount !== 1 ? 'i' : ''}
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="font-semibold">{shiftCount}</p>
-                    <p className="text-xs text-muted-foreground">shifts</p>
+                    <p className="text-xs text-muted-foreground">ture</p>
                   </div>
                 </div>
               ))}
               {teams.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  No teams configured yet
+                  Nicio echipă configurată încă
                 </p>
               )}
             </div>
@@ -208,10 +221,10 @@ export default function SummaryDashboard({
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-yellow-600" />
-              Schedule Conflicts
+              Conflicte Program
             </CardTitle>
             <CardDescription>
-              Issues that need attention
+              Probleme care necesită atenție
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -232,7 +245,7 @@ export default function SummaryDashboard({
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            No doctors configured. Please add doctors in the Configuration tab to get started.
+            Niciun doctor configurat. Adaugă doctori în tab-ul Configurare pentru a începe.
           </AlertDescription>
         </Alert>
       )}
@@ -241,7 +254,7 @@ export default function SummaryDashboard({
         <Alert>
           <Calendar className="h-4 w-4" />
           <AlertDescription>
-            No schedule generated yet. Go to the Calendar tab to generate a schedule.
+            Niciun program generat încă. Mergi la tab-ul Tabel pentru a genera un program.
           </AlertDescription>
         </Alert>
       )}

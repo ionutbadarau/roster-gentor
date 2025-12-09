@@ -12,18 +12,18 @@ interface QuickStartGuideProps {
 export default function QuickStartGuide({ hasTeams, hasDoctors, hasSchedule }: QuickStartGuideProps) {
   const steps = [
     {
-      title: 'Create Teams',
-      description: 'Set up shift teams in the Configuration tab',
+      title: 'Creează Echipe',
+      description: 'Configurează echipele în tab-ul Configurare',
       completed: hasTeams,
     },
     {
-      title: 'Add Doctors',
-      description: 'Add doctors and assign them to teams',
+      title: 'Adaugă Doctori',
+      description: 'Adaugă doctori și asignează-i la echipe',
       completed: hasDoctors,
     },
     {
-      title: 'Generate Schedule',
-      description: 'Create monthly schedules in the Calendar tab',
+      title: 'Generează Program',
+      description: 'Creează programul lunar în tab-ul Tabel',
       completed: hasSchedule,
     },
   ];
@@ -35,8 +35,8 @@ export default function QuickStartGuide({ hasTeams, hasDoctors, hasSchedule }: Q
   return (
     <Card className="border-primary/50 bg-primary/5">
       <CardHeader>
-        <CardTitle>Quick Start Guide</CardTitle>
-        <CardDescription>Follow these steps to get started with shift planning</CardDescription>
+        <CardTitle>Ghid de Pornire Rapidă</CardTitle>
+        <CardDescription>Urmează acești pași pentru a începe planificarea turelor</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-3">

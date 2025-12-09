@@ -56,8 +56,8 @@ export default function DoctorView({
   };
 
   const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
+    'Ianuarie', 'Februarie', 'Martie', 'Aprilie', 'Mai', 'Iunie',
+    'Iulie', 'August', 'Septembrie', 'Octombrie', 'Noiembrie', 'Decembrie'
   ];
 
   return (
@@ -66,9 +66,9 @@ export default function DoctorView({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <User className="h-5 w-5" />
-            Doctors
+            Doctori
           </CardTitle>
-          <CardDescription>Select a doctor to view their schedule</CardDescription>
+          <CardDescription>Selectează un doctor pentru a vedea programul</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2 max-h-[600px] overflow-y-auto">
@@ -100,7 +100,7 @@ export default function DoctorView({
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">{doctor.name}</p>
                       <p className={`text-xs truncate ${isSelected ? 'opacity-90' : 'text-muted-foreground'}`}>
-                        {doctor.is_floating ? 'Floating Staff' : team ? team.name : 'No Team'}
+                        {doctor.is_floating ? 'Personal Flotant' : team ? team.name : 'Fără Echipă'}
                       </p>
                     </div>
                     {team && (
@@ -115,7 +115,7 @@ export default function DoctorView({
             })}
             {doctors.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-8">
-                No doctors available. Add doctors in the Configuration tab.
+                Niciun doctor disponibil. Adaugă doctori în tab-ul Configurare.
               </p>
             )}
           </div>
@@ -126,12 +126,12 @@ export default function DoctorView({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
-            {selectedDoctor ? `${selectedDoctor.name}'s Schedule` : 'Doctor Schedule'}
+            {selectedDoctor ? `Programul lui ${selectedDoctor.name}` : 'Program Doctor'}
           </CardTitle>
           <CardDescription>
             {selectedDoctor
-              ? `Viewing schedule for ${monthNames[currentMonth]} ${currentYear}`
-              : 'Select a doctor to view their schedule'}
+              ? `Vizualizare program pentru ${monthNames[currentMonth]} ${currentYear}`
+              : 'Selectează un doctor pentru a vedea programul'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -146,17 +146,17 @@ export default function DoctorView({
                   return (
                     <>
                       <div className="bg-card border rounded-lg p-4">
-                        <p className="text-sm text-muted-foreground mb-1">Total Shifts</p>
+                        <p className="text-sm text-muted-foreground mb-1">Total Ture</p>
                         <p className="text-2xl font-bold">{stats.totalShifts}</p>
                       </div>
                       <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                        <p className="text-sm text-blue-700 dark:text-blue-300 mb-1">Day Shifts</p>
+                        <p className="text-sm text-blue-700 dark:text-blue-300 mb-1">Ture de Zi</p>
                         <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
                           {stats.dayShifts}
                         </p>
                       </div>
                       <div className="bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 rounded-lg p-4">
-                        <p className="text-sm text-indigo-700 dark:text-indigo-300 mb-1">Night Shifts</p>
+                        <p className="text-sm text-indigo-700 dark:text-indigo-300 mb-1">Ture de Noapte</p>
                         <p className="text-2xl font-bold text-indigo-700 dark:text-indigo-300">
                           {stats.nightShifts}
                         </p>
@@ -164,7 +164,7 @@ export default function DoctorView({
                       <div className="bg-card border rounded-lg p-4">
                         <p className="text-sm text-muted-foreground mb-1 flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          Total Hours
+                          Total Ore
                         </p>
                         <p className="text-2xl font-bold">{stats.totalHours}h</p>
                       </div>
@@ -174,7 +174,7 @@ export default function DoctorView({
               </div>
 
               <div>
-                <h4 className="font-semibold mb-3">Shift Details</h4>
+                <h4 className="font-semibold mb-3">Detalii Ture</h4>
                 <div className="space-y-2 max-h-[400px] overflow-y-auto">
                   {(() => {
                     const doctorShifts = getDoctorShifts(selectedDoctor.id).sort(
@@ -184,15 +184,15 @@ export default function DoctorView({
                     if (doctorShifts.length === 0) {
                       return (
                         <p className="text-sm text-muted-foreground text-center py-8">
-                          No shifts scheduled for this month
+                          Nicio tură programată pentru această lună
                         </p>
                       );
                     }
 
                     return doctorShifts.map((shift) => {
                       const date = new Date(shift.shift_date);
-                      const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-                      const dateStr = date.toLocaleDateString('en-US', {
+                      const dayName = date.toLocaleDateString('ro-RO', { weekday: 'short' });
+                      const dateStr = date.toLocaleDateString('ro-RO', {
                         month: 'short',
                         day: 'numeric',
                       });
@@ -218,14 +218,14 @@ export default function DoctorView({
                                     : 'text-indigo-700 dark:text-indigo-300'
                                 }`}
                               >
-                                {shift.shift_type === 'day' ? 'Day Shift' : 'Night Shift'}
+                                {shift.shift_type === 'day' ? 'Tură de Zi' : 'Tură de Noapte'}
                               </p>
                             </div>
                             <div className="text-right">
                               <p className="text-sm font-medium">
                                 {shift.start_time} - {shift.end_time}
                               </p>
-                              <p className="text-xs text-muted-foreground">12 hours</p>
+                              <p className="text-xs text-muted-foreground">12 ore</p>
                             </div>
                           </div>
                         </div>
@@ -239,7 +239,7 @@ export default function DoctorView({
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <User className="h-16 w-16 text-muted-foreground mb-4" />
               <p className="text-muted-foreground">
-                Select a doctor from the list to view their schedule
+                Selectează un doctor din listă pentru a vedea programul
               </p>
             </div>
           )}

@@ -5,16 +5,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import ConfigurationPanel from './configuration-panel';
 import MonthlyCalendar from './monthly-calendar';
+import ShiftGridCalendar from './shift-grid-calendar';
 import DoctorView from './doctor-view';
 import SummaryDashboard from './summary-dashboard';
-import { Doctor, Team, Shift } from '@/types/scheduling';
+import { Doctor, Team, Shift, LeaveDay } from '@/types/scheduling';
 import { createClient } from '../../../supabase/client';
-import { Calendar, Settings, Users, BarChart3 } from 'lucide-react';
+import { Calendar, Settings, Users, BarChart3, Grid3X3 } from 'lucide-react';
 
 export default function SchedulingDashboard() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
+  const [leaveDays, setLeaveDays] = useState<LeaveDay[]>([]);
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
@@ -29,15 +31,17 @@ export default function SchedulingDashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [doctorsRes, teamsRes, shiftsRes] = await Promise.all([
+      const [doctorsRes, teamsRes, shiftsRes, leaveDaysRes] = await Promise.all([
         supabase.from('doctors').select('*'),
         supabase.from('teams').select('*'),
         supabase.from('shifts').select('*'),
+        supabase.from('leave_days').select('*'),
       ]);
 
       if (doctorsRes.data) setDoctors(doctorsRes.data);
       if (teamsRes.data) setTeams(teamsRes.data);
       if (shiftsRes.data) setShifts(shiftsRes.data);
+      if (leaveDaysRes.data) setLeaveDays(leaveDaysRes.data);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -53,12 +57,16 @@ export default function SchedulingDashboard() {
     setShifts(newShifts);
   };
 
+  const handleLeaveDaysUpdate = (newLeaveDays: LeaveDay[]) => {
+    setLeaveDays(newLeaveDays);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading schedule data...</p>
+          <p className="text-muted-foreground">Se încarcă datele...</p>
         </div>
       </div>
     );
@@ -67,17 +75,21 @@ export default function SchedulingDashboard() {
   return (
     <div className="container mx-auto px-4 py-6 max-w-7xl">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Doctor Shift Planning</h1>
+        <h1 className="text-3xl font-bold mb-2">Planificare Ture Medici</h1>
         <p className="text-muted-foreground">
-          Manage medical staff schedules with automated shift generation and conflict detection
+          Gestionează programul personalului medical cu generare automată și detectare conflicte
         </p>
       </div>
 
-      <Tabs defaultValue="dashboard" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 mb-6">
+      <Tabs defaultValue="grid" className="w-full">
+        <TabsList className="grid w-full grid-cols-5 mb-6">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             <span className="hidden sm:inline">Dashboard</span>
+          </TabsTrigger>
+          <TabsTrigger value="grid" className="flex items-center gap-2">
+            <Grid3X3 className="h-4 w-4" />
+            <span className="hidden sm:inline">Tabel</span>
           </TabsTrigger>
           <TabsTrigger value="calendar" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
@@ -85,11 +97,11 @@ export default function SchedulingDashboard() {
           </TabsTrigger>
           <TabsTrigger value="doctors" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
-            <span className="hidden sm:inline">Doctors</span>
+            <span className="hidden sm:inline">Doctori</span>
           </TabsTrigger>
           <TabsTrigger value="config" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
-            <span className="hidden sm:inline">Configuration</span>
+            <span className="hidden sm:inline">Configurare</span>
           </TabsTrigger>
         </TabsList>
 
@@ -100,6 +112,23 @@ export default function SchedulingDashboard() {
             shifts={shifts}
             currentMonth={currentMonth}
             currentYear={currentYear}
+          />
+        </TabsContent>
+
+        <TabsContent value="grid" className="space-y-4">
+          <ShiftGridCalendar
+            doctors={doctors}
+            teams={teams}
+            shifts={shifts}
+            leaveDays={leaveDays}
+            currentMonth={currentMonth}
+            currentYear={currentYear}
+            onMonthChange={(month, year) => {
+              setCurrentMonth(month);
+              setCurrentYear(year);
+            }}
+            onShiftsUpdate={handleScheduleGenerated}
+            onLeaveDaysUpdate={handleLeaveDaysUpdate}
           />
         </TabsContent>
 

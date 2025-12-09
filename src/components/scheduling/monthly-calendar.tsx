@@ -31,12 +31,13 @@ export default function MonthlyCalendar({
 }: MonthlyCalendarProps) {
   const [generating, setGenerating] = useState(false);
   const [conflicts, setConflicts] = useState<ScheduleConflict[]>([]);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const supabase = createClient();
   const { toast } = useToast();
 
   const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
+    'Ianuarie', 'Februarie', 'Martie', 'Aprilie', 'Mai', 'Iunie',
+    'Iulie', 'August', 'Septembrie', 'Octombrie', 'Noiembrie', 'Decembrie'
   ];
 
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -61,8 +62,8 @@ export default function MonthlyCalendar({
   const handleGenerateSchedule = async () => {
     if (doctors.length === 0) {
       toast({
-        title: 'Error',
-        description: 'Please add doctors before generating schedule',
+        title: 'Eroare',
+        description: 'Adaugă doctori înainte de a genera programul',
         variant: 'destructive',
       });
       return;
@@ -77,11 +78,12 @@ export default function MonthlyCalendar({
         teams,
         shiftsPerDay: 3,
         shiftsPerNight: 3,
+        leaveDays: [],
       });
 
-      const newShifts = engine.generateSchedule();
-      const detectedConflicts = SchedulingEngine.detectConflicts(newShifts, doctors);
-      setConflicts(detectedConflicts);
+      const result = engine.generateSchedule();
+      setConflicts(result.conflicts);
+      setWarnings(result.warnings);
 
       await supabase
         .from('shifts')
@@ -90,22 +92,22 @@ export default function MonthlyCalendar({
         .lte('shift_date', `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${daysInMonth}`);
 
       const { error } = await supabase.from('shifts').insert(
-        newShifts.map(({ id, ...shift }) => shift)
+        result.shifts.map(({ id, ...shift }) => shift)
       );
 
       if (error) throw error;
 
       toast({
-        title: 'Success',
-        description: `Schedule generated for ${monthNames[currentMonth]} ${currentYear}`,
+        title: 'Succes',
+        description: `Program generat pentru ${monthNames[currentMonth]} ${currentYear}`,
       });
 
-      onShiftsUpdate(newShifts);
+      onShiftsUpdate(result.shifts);
     } catch (error) {
       console.error('Error generating schedule:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to generate schedule',
+        title: 'Eroare',
+        description: 'Nu s-a putut genera programul',
         variant: 'destructive',
       });
     } finally {
@@ -142,15 +144,15 @@ export default function MonthlyCalendar({
             <div>
               <CardTitle className="flex items-center gap-2">
                 <CalendarIcon className="h-5 w-5" />
-                Monthly Schedule
+                Program Lunar
               </CardTitle>
               <CardDescription>
-                View and manage shift assignments for the month
+                Vizualizează și gestionează turele pentru lună
               </CardDescription>
             </div>
             <Button onClick={handleGenerateSchedule} disabled={generating}>
               <Sparkles className="h-4 w-4 mr-2" />
-              {generating ? 'Generating...' : 'Generate Schedule'}
+              {generating ? 'Se generează...' : 'Generează Program'}
             </Button>
           </div>
         </CardHeader>
@@ -171,13 +173,13 @@ export default function MonthlyCalendar({
             <Alert className="mb-4 border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
               <AlertTriangle className="h-4 w-4 text-yellow-600" />
               <AlertDescription className="text-yellow-800 dark:text-yellow-200">
-                {conflicts.length} conflict(s) detected in the schedule
+                {conflicts.length} conflict(e) detectate în program
               </AlertDescription>
             </Alert>
           )}
 
           <div className="grid grid-cols-7 gap-2">
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+            {['D', 'L', 'Ma', 'Mi', 'J', 'V', 'S'].map((day) => (
               <div key={day} className="text-center font-semibold text-sm py-2 text-muted-foreground">
                 {day}
               </div>
@@ -201,12 +203,12 @@ export default function MonthlyCalendar({
                   <div className="space-y-1">
                     {dayShiftCount > 0 && (
                       <div className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded">
-                        Day: {dayShiftCount}
+                        Z: {dayShiftCount}
                       </div>
                     )}
                     {nightShiftCount > 0 && (
                       <div className="text-xs bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded">
-                        Night: {nightShiftCount}
+                        N: {nightShiftCount}
                       </div>
                     )}
                     {dayShifts.slice(0, 6).map((shift) => {
@@ -234,11 +236,11 @@ export default function MonthlyCalendar({
           <div className="mt-6 flex items-center gap-4 text-sm">
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 bg-blue-100 dark:bg-blue-900 rounded"></div>
-              <span className="text-muted-foreground">Day Shift (8:00-20:00)</span>
+              <span className="text-muted-foreground">Tură de Zi (8:00-20:00)</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 bg-indigo-100 dark:bg-indigo-900 rounded"></div>
-              <span className="text-muted-foreground">Night Shift (20:00-8:00)</span>
+              <span className="text-muted-foreground">Tură de Noapte (20:00-8:00)</span>
             </div>
           </div>
         </CardContent>

@@ -33,8 +33,8 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
   const handleAddTeam = async () => {
     if (!newTeamName.trim()) {
       toast({
-        title: 'Error',
-        description: 'Team name is required',
+        title: 'Eroare',
+        description: 'Numele echipei este obligatoriu',
         variant: 'destructive',
       });
       return;
@@ -51,8 +51,8 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
       if (error) throw error;
 
       toast({
-        title: 'Success',
-        description: 'Team added successfully',
+        title: 'Succes',
+        description: 'Echipa a fost adăugată cu succes',
       });
 
       setNewTeamName('');
@@ -62,8 +62,8 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
     } catch (error) {
       console.error('Error adding team:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to add team',
+        title: 'Eroare',
+        description: 'Nu s-a putut adăuga echipa',
         variant: 'destructive',
       });
     } finally {
@@ -79,16 +79,16 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
       if (error) throw error;
 
       toast({
-        title: 'Success',
-        description: 'Team deleted successfully',
+        title: 'Succes',
+        description: 'Echipa a fost ștearsă cu succes',
       });
 
       onUpdate();
     } catch (error) {
       console.error('Error deleting team:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to delete team',
+        title: 'Eroare',
+        description: 'Nu s-a putut șterge echipa',
         variant: 'destructive',
       });
     } finally {
@@ -99,8 +99,8 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
   const handleAddDoctor = async () => {
     if (!newDoctorName.trim()) {
       toast({
-        title: 'Error',
-        description: 'Doctor name is required',
+        title: 'Eroare',
+        description: 'Numele doctorului este obligatoriu',
         variant: 'destructive',
       });
       return;
@@ -118,8 +118,8 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
       if (error) throw error;
 
       toast({
-        title: 'Success',
-        description: 'Doctor added successfully',
+        title: 'Succes',
+        description: 'Doctorul a fost adăugat cu succes',
       });
 
       setNewDoctorName('');
@@ -130,8 +130,8 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
     } catch (error) {
       console.error('Error adding doctor:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to add doctor',
+        title: 'Eroare',
+        description: 'Nu s-a putut adăuga doctorul',
         variant: 'destructive',
       });
     } finally {
@@ -147,16 +147,16 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
       if (error) throw error;
 
       toast({
-        title: 'Success',
-        description: 'Doctor removed successfully',
+        title: 'Succes',
+        description: 'Doctorul a fost eliminat cu succes',
       });
 
       onUpdate();
     } catch (error) {
       console.error('Error deleting doctor:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to remove doctor',
+        title: 'Eroare',
+        description: 'Nu s-a putut elimina doctorul',
         variant: 'destructive',
       });
     } finally {
@@ -174,26 +174,26 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Team Configuration
+            Configurare Echipe
           </CardTitle>
           <CardDescription>
-            Define shift teams and their maximum capacity
+            Definește echipele și capacitatea maximă
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="team-name">Team Name</Label>
+              <Label htmlFor="team-name">Nume Echipă</Label>
               <Input
                 id="team-name"
-                placeholder="e.g., Team Alpha"
+                placeholder="ex. Echipa Alpha"
                 value={newTeamName}
                 onChange={(e) => setNewTeamName(e.target.value)}
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Team Color</Label>
+              <Label>Culoare Echipă</Label>
               <div className="flex gap-2">
                 {teamColors.map((color) => (
                   <button
@@ -209,7 +209,7 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="max-members">Max Members</Label>
+              <Label htmlFor="max-members">Membri Maximi</Label>
               <Input
                 id="max-members"
                 type="number"
@@ -222,12 +222,12 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
 
             <Button onClick={handleAddTeam} disabled={loading} className="w-full">
               <Plus className="h-4 w-4 mr-2" />
-              Add Team
+              Adaugă Echipă
             </Button>
           </div>
 
           <div className="space-y-2">
-            <Label>Existing Teams ({teams.length})</Label>
+            <Label>Echipe Existente ({teams.length})</Label>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {teams.map((team) => (
                 <div
@@ -242,7 +242,7 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
                     <div>
                       <p className="font-medium">{team.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        Max {team.max_members} members
+                        Max {team.max_members} membri
                       </p>
                     </div>
                   </div>
@@ -258,7 +258,7 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
               ))}
               {teams.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  No teams configured yet
+                  Nicio echipă configurată încă
                 </p>
               )}
             </div>
@@ -270,37 +270,37 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Doctor Management
+            Gestionare Doctori
           </CardTitle>
           <CardDescription>
-            Add doctors and assign them to teams
+            Adaugă doctori și asignează-i la echipe
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="doctor-name">Doctor Name</Label>
+              <Label htmlFor="doctor-name">Nume Doctor</Label>
               <Input
                 id="doctor-name"
-                placeholder="Dr. John Smith"
+                placeholder="Dr. Ion Popescu"
                 value={newDoctorName}
                 onChange={(e) => setNewDoctorName(e.target.value)}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="doctor-email">Email (Optional)</Label>
+              <Label htmlFor="doctor-email">Email (Opțional)</Label>
               <Input
                 id="doctor-email"
                 type="email"
-                placeholder="doctor@hospital.com"
+                placeholder="doctor@spital.ro"
                 value={newDoctorEmail}
                 onChange={(e) => setNewDoctorEmail(e.target.value)}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="team-select">Assign to Team</Label>
+              <Label htmlFor="team-select">Asignează la Echipă</Label>
               <select
                 id="team-select"
                 className="w-full px-3 py-2 rounded-md border border-input bg-background"
@@ -308,7 +308,7 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
                 onChange={(e) => setSelectedTeamId(e.target.value)}
                 disabled={isFloating}
               >
-                <option value="">No Team (Floating)</option>
+                <option value="">Fără Echipă (Flotant)</option>
                 {teams.map((team) => (
                   <option key={team.id} value={team.id}>
                     {team.name}
@@ -319,9 +319,9 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
 
             <div className="flex items-center justify-between p-3 rounded-lg border">
               <div>
-                <Label htmlFor="floating-switch">Floating Staff</Label>
+                <Label htmlFor="floating-switch">Personal Flotant</Label>
                 <p className="text-xs text-muted-foreground">
-                  Can fill in for any team
+                  Poate înlocui în orice echipă
                 </p>
               </div>
               <Switch
@@ -336,12 +336,12 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
 
             <Button onClick={handleAddDoctor} disabled={loading} className="w-full">
               <Plus className="h-4 w-4 mr-2" />
-              Add Doctor
+              Adaugă Doctor
             </Button>
           </div>
 
           <div className="space-y-2">
-            <Label>Doctors ({doctors.length})</Label>
+            <Label>Doctori ({doctors.length})</Label>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {doctors.map((doctor) => {
                 const team = teams.find((t) => t.id === doctor.team_id);
@@ -361,10 +361,10 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
                         <p className="font-medium">{doctor.name}</p>
                         <p className="text-xs text-muted-foreground">
                           {doctor.is_floating
-                            ? 'Floating Staff'
+                            ? 'Personal Flotant'
                             : team
                             ? team.name
-                            : 'No Team'}
+                            : 'Fără Echipă'}
                         </p>
                       </div>
                     </div>
@@ -381,7 +381,7 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
               })}
               {doctors.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  No doctors added yet
+                  Niciun doctor adăugat încă
                 </p>
               )}
             </div>
