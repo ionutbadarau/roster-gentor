@@ -54,28 +54,15 @@ export default function ShiftGridCalendar({
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-  // Calculate possible leave days
-  const possibleLeaveDays = useMemo(() => {
-    return SchedulingEngine.calculatePossibleLeaveDays(
-      currentMonth,
-      currentYear,
-      doctors.length,
-      3, // shiftsPerDay
-      3  // shiftsPerNight
-    );
-  }, [currentMonth, currentYear, doctors.length]);
-
   const currentLeaveDaysCount = leaveDays.filter(l => {
     const date = new Date(l.leave_date);
     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
   }).length;
 
-  const remainingLeaveDays = possibleLeaveDays - currentLeaveDaysCount;
-
   // Sort doctors: team doctors first (by team order), then floating
   const sortedDoctors = useMemo(() => {
-    const teamDoctors = doctors.filter(d => !d.is_floating && d.team_id);
-    const floatingDoctors = doctors.filter(d => d.is_floating);
+    const teamDoctors = doctors.filter(d => d.team_id && !d.is_floating);
+    const floatingDoctors = doctors.filter(d => d.is_floating || !d.team_id);
     
     teamDoctors.sort((a, b) => {
       const teamA = teams.find(t => t.id === a.team_id);
@@ -113,7 +100,13 @@ export default function ShiftGridCalendar({
     }
 
     setGenerating(true);
+    const monthStart = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`;
+    const monthEnd = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+
     try {
+      // Clear current month from local state immediately so the UI is clean
+      onShiftsUpdate(shifts.filter(s => s.shift_date < monthStart || s.shift_date > monthEnd));
+
       const engine = new SchedulingEngine({
         month: currentMonth,
         year: currentYear,
@@ -127,12 +120,14 @@ export default function ShiftGridCalendar({
       const result = engine.generateSchedule();
       setWarnings(result.warnings);
 
-      // Delete existing shifts for this month
-      await supabase
+      // Delete existing shifts for this month from DB
+      const { error: deleteError } = await supabase
         .from('shifts')
         .delete()
-        .gte('shift_date', `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`)
-        .lte('shift_date', `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${daysInMonth}`);
+        .gte('shift_date', monthStart)
+        .lte('shift_date', monthEnd);
+
+      if (deleteError) throw deleteError;
 
       // Insert new shifts
       const { error } = await supabase.from('shifts').insert(
@@ -169,106 +164,87 @@ export default function ShiftGridCalendar({
     return leaveDays.some(l => l.doctor_id === doctorId && l.leave_date === dateStr);
   };
 
-  const handleCellClick = async (doctorId: string, day: number, currentShift?: Shift) => {
+  // Unified handler for all cell actions. Clicking an already-active option removes it (toggle off).
+  // Clicking a different option removes the current state first, then adds the new one.
+  const handleCellAction = async (
+    doctorId: string,
+    day: number,
+    action: 'day' | 'night' | 'leave',
+    currentShift?: Shift,
+    hasLeave?: boolean
+  ) => {
     const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    
-    if (currentShift) {
-      // Remove the shift
-      try {
+
+    try {
+      let updatedShifts = [...shifts];
+      let updatedLeaveDays = [...leaveDays];
+
+      // Remove existing shift if present
+      if (currentShift) {
         await supabase.from('shifts').delete().eq('id', currentShift.id);
-        onShiftsUpdate(shifts.filter(s => s.id !== currentShift.id));
-        toast({
-          title: 'Tura eliminată',
-          description: `Tura din ${day} ${monthNames[currentMonth]} a fost eliminată`,
-        });
-      } catch (error) {
-        console.error('Error removing shift:', error);
-        toast({
-          title: 'Eroare',
-          description: 'Nu s-a putut elimina tura',
-          variant: 'destructive',
-        });
-      }
-    }
-  };
+        updatedShifts = updatedShifts.filter(s => s.id !== currentShift.id);
 
-  const handleAddShift = async (doctorId: string, day: number, shiftType: 'day' | 'night') => {
-    const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    
-    try {
-      const newShift = {
-        doctor_id: doctorId,
-        shift_date: dateStr,
-        shift_type: shiftType,
-        start_time: shiftType === 'day' ? '08:00' : '20:00',
-        end_time: shiftType === 'day' ? '20:00' : '08:00',
-      };
-
-      const { data, error } = await supabase.from('shifts').insert(newShift).select().single();
-
-      if (error) throw error;
-
-      onShiftsUpdate([...shifts, data]);
-      toast({
-        title: 'Tură adăugată',
-        description: `Tură de ${shiftType === 'day' ? 'zi' : 'noapte'} adăugată pentru ${day} ${monthNames[currentMonth]}`,
-      });
-    } catch (error) {
-      console.error('Error adding shift:', error);
-      toast({
-        title: 'Eroare',
-        description: 'Nu s-a putut adăuga tura',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleToggleLeaveDay = async (doctorId: string, day: number) => {
-    const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const existingLeave = leaveDays.find(l => l.doctor_id === doctorId && l.leave_date === dateStr);
-
-    try {
-      if (existingLeave) {
-        // Remove leave day
-        await supabase.from('leave_days').delete().eq('id', existingLeave.id);
-        onLeaveDaysUpdate(leaveDays.filter(l => l.id !== existingLeave.id));
-        toast({
-          title: 'Concediu eliminat',
-          description: `Ziua de concediu din ${day} ${monthNames[currentMonth]} a fost eliminată`,
-        });
-      } else {
-        // Check if we can add more leave days
-        if (remainingLeaveDays <= 0) {
-          toast({
-            title: 'Limită atinsă',
-            description: 'Nu mai poți adăuga zile de concediu pentru această lună',
-            variant: 'destructive',
-          });
+        if (action === currentShift.shift_type) {
+          // Same type clicked → toggle off
+          onShiftsUpdate(updatedShifts);
+          toast({ title: 'Tură eliminată', description: `Tura din ${day} ${monthNames[currentMonth]} a fost eliminată` });
           return;
         }
+      }
 
-        // Add leave day
+      // Remove existing leave day if present
+      if (hasLeave) {
+        const existingLeave = leaveDays.find(l => l.doctor_id === doctorId && l.leave_date === dateStr);
+        if (existingLeave) {
+          await supabase.from('leave_days').delete().eq('id', existingLeave.id);
+          updatedLeaveDays = updatedLeaveDays.filter(l => l.id !== existingLeave.id);
+
+          if (action === 'leave') {
+            // Concediu clicked again → toggle off
+            onLeaveDaysUpdate(updatedLeaveDays);
+            toast({ title: 'Concediu eliminat', description: `Ziua de concediu din ${day} ${monthNames[currentMonth]} a fost eliminată` });
+            return;
+          }
+
+          // Switching from leave to a shift — persist the leave removal immediately
+          onLeaveDaysUpdate(updatedLeaveDays);
+        }
+      }
+
+      // Add new state
+      if (action === 'leave') {
         const { data, error } = await supabase
           .from('leave_days')
           .insert({ doctor_id: doctorId, leave_date: dateStr })
           .select()
           .single();
-
         if (error) throw error;
 
-        onLeaveDaysUpdate([...leaveDays, data]);
+        onLeaveDaysUpdate([...updatedLeaveDays, data]);
+        toast({ title: 'Concediu adăugat', description: `Zi de concediu adăugată pentru ${day} ${monthNames[currentMonth]}` });
+      } else {
+        const { data, error } = await supabase
+          .from('shifts')
+          .insert({
+            doctor_id: doctorId,
+            shift_date: dateStr,
+            shift_type: action,
+            start_time: action === 'day' ? '08:00' : '20:00',
+            end_time: action === 'day' ? '20:00' : '08:00',
+          })
+          .select()
+          .single();
+        if (error) throw error;
+
+        onShiftsUpdate([...updatedShifts, data]);
         toast({
-          title: 'Concediu adăugat',
-          description: `Zi de concediu adăugată pentru ${day} ${monthNames[currentMonth]}`,
+          title: 'Tură adăugată',
+          description: `Tură de ${action === 'day' ? 'zi' : 'noapte'} adăugată pentru ${day} ${monthNames[currentMonth]}`,
         });
       }
     } catch (error) {
-      console.error('Error toggling leave day:', error);
-      toast({
-        title: 'Eroare',
-        description: 'Nu s-a putut modifica concediul',
-        variant: 'destructive',
-      });
+      console.error('Error updating cell:', error);
+      toast({ title: 'Eroare', description: 'Nu s-a putut actualiza celula', variant: 'destructive' });
     }
   };
 
@@ -290,15 +266,16 @@ export default function ShiftGridCalendar({
     return dayOfWeek === 0 || dayOfWeek === 6;
   };
 
-  // Calculate doctor stats for the month
+  // Calculate doctor stats for the current month only.
   const getDoctorStats = (doctorId: string) => {
-    const doctorShifts = shifts.filter(s => s.doctor_id === doctorId);
+    const monthPrefix = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+    const doctorShifts = shifts.filter(s => s.doctor_id === doctorId && s.shift_date.startsWith(monthPrefix));
     const dayShifts = doctorShifts.filter(s => s.shift_type === 'day').length;
     const nightShifts = doctorShifts.filter(s => s.shift_type === 'night').length;
     const totalHours = (dayShifts + nightShifts) * SCHEDULING_CONSTANTS.SHIFT_DURATION;
     const doctorLeaveDays = leaveDays.filter(l => l.doctor_id === doctorId).length;
     const workingDays = SchedulingEngine.getWorkingDaysInMonthStatic(currentMonth, currentYear);
-    const baseNorm = SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * (workingDays - doctorLeaveDays);
+    const baseNorm = SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * workingDays - SCHEDULING_CONSTANTS.SHIFT_DURATION * doctorLeaveDays;
     
     return { dayShifts, nightShifts, totalHours, baseNorm };
   };
@@ -319,9 +296,9 @@ export default function ShiftGridCalendar({
             </div>
             <div className="flex items-center gap-4">
               <div className="text-sm">
-                <span className="text-muted-foreground">Zile concediu disponibile: </span>
-                <Badge variant={remainingLeaveDays > 0 ? 'default' : 'destructive'}>
-                  {remainingLeaveDays} / {possibleLeaveDays}
+                <span className="text-muted-foreground">Zile concediu luna aceasta: </span>
+                <Badge variant="outline">
+                  {currentLeaveDaysCount}
                 </Badge>
               </div>
               <Button onClick={handleGenerateSchedule} disabled={generating}>
@@ -408,7 +385,7 @@ export default function ShiftGridCalendar({
                     {days.map(day => {
                       const shift = getShiftForDoctorAndDay(doctor.id, day);
                       const isLeave = isLeaveDay(doctor.id, day);
-                      
+
                       return (
                         <div
                           key={day}
@@ -416,50 +393,41 @@ export default function ShiftGridCalendar({
                             isWeekend(day) ? 'bg-muted/30' : ''
                           }`}
                         >
-                          {isLeave ? (
-                            <button
-                              onClick={() => handleToggleLeaveDay(doctor.id, day)}
-                              className="w-full h-full flex items-center justify-center bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 text-xs font-bold hover:bg-orange-200 dark:hover:bg-orange-800 transition-colors"
-                              title="Concediu - click pentru a elimina"
-                            >
-                              C
-                            </button>
-                          ) : shift ? (
-                            <button
-                              onClick={() => handleCellClick(doctor.id, day, shift)}
-                              className={`w-full h-full flex items-center justify-center text-xs font-bold transition-colors ${
-                                shift.shift_type === 'day'
-                                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800'
-                                  : 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800'
-                              }`}
-                              title={`${shift.shift_type === 'day' ? 'Tură de zi' : 'Tură de noapte'} - click pentru a elimina`}
-                            >
-                              {shift.shift_type === 'day' ? 'Z' : 'N'}
-                            </button>
-                          ) : (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <button
-                                  className="w-full h-full min-h-[32px] hover:bg-accent transition-colors"
-                                  title="Click pentru a adăuga tură sau concediu"
-                                />
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="center">
-                                <DropdownMenuItem onClick={() => handleAddShift(doctor.id, day, 'day')}>
-                                  <span className="w-4 h-4 rounded bg-blue-500 mr-2" />
-                                  Tură de Zi (Z)
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleAddShift(doctor.id, day, 'night')}>
-                                  <span className="w-4 h-4 rounded bg-indigo-500 mr-2" />
-                                  Tură de Noapte (N)
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleToggleLeaveDay(doctor.id, day)}>
-                                  <span className="w-4 h-4 rounded bg-orange-500 mr-2" />
-                                  Concediu (C)
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                className={`w-full h-full min-h-[32px] flex items-center justify-center text-xs font-bold transition-colors ${
+                                  isLeave
+                                    ? 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-800'
+                                    : shift?.shift_type === 'day'
+                                    ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800'
+                                    : shift?.shift_type === 'night'
+                                    ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800'
+                                    : 'hover:bg-accent'
+                                }`}
+                                title="Click pentru a modifica"
+                              >
+                                {isLeave ? 'C' : shift?.shift_type === 'day' ? 'Z' : shift?.shift_type === 'night' ? 'N' : ''}
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="center">
+                              <DropdownMenuItem onClick={() => handleCellAction(doctor.id, day, 'day', shift, isLeave)}>
+                                <span className="w-4 h-4 rounded bg-blue-500 mr-2 flex-shrink-0" />
+                                Tură de Zi (Z)
+                                {shift?.shift_type === 'day' && <X className="h-3 w-3 ml-auto opacity-50" />}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleCellAction(doctor.id, day, 'night', shift, isLeave)}>
+                                <span className="w-4 h-4 rounded bg-indigo-500 mr-2 flex-shrink-0" />
+                                Tură de Noapte (N)
+                                {shift?.shift_type === 'night' && <X className="h-3 w-3 ml-auto opacity-50" />}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleCellAction(doctor.id, day, 'leave', shift, isLeave)}>
+                                <span className="w-4 h-4 rounded bg-orange-500 mr-2 flex-shrink-0" />
+                                Concediu (C)
+                                {isLeave && <X className="h-3 w-3 ml-auto opacity-50" />}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       );
                     })}
