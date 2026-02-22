@@ -254,7 +254,9 @@ export class SchedulingEngine {
   }
 
   // Norm-driven selection: picks the team whose available members have the
-  // highest collective deficit, then backfills from other teams + floating.
+  // highest collective deficit, merges with floating doctors, and selects
+  // the top candidates by deficit. This ensures both team cohesion and fair
+  // distribution to floating doctors.
   private selectDoctorsForShift(
     doctorsByTeam: Map<string, DoctorWithTeam[]>,
     floatingDoctors: DoctorWithTeam[],
@@ -264,93 +266,98 @@ export class SchedulingEngine {
     slotsNeeded: number,
     doctorTargetShifts: Map<string, number>
   ): DoctorWithTeam[] {
-    // For each team compute available members and collective need score.
-    const teamAvailable = new Map<string, DoctorWithTeam[]>();
+    // For each team compute available members (only those with positive deficit)
+    // and collective need score.
+    const teamAvailableWithNeed = new Map<string, DoctorWithTeam[]>();
+    const teamAllAvailable = new Map<string, DoctorWithTeam[]>();
     const teamNeedScore = new Map<string, number>();
 
     for (const teamId of teamIds) {
-      const available = this.getSortedAvailableDoctorsByNeed(
+      const allAvail = this.getSortedAvailableDoctorsByNeed(
         doctorsByTeam.get(teamId) || [], currentDate, shiftType, doctorTargetShifts
       );
-      teamAvailable.set(teamId, available);
+      teamAllAvailable.set(teamId, allAvail);
+
+      const withNeed = allAvail.filter(d => this.getDoctorDeficit(d.id, doctorTargetShifts) > 0);
+      teamAvailableWithNeed.set(teamId, withNeed);
+
       teamNeedScore.set(
         teamId,
-        available.reduce((sum, d) => sum + Math.max(0, this.getDoctorDeficit(d.id, doctorTargetShifts)), 0)
+        withNeed.reduce((sum, d) => sum + this.getDoctorDeficit(d.id, doctorTargetShifts), 0)
       );
     }
 
-    // Sort teams: prefer teams that can fill all slots, then highest need score.
+    // Sort teams: prefer teams with more members that still need shifts,
+    // then by highest collective deficit.
     const sortedTeamIds = [...teamIds].sort((a, b) => {
-      const aCanFill = (teamAvailable.get(a)!.length >= slotsNeeded) ? 1 : 0;
-      const bCanFill = (teamAvailable.get(b)!.length >= slotsNeeded) ? 1 : 0;
-      if (aCanFill !== bCanFill) return bCanFill - aCanFill;
+      const aNeedCount = teamAvailableWithNeed.get(a)!.length;
+      const bNeedCount = teamAvailableWithNeed.get(b)!.length;
+      if (aNeedCount !== bNeedCount) return bNeedCount - aNeedCount;
       return (teamNeedScore.get(b) || 0) - (teamNeedScore.get(a) || 0);
     });
 
-    // Start with the best team's available doctors.
-    const bestTeamId = sortedTeamIds[0];
-    const bestTeamAvail = teamAvailable.get(bestTeamId) || [];
-    const selected = bestTeamAvail.slice(0, slotsNeeded);
-
-    // Get available floating doctors sorted by need.
+    // Get available floating doctors.
     const availableFloating = this.getSortedAvailableDoctorsByNeed(
       floatingDoctors, currentDate, shiftType, doctorTargetShifts
     );
 
-    // Even when the team fills all slots, swap in floating doctors that have
-    // a higher deficit than the lowest-deficit team doctor selected.
-    // This ensures floating doctors get their fair share of shifts.
-    if (selected.length >= slotsNeeded && availableFloating.length > 0) {
-      for (const floater of availableFloating) {
-        const floaterDeficit = this.getDoctorDeficit(floater.id, doctorTargetShifts);
-        if (floaterDeficit <= 0) break; // floater doesn't need more shifts
+    // Build candidate pool: best team's doctors with positive deficit + floating doctors with positive deficit.
+    const bestTeamId = sortedTeamIds[0];
+    const bestTeamWithNeed = teamAvailableWithNeed.get(bestTeamId) || [];
+    const floatersWithNeed = availableFloating.filter(d => this.getDoctorDeficit(d.id, doctorTargetShifts) > 0);
 
-        // Find the selected doctor with the lowest deficit.
-        let minIdx = 0;
-        let minDeficit = this.getDoctorDeficit(selected[0].id, doctorTargetShifts);
-        for (let i = 1; i < selected.length; i++) {
-          const d = this.getDoctorDeficit(selected[i].id, doctorTargetShifts);
-          if (d < minDeficit) { minDeficit = d; minIdx = i; }
-        }
+    const candidatePool = [...bestTeamWithNeed, ...floatersWithNeed];
 
-        if (floaterDeficit > minDeficit) {
-          selected[minIdx] = floater;
-        } else {
-          break;
-        }
-      }
-    }
+    // Sort the merged pool by deficit descending, then fewest hours.
+    candidatePool.sort((a, b) => {
+      const aDeficit = this.getDoctorDeficit(a.id, doctorTargetShifts);
+      const bDeficit = this.getDoctorDeficit(b.id, doctorTargetShifts);
+      if (aDeficit !== bDeficit) return bDeficit - aDeficit;
+      return (this.doctorHours.get(a.id) || 0) - (this.doctorHours.get(b.id) || 0);
+    });
 
-    // Backfill remaining slots from other teams + floating doctors.
+    const selected = candidatePool.slice(0, slotsNeeded);
+
+    // If not enough, backfill from other teams (with positive deficit first, then any available).
     if (selected.length < slotsNeeded) {
       const selectedIds = new Set(selected.map(d => d.id));
 
-      const remaining: DoctorWithTeam[] = [];
-
-      // Other teams.
+      // Other teams' doctors with positive deficit.
+      const backfillPool: DoctorWithTeam[] = [];
       for (const teamId of sortedTeamIds) {
         if (teamId === bestTeamId) continue;
-        for (const doc of teamAvailable.get(teamId) || []) {
-          if (!selectedIds.has(doc.id)) remaining.push(doc);
+        for (const doc of teamAvailableWithNeed.get(teamId) || []) {
+          if (!selectedIds.has(doc.id)) backfillPool.push(doc);
+        }
+      }
+      // Floating doctors without positive deficit.
+      for (const doc of availableFloating) {
+        if (!selectedIds.has(doc.id) && this.getDoctorDeficit(doc.id, doctorTargetShifts) <= 0) {
+          backfillPool.push(doc);
+        }
+      }
+      // Other teams' doctors without positive deficit.
+      for (const teamId of sortedTeamIds) {
+        for (const doc of teamAllAvailable.get(teamId) || []) {
+          if (!selectedIds.has(doc.id) && this.getDoctorDeficit(doc.id, doctorTargetShifts) <= 0) {
+            backfillPool.push(doc);
+          }
         }
       }
 
-      // Floating doctors.
-      for (const doc of availableFloating) {
-        if (!selectedIds.has(doc.id)) remaining.push(doc);
-      }
-
-      // Sort all remaining by deficit desc.
-      remaining.sort((a, b) => {
+      backfillPool.sort((a, b) => {
         const aDeficit = this.getDoctorDeficit(a.id, doctorTargetShifts);
         const bDeficit = this.getDoctorDeficit(b.id, doctorTargetShifts);
         if (aDeficit !== bDeficit) return bDeficit - aDeficit;
         return (this.doctorHours.get(a.id) || 0) - (this.doctorHours.get(b.id) || 0);
       });
 
-      for (const doc of remaining) {
+      for (const doc of backfillPool) {
         if (selected.length >= slotsNeeded) break;
-        selected.push(doc);
+        if (!selectedIds.has(doc.id)) {
+          selected.push(doc);
+          selectedIds.add(doc.id);
+        }
       }
     }
 

@@ -1,20 +1,14 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Doctor, Team, Shift, LeaveDay } from '@/types/scheduling';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles, AlertTriangle, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles, AlertTriangle, X, Trash2 } from 'lucide-react';
 import { SchedulingEngine, SCHEDULING_CONSTANTS } from '@/lib/scheduling-engine';
 import { createClient } from '../../../supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 
@@ -43,6 +37,19 @@ export default function ShiftGridCalendar({
 }: ShiftGridCalendarProps) {
   const [generating, setGenerating] = useState(false);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [dragState, setDragState] = useState<{
+    doctorId: string;
+    startDay: number;
+    endDay: number;
+  } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [selectionPopup, setSelectionPopup] = useState<{
+    doctorId: string;
+    days: number[];
+    x: number;
+    y: number;
+  } | null>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
   const { toast } = useToast();
 
@@ -164,89 +171,6 @@ export default function ShiftGridCalendar({
     return leaveDays.some(l => l.doctor_id === doctorId && l.leave_date === dateStr);
   };
 
-  // Unified handler for all cell actions. Clicking an already-active option removes it (toggle off).
-  // Clicking a different option removes the current state first, then adds the new one.
-  const handleCellAction = async (
-    doctorId: string,
-    day: number,
-    action: 'day' | 'night' | 'leave',
-    currentShift?: Shift,
-    hasLeave?: boolean
-  ) => {
-    const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-    try {
-      let updatedShifts = [...shifts];
-      let updatedLeaveDays = [...leaveDays];
-
-      // Remove existing shift if present
-      if (currentShift) {
-        await supabase.from('shifts').delete().eq('id', currentShift.id);
-        updatedShifts = updatedShifts.filter(s => s.id !== currentShift.id);
-
-        if (action === currentShift.shift_type) {
-          // Same type clicked → toggle off
-          onShiftsUpdate(updatedShifts);
-          toast({ title: 'Tură eliminată', description: `Tura din ${day} ${monthNames[currentMonth]} a fost eliminată` });
-          return;
-        }
-      }
-
-      // Remove existing leave day if present
-      if (hasLeave) {
-        const existingLeave = leaveDays.find(l => l.doctor_id === doctorId && l.leave_date === dateStr);
-        if (existingLeave) {
-          await supabase.from('leave_days').delete().eq('id', existingLeave.id);
-          updatedLeaveDays = updatedLeaveDays.filter(l => l.id !== existingLeave.id);
-
-          if (action === 'leave') {
-            // Concediu clicked again → toggle off
-            onLeaveDaysUpdate(updatedLeaveDays);
-            toast({ title: 'Concediu eliminat', description: `Ziua de concediu din ${day} ${monthNames[currentMonth]} a fost eliminată` });
-            return;
-          }
-
-          // Switching from leave to a shift — persist the leave removal immediately
-          onLeaveDaysUpdate(updatedLeaveDays);
-        }
-      }
-
-      // Add new state
-      if (action === 'leave') {
-        const { data, error } = await supabase
-          .from('leave_days')
-          .insert({ doctor_id: doctorId, leave_date: dateStr })
-          .select()
-          .single();
-        if (error) throw error;
-
-        onLeaveDaysUpdate([...updatedLeaveDays, data]);
-        toast({ title: 'Concediu adăugat', description: `Zi de concediu adăugată pentru ${day} ${monthNames[currentMonth]}` });
-      } else {
-        const { data, error } = await supabase
-          .from('shifts')
-          .insert({
-            doctor_id: doctorId,
-            shift_date: dateStr,
-            shift_type: action,
-            start_time: action === 'day' ? '08:00' : '20:00',
-            end_time: action === 'day' ? '20:00' : '08:00',
-          })
-          .select()
-          .single();
-        if (error) throw error;
-
-        onShiftsUpdate([...updatedShifts, data]);
-        toast({
-          title: 'Tură adăugată',
-          description: `Tură de ${action === 'day' ? 'zi' : 'noapte'} adăugată pentru ${day} ${monthNames[currentMonth]}`,
-        });
-      }
-    } catch (error) {
-      console.error('Error updating cell:', error);
-      toast({ title: 'Eroare', description: 'Nu s-a putut actualiza celula', variant: 'destructive' });
-    }
-  };
 
   const getTeamColor = (doctor: Doctor): string => {
     if (doctor.is_floating) return '#6b7280';
@@ -280,6 +204,261 @@ export default function ShiftGridCalendar({
     return { dayShifts, nightShifts, totalHours, baseNorm };
   };
 
+  // Compute rest-period violations: a Set of "doctorId:dateStr" keys for cells that violate rest rules
+  const restViolations = useMemo(() => {
+    const violations = new Set<string>();
+    const monthPrefix = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+    const monthShifts = shifts.filter(s => s.shift_date.startsWith(monthPrefix));
+
+    // Group by doctor
+    const byDoctor = new Map<string, Shift[]>();
+    for (const s of monthShifts) {
+      if (!byDoctor.has(s.doctor_id)) byDoctor.set(s.doctor_id, []);
+      byDoctor.get(s.doctor_id)!.push(s);
+    }
+
+    byDoctor.forEach((doctorShifts, doctorId) => {
+      const sorted = doctorShifts.sort((a, b) =>
+        new Date(a.shift_date).getTime() - new Date(b.shift_date).getTime()
+      );
+
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = sorted[i - 1];
+        const curr = sorted[i];
+        const hoursBetween =
+          (new Date(curr.shift_date).getTime() - new Date(prev.shift_date).getTime()) / (1000 * 60 * 60);
+
+        const minRest = prev.shift_type === 'night'
+          ? SCHEDULING_CONSTANTS.NIGHT_SHIFT_REST
+          : SCHEDULING_CONSTANTS.DAY_SHIFT_REST;
+
+        if (hoursBetween < minRest) {
+          // Mark both the preceding shift and the violating shift
+          violations.add(`${doctorId}:${prev.shift_date}`);
+          violations.add(`${doctorId}:${curr.shift_date}`);
+        }
+      }
+    });
+
+    return violations;
+  }, [shifts, currentYear, currentMonth]);
+
+  const hasRestViolation = (doctorId: string, day: number): boolean => {
+    const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return restViolations.has(`${doctorId}:${dateStr}`);
+  };
+
+  // --- Drag selection helpers ---
+  const isCellSelected = (doctorId: string, day: number): boolean => {
+    if (!dragState || dragState.doctorId !== doctorId) return false;
+    const min = Math.min(dragState.startDay, dragState.endDay);
+    const max = Math.max(dragState.startDay, dragState.endDay);
+    return day >= min && day <= max;
+  };
+
+  const handleCellMouseDown = (doctorId: string, day: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    setSelectionPopup(null);
+    setIsDragging(true);
+    setDragState({ doctorId, startDay: day, endDay: day });
+  };
+
+  const handleCellMouseEnter = (doctorId: string, day: number) => {
+    if (!isDragging || !dragState) return;
+    if (dragState.doctorId !== doctorId) return;
+    setDragState(prev => prev ? { ...prev, endDay: day } : null);
+  };
+
+  const handleMouseUp = useCallback((e: MouseEvent) => {
+    if (!isDragging || !dragState) return;
+    setIsDragging(false);
+
+    const selectedDays = (() => {
+      const min = Math.min(dragState.startDay, dragState.endDay);
+      const max = Math.max(dragState.startDay, dragState.endDay);
+      return Array.from({ length: max - min + 1 }, (_, i) => min + i);
+    })();
+
+    setSelectionPopup({
+      doctorId: dragState.doctorId,
+      days: selectedDays,
+      x: e.clientX,
+      y: e.clientY,
+    });
+  }, [isDragging, dragState]);
+
+  useEffect(() => {
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => document.removeEventListener('mouseup', handleMouseUp);
+  }, [handleMouseUp]);
+
+  // Close popup when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (selectionPopup && popupRef.current && !popupRef.current.contains(e.target as Node)) {
+        setSelectionPopup(null);
+        setDragState(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [selectionPopup]);
+
+  // Check if any selected cell has an assignment (shift or leave)
+  const selectionHasAssignments = useMemo(() => {
+    if (!selectionPopup) return false;
+    const { doctorId, days: selectedDays } = selectionPopup;
+    return selectedDays.some(day => {
+      const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      return shifts.some(s => s.doctor_id === doctorId && s.shift_date === dateStr) ||
+             leaveDays.some(l => l.doctor_id === doctorId && l.leave_date === dateStr);
+    });
+  }, [selectionPopup, shifts, leaveDays, currentYear, currentMonth]);
+
+  // Batch action: apply the same action to multiple days for one doctor
+  const handleBatchAction = async (action: 'day' | 'night' | 'leave') => {
+    if (!selectionPopup) return;
+    const { doctorId, days: selectedDays } = selectionPopup;
+
+    setSelectionPopup(null);
+    setDragState(null);
+
+    try {
+      let updatedShifts = [...shifts];
+      let updatedLeaveDays = [...leaveDays];
+
+      for (const day of selectedDays) {
+        const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const existingShift = updatedShifts.find(s => s.doctor_id === doctorId && s.shift_date === dateStr);
+        const existingLeave = updatedLeaveDays.find(l => l.doctor_id === doctorId && l.leave_date === dateStr);
+
+        // Remove existing shift if present and different from action
+        if (existingShift) {
+          if (action === existingShift.shift_type) continue; // already has this type, skip
+          await supabase.from('shifts').delete().eq('id', existingShift.id);
+          updatedShifts = updatedShifts.filter(s => s.id !== existingShift.id);
+        }
+
+        // Remove existing leave if present and action is not leave
+        if (existingLeave) {
+          if (action === 'leave') continue; // already on leave, skip
+          await supabase.from('leave_days').delete().eq('id', existingLeave.id);
+          updatedLeaveDays = updatedLeaveDays.filter(l => l.id !== existingLeave.id);
+        }
+
+        // Add new state
+        if (action === 'leave') {
+          const { data, error } = await supabase
+            .from('leave_days')
+            .insert({ doctor_id: doctorId, leave_date: dateStr })
+            .select()
+            .single();
+          if (error) throw error;
+          updatedLeaveDays = [...updatedLeaveDays, data];
+        } else {
+          const { data, error } = await supabase
+            .from('shifts')
+            .insert({
+              doctor_id: doctorId,
+              shift_date: dateStr,
+              shift_type: action,
+              start_time: action === 'day' ? '08:00' : '20:00',
+              end_time: action === 'day' ? '20:00' : '08:00',
+            })
+            .select()
+            .single();
+          if (error) throw error;
+          updatedShifts = [...updatedShifts, data];
+        }
+      }
+
+      onShiftsUpdate(updatedShifts);
+      onLeaveDaysUpdate(updatedLeaveDays);
+
+      const label = action === 'day' ? 'Tură de Zi' : action === 'night' ? 'Tură de Noapte' : 'Concediu';
+      toast({
+        title: `${label} — ${selectedDays.length} zile`,
+        description: `${label} aplicat(ă) pentru zilele ${selectedDays[0]}–${selectedDays[selectedDays.length - 1]} ${monthNames[currentMonth]}`,
+      });
+    } catch (error) {
+      console.error('Error applying batch action:', error);
+      toast({ title: 'Eroare', description: 'Nu s-au putut actualiza celulele', variant: 'destructive' });
+    }
+  };
+
+  // Clear all assignments (shifts and leave days) from selected cells
+  const handleBatchClear = async () => {
+    if (!selectionPopup) return;
+    const { doctorId, days: selectedDays } = selectionPopup;
+
+    setSelectionPopup(null);
+    setDragState(null);
+
+    try {
+      let updatedShifts = [...shifts];
+      let updatedLeaveDays = [...leaveDays];
+
+      for (const day of selectedDays) {
+        const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const existingShift = updatedShifts.find(s => s.doctor_id === doctorId && s.shift_date === dateStr);
+        const existingLeave = updatedLeaveDays.find(l => l.doctor_id === doctorId && l.leave_date === dateStr);
+
+        if (existingShift) {
+          await supabase.from('shifts').delete().eq('id', existingShift.id);
+          updatedShifts = updatedShifts.filter(s => s.id !== existingShift.id);
+        }
+        if (existingLeave) {
+          await supabase.from('leave_days').delete().eq('id', existingLeave.id);
+          updatedLeaveDays = updatedLeaveDays.filter(l => l.id !== existingLeave.id);
+        }
+      }
+
+      onShiftsUpdate(updatedShifts);
+      onLeaveDaysUpdate(updatedLeaveDays);
+
+      toast({
+        title: 'Selecție golită',
+        description: `Zilele ${selectedDays[0]}–${selectedDays[selectedDays.length - 1]} ${monthNames[currentMonth]} au fost golite`,
+      });
+    } catch (error) {
+      console.error('Error clearing cells:', error);
+      toast({ title: 'Eroare', description: 'Nu s-au putut goli celulele', variant: 'destructive' });
+    }
+  };
+
+  // Clear all shifts and leave days for the current month
+  const handleClearMonth = async () => {
+    const monthStart = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`;
+    const monthEnd = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+
+    try {
+      const { error: shiftError } = await supabase
+        .from('shifts')
+        .delete()
+        .gte('shift_date', monthStart)
+        .lte('shift_date', monthEnd);
+      if (shiftError) throw shiftError;
+
+      const { error: leaveError } = await supabase
+        .from('leave_days')
+        .delete()
+        .gte('leave_date', monthStart)
+        .lte('leave_date', monthEnd);
+      if (leaveError) throw leaveError;
+
+      onShiftsUpdate(shifts.filter(s => s.shift_date < monthStart || s.shift_date > monthEnd));
+      onLeaveDaysUpdate(leaveDays.filter(l => l.leave_date < monthStart || l.leave_date > monthEnd));
+
+      toast({
+        title: 'Lună golită',
+        description: `Toate turele și concediile din ${monthNames[currentMonth]} ${currentYear} au fost șterse`,
+      });
+    } catch (error) {
+      console.error('Error clearing month:', error);
+      toast({ title: 'Eroare', description: 'Nu s-a putut goli luna', variant: 'destructive' });
+    }
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -301,6 +480,10 @@ export default function ShiftGridCalendar({
                   {currentLeaveDaysCount}
                 </Badge>
               </div>
+              <Button variant="outline" onClick={handleClearMonth}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Golește Luna
+              </Button>
               <Button onClick={handleGenerateSchedule} disabled={generating}>
                 <Sparkles className="h-4 w-4 mr-2" />
                 {generating ? 'Se generează...' : 'Generează Program'}
@@ -385,49 +568,36 @@ export default function ShiftGridCalendar({
                     {days.map(day => {
                       const shift = getShiftForDoctorAndDay(doctor.id, day);
                       const isLeave = isLeaveDay(doctor.id, day);
+                      const selected = isCellSelected(doctor.id, day);
+                      const violation = hasRestViolation(doctor.id, day);
 
                       return (
                         <div
                           key={day}
-                          className={`w-10 min-w-10 border-r flex items-center justify-center ${
+                          className={`w-10 min-w-10 border-r flex items-center justify-center relative ${
                             isWeekend(day) ? 'bg-muted/30' : ''
                           }`}
                         >
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button
-                                className={`w-full h-full min-h-[32px] flex items-center justify-center text-xs font-bold transition-colors ${
-                                  isLeave
-                                    ? 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-800'
-                                    : shift?.shift_type === 'day'
-                                    ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800'
-                                    : shift?.shift_type === 'night'
-                                    ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800'
-                                    : 'hover:bg-accent'
-                                }`}
-                                title="Click pentru a modifica"
-                              >
-                                {isLeave ? 'C' : shift?.shift_type === 'day' ? 'Z' : shift?.shift_type === 'night' ? 'N' : ''}
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="center">
-                              <DropdownMenuItem onClick={() => handleCellAction(doctor.id, day, 'day', shift, isLeave)}>
-                                <span className="w-4 h-4 rounded bg-blue-500 mr-2 flex-shrink-0" />
-                                Tură de Zi (Z)
-                                {shift?.shift_type === 'day' && <X className="h-3 w-3 ml-auto opacity-50" />}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleCellAction(doctor.id, day, 'night', shift, isLeave)}>
-                                <span className="w-4 h-4 rounded bg-indigo-500 mr-2 flex-shrink-0" />
-                                Tură de Noapte (N)
-                                {shift?.shift_type === 'night' && <X className="h-3 w-3 ml-auto opacity-50" />}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleCellAction(doctor.id, day, 'leave', shift, isLeave)}>
-                                <span className="w-4 h-4 rounded bg-orange-500 mr-2 flex-shrink-0" />
-                                Concediu (C)
-                                {isLeave && <X className="h-3 w-3 ml-auto opacity-50" />}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <button
+                            className={`w-full h-full min-h-[32px] flex items-center justify-center text-xs font-bold transition-colors select-none ${
+                              selected
+                                ? 'ring-2 ring-primary ring-inset bg-primary/20'
+                                : violation
+                                ? 'bg-red-200 dark:bg-red-900/60 text-red-800 dark:text-red-200 ring-2 ring-red-500 ring-inset'
+                                : isLeave
+                                ? 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-800'
+                                : shift?.shift_type === 'day'
+                                ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800'
+                                : shift?.shift_type === 'night'
+                                ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800'
+                                : 'hover:bg-accent'
+                            }`}
+                            title={violation ? 'Perioadă de odihnă insuficientă!' : 'Click și trage pentru selecție multiplă'}
+                            onMouseDown={(e) => handleCellMouseDown(doctor.id, day, e)}
+                            onMouseEnter={() => handleCellMouseEnter(doctor.id, day)}
+                          >
+                            {isLeave ? 'C' : shift?.shift_type === 'day' ? 'Z' : shift?.shift_type === 'night' ? 'N' : ''}
+                          </button>
                         </div>
                       );
                     })}
@@ -437,6 +607,65 @@ export default function ShiftGridCalendar({
             </div>
             <ScrollBar orientation="horizontal" />
           </ScrollArea>
+
+          {/* Selection popup */}
+          {selectionPopup && (() => {
+            const POPUP_W = 190;
+            const POPUP_H = selectionHasAssignments ? 200 : 160;
+            const finalLeft = selectionPopup.x + POPUP_W > window.innerWidth
+              ? selectionPopup.x - POPUP_W
+              : selectionPopup.x;
+            const finalTop = selectionPopup.y + 8 + POPUP_H > window.innerHeight
+              ? selectionPopup.y - POPUP_H
+              : selectionPopup.y + 8;
+            return (
+            <div
+              ref={popupRef}
+              className="fixed z-50 bg-popover border rounded-md shadow-md p-1 min-w-[180px]"
+              style={{
+                left: finalLeft,
+                top: finalTop,
+              }}
+            >
+              <div className="px-2 py-1.5 text-xs text-muted-foreground font-medium border-b mb-1">
+                {selectionPopup.days.length} {selectionPopup.days.length === 1 ? 'zi selectată' : 'zile selectate'}
+              </div>
+              <button
+                className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
+                onClick={() => handleBatchAction('day')}
+              >
+                <span className="w-4 h-4 rounded bg-blue-500 flex-shrink-0" />
+                Tură de Zi (Z)
+              </button>
+              <button
+                className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
+                onClick={() => handleBatchAction('night')}
+              >
+                <span className="w-4 h-4 rounded bg-indigo-500 flex-shrink-0" />
+                Tură de Noapte (N)
+              </button>
+              <button
+                className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
+                onClick={() => handleBatchAction('leave')}
+              >
+                <span className="w-4 h-4 rounded bg-orange-500 flex-shrink-0" />
+                Concediu (C)
+              </button>
+              {selectionHasAssignments && (
+                <>
+                  <div className="border-t my-1" />
+                  <button
+                    className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-destructive/10 text-destructive cursor-pointer"
+                    onClick={handleBatchClear}
+                  >
+                    <X className="w-4 h-4 flex-shrink-0" />
+                    Golește selecția
+                  </button>
+                </>
+              )}
+            </div>
+            );
+          })()}
 
           {/* Legend */}
           <div className="mt-6 flex items-center gap-6 text-sm flex-wrap">
@@ -455,6 +684,10 @@ export default function ShiftGridCalendar({
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-xs">F</Badge>
               <span className="text-muted-foreground">Doctor Flotant</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-red-200 dark:bg-red-900/60 rounded ring-2 ring-red-500 flex items-center justify-center text-red-800 dark:text-red-200 text-xs font-bold">!</div>
+              <span className="text-muted-foreground">Odihnă insuficientă</span>
             </div>
           </div>
         </CardContent>
