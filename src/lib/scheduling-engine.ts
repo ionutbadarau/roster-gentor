@@ -28,7 +28,6 @@ export class SchedulingEngine {
   private shiftsPerDay: number;
   private shiftsPerNight: number;
   private leaveDays: LeaveDay[];
-  private schedule: Map<string, Shift[]> = new Map();
   private doctorLastShift: Map<string, { date: Date; type: 'day' | 'night' | '24h'; endTime: Date }> = new Map();
   private doctorShiftCount: Map<string, number> = new Map();
   private doctorHours: Map<string, number> = new Map();
@@ -137,86 +136,69 @@ export class SchedulingEngine {
     weeklyMap.set(weekNumber, (weeklyMap.get(weekNumber) || 0) + SCHEDULING_CONSTANTS.SHIFT_DURATION);
   }
 
-  private getMinTeamDoctorHours(): number {
-    const teamDoctors = this.doctors.filter(d => !d.is_floating);
-    if (teamDoctors.length === 0) return 0;
-    
-    return Math.min(...teamDoctors.map(d => this.doctorHours.get(d.id) || 0));
-  }
-
   generateSchedule(): ScheduleGenerationResult {
     const daysInMonth = this.getDaysInMonth();
     const shifts: Shift[] = [];
     const warnings: string[] = [];
 
+    // Group doctors by team; floating doctors tracked separately.
     const doctorsByTeam = new Map<string, DoctorWithTeam[]>();
-    const floatingDoctors = this.doctors.filter(d => d.is_floating);
-    
+    const floatingDoctors: DoctorWithTeam[] = [];
+
     this.teams.forEach(team => {
       doctorsByTeam.set(team.id, []);
     });
-    
-    this.doctors.filter(d => !d.is_floating && d.team_id).forEach(doctor => {
-      const teamDoctors = doctorsByTeam.get(doctor.team_id!);
-      if (teamDoctors) {
-        teamDoctors.push(doctor);
+
+    this.doctors.forEach(doctor => {
+      if (doctor.is_floating) {
+        floatingDoctors.push(doctor);
+      } else if (doctor.team_id) {
+        const teamDoctors = doctorsByTeam.get(doctor.team_id);
+        if (teamDoctors) teamDoctors.push(doctor);
       }
     });
 
+    // Initialise counters.
     this.doctors.forEach(d => {
       this.doctorShiftCount.set(d.id, 0);
       this.doctorHours.set(d.id, 0);
       this.doctorWeeklyHours.set(d.id, new Map());
     });
-    
-    let currentTeamIndex = 0;
+
+    // Compute each doctor's target number of shifts from their base norm.
+    // Doctors with leave days get a lower target.
+    const doctorTargetShifts = new Map<string, number>();
+    this.doctors.forEach(d => {
+      const baseNorm = this.calculateBaseNorm(d.id);
+      doctorTargetShifts.set(d.id, Math.ceil(baseNorm / SCHEDULING_CONSTANTS.SHIFT_DURATION));
+    });
+
     const teamIds = this.teams.map(t => t.id);
 
     for (let day = 1; day <= daysInMonth; day++) {
       const currentDate = new Date(this.year, this.month, day);
       const dateStr = this.formatDate(currentDate);
 
-      // Fill all day slots from the same team (team cohesion).
-      const dayResult = this.getTeamDoctorsForShift(
-        doctorsByTeam, teamIds, currentTeamIndex, currentDate, 'day', this.shiftsPerDay
-      );
-      for (const doctor of dayResult.doctors) {
-        shifts.push({
-          id: crypto.randomUUID(),
-          doctor_id: doctor.id,
-          shift_date: dateStr,
-          shift_type: 'day',
-          start_time: '08:00',
-          end_time: '20:00',
-        });
-        this.recordShift(doctor, currentDate, 'day');
-      }
-      if (dayResult.doctors.length > 0) {
-        currentTeamIndex = (dayResult.teamIndex + 1) % Math.max(teamIds.length, 1);
-      }
+      for (const shiftType of ['day', 'night'] as const) {
+        const slotsNeeded = shiftType === 'day' ? this.shiftsPerDay : this.shiftsPerNight;
+        const selected = this.selectDoctorsForShift(
+          doctorsByTeam, floatingDoctors, teamIds, currentDate, shiftType, slotsNeeded, doctorTargetShifts
+        );
 
-      // Fill all night slots from the same team (team cohesion).
-      const nightResult = this.getTeamDoctorsForShift(
-        doctorsByTeam, teamIds, currentTeamIndex, currentDate, 'night', this.shiftsPerNight
-      );
-      for (const doctor of nightResult.doctors) {
-        shifts.push({
-          id: crypto.randomUUID(),
-          doctor_id: doctor.id,
-          shift_date: dateStr,
-          shift_type: 'night',
-          start_time: '20:00',
-          end_time: '08:00',
-        });
-        this.recordShift(doctor, currentDate, 'night');
-      }
-      if (nightResult.doctors.length > 0) {
-        currentTeamIndex = (nightResult.teamIndex + 1) % Math.max(teamIds.length, 1);
+        for (const doctor of selected) {
+          shifts.push({
+            id: crypto.randomUUID(),
+            doctor_id: doctor.id,
+            shift_date: dateStr,
+            shift_type: shiftType,
+            start_time: shiftType === 'day' ? '08:00' : '20:00',
+            end_time: shiftType === 'day' ? '20:00' : '08:00',
+          });
+          this.recordShift(doctor, currentDate, shiftType);
+        }
       }
     }
 
-    this.balanceFloatingDoctors(shifts, floatingDoctors, doctorsByTeam);
-    
     const normWarnings = this.checkDoctorNorms();
     if (normWarnings.length > 0) {
       warnings.push(...normWarnings);
@@ -227,26 +209,34 @@ export class SchedulingEngine {
     const conflicts = SchedulingEngine.detectConflicts(shifts, this.doctors);
     const doctorStats = this.calculateDoctorStats();
 
-    return {
-      shifts,
-      conflicts,
-      warnings,
-      doctorStats,
-    };
+    return { shifts, conflicts, warnings, doctorStats };
   }
 
-  // Returns available doctors from a team sorted by cadence preference then fewest hours.
-  private getSortedAvailableDoctors(
-    teamDoctors: DoctorWithTeam[],
+  // How many more shifts a doctor still needs to reach their target.
+  private getDoctorDeficit(doctorId: string, doctorTargetShifts: Map<string, number>): number {
+    const target = doctorTargetShifts.get(doctorId) || 0;
+    const current = this.doctorShiftCount.get(doctorId) || 0;
+    return target - current;
+  }
+
+  // Filters doctors by availability and sorts by deficit desc → cadence → fewest hours.
+  private getSortedAvailableDoctorsByNeed(
+    doctors: DoctorWithTeam[],
     currentDate: Date,
-    shiftType: 'day' | 'night'
+    shiftType: 'day' | 'night',
+    doctorTargetShifts: Map<string, number>
   ): DoctorWithTeam[] {
-    return [...teamDoctors]
+    return doctors
       .filter(doc => this.canDoctorWork(doc, currentDate, shiftType))
       .sort((a, b) => {
+        // Primary: highest deficit first (most needs shifts).
+        const aDeficit = this.getDoctorDeficit(a.id, doctorTargetShifts);
+        const bDeficit = this.getDoctorDeficit(b.id, doctorTargetShifts);
+        if (aDeficit !== bDeficit) return bDeficit - aDeficit;
+
+        // Secondary: cadence preference (Z→N→Z pattern).
         const aLastShift = this.doctorLastShift.get(a.id);
         const bLastShift = this.doctorLastShift.get(b.id);
-
         const aFollowsCadence = aLastShift && (
           (shiftType === 'day' && aLastShift.type === 'night') ||
           (shiftType === 'night' && aLastShift.type === 'day')
@@ -255,178 +245,116 @@ export class SchedulingEngine {
           (shiftType === 'day' && bLastShift.type === 'night') ||
           (shiftType === 'night' && bLastShift.type === 'day')
         );
-
         if (aFollowsCadence && !bFollowsCadence) return -1;
         if (!aFollowsCadence && bFollowsCadence) return 1;
 
+        // Tertiary: fewest hours so far.
         return (this.doctorHours.get(a.id) || 0) - (this.doctorHours.get(b.id) || 0);
       });
   }
 
-  // Tries to fill all slotsNeeded from the same team (team cohesion).
-  // Falls back to the team with the most available doctors when no single team
-  // can cover all slots.
-  private getTeamDoctorsForShift(
+  // Norm-driven selection: picks the team whose available members have the
+  // highest collective deficit, then backfills from other teams + floating.
+  private selectDoctorsForShift(
     doctorsByTeam: Map<string, DoctorWithTeam[]>,
+    floatingDoctors: DoctorWithTeam[],
     teamIds: string[],
-    startTeamIndex: number,
     currentDate: Date,
     shiftType: 'day' | 'night',
-    slotsNeeded: number
-  ): { doctors: DoctorWithTeam[]; teamIndex: number } {
-    // First pass: find a team that can fill every slot.
-    for (let t = 0; t < teamIds.length; t++) {
-      const teamIndex = (startTeamIndex + t) % teamIds.length;
-      const available = this.getSortedAvailableDoctors(
-        doctorsByTeam.get(teamIds[teamIndex]) || [],
-        currentDate,
-        shiftType
+    slotsNeeded: number,
+    doctorTargetShifts: Map<string, number>
+  ): DoctorWithTeam[] {
+    // For each team compute available members and collective need score.
+    const teamAvailable = new Map<string, DoctorWithTeam[]>();
+    const teamNeedScore = new Map<string, number>();
+
+    for (const teamId of teamIds) {
+      const available = this.getSortedAvailableDoctorsByNeed(
+        doctorsByTeam.get(teamId) || [], currentDate, shiftType, doctorTargetShifts
       );
-      if (available.length >= slotsNeeded) {
-        return { doctors: available.slice(0, slotsNeeded), teamIndex };
-      }
+      teamAvailable.set(teamId, available);
+      teamNeedScore.set(
+        teamId,
+        available.reduce((sum, d) => sum + Math.max(0, this.getDoctorDeficit(d.id, doctorTargetShifts)), 0)
+      );
     }
 
-    // Second pass: no team can cover all slots — pick the one with the most available.
-    let bestTeamIndex = startTeamIndex;
-    let bestAvailable: DoctorWithTeam[] = [];
+    // Sort teams: prefer teams that can fill all slots, then highest need score.
+    const sortedTeamIds = [...teamIds].sort((a, b) => {
+      const aCanFill = (teamAvailable.get(a)!.length >= slotsNeeded) ? 1 : 0;
+      const bCanFill = (teamAvailable.get(b)!.length >= slotsNeeded) ? 1 : 0;
+      if (aCanFill !== bCanFill) return bCanFill - aCanFill;
+      return (teamNeedScore.get(b) || 0) - (teamNeedScore.get(a) || 0);
+    });
 
-    for (let t = 0; t < teamIds.length; t++) {
-      const teamIndex = (startTeamIndex + t) % teamIds.length;
-      const available = this.getSortedAvailableDoctors(
-        doctorsByTeam.get(teamIds[teamIndex]) || [],
-        currentDate,
-        shiftType
-      );
-      if (available.length > bestAvailable.length) {
-        bestAvailable = available;
-        bestTeamIndex = teamIndex;
-      }
-    }
+    // Start with the best team's available doctors.
+    const bestTeamId = sortedTeamIds[0];
+    const bestTeamAvail = teamAvailable.get(bestTeamId) || [];
+    const selected = bestTeamAvail.slice(0, slotsNeeded);
 
-    return { doctors: bestAvailable, teamIndex: bestTeamIndex };
-  }
-
-  private balanceFloatingDoctors(
-    shifts: Shift[],
-    floatingDoctors: DoctorWithTeam[],
-    doctorsByTeam: Map<string, DoctorWithTeam[]>
-  ): void {
-    if (floatingDoctors.length === 0) return;
-
-    // Track how many shifts each team has donated to floating doctors so that
-    // steals are spread equally across all teams.
-    const teamDonationCount = new Map<string, number>();
-    this.teams.forEach(t => teamDonationCount.set(t.id, 0));
-
-    const sortedFloating = [...floatingDoctors].sort((a, b) =>
-      (this.doctorHours.get(a.id) || 0) - (this.doctorHours.get(b.id) || 0)
+    // Get available floating doctors sorted by need.
+    const availableFloating = this.getSortedAvailableDoctorsByNeed(
+      floatingDoctors, currentDate, shiftType, doctorTargetShifts
     );
 
-    for (const floatingDoc of sortedFloating) {
-      while ((this.doctorHours.get(floatingDoc.id) || 0) < this.getMinTeamDoctorHours()) {
-        const shiftToReplace = this.findShiftToReplace(shifts, floatingDoc, doctorsByTeam, teamDonationCount);
+    // Even when the team fills all slots, swap in floating doctors that have
+    // a higher deficit than the lowest-deficit team doctor selected.
+    // This ensures floating doctors get their fair share of shifts.
+    if (selected.length >= slotsNeeded && availableFloating.length > 0) {
+      for (const floater of availableFloating) {
+        const floaterDeficit = this.getDoctorDeficit(floater.id, doctorTargetShifts);
+        if (floaterDeficit <= 0) break; // floater doesn't need more shifts
 
-        if (!shiftToReplace) break;
-
-        const originalDoctorId = shiftToReplace.doctor_id;
-        const originalDoctor = this.doctors.find(d => d.id === originalDoctorId);
-        if (originalDoctor?.team_id) {
-          teamDonationCount.set(originalDoctor.team_id, (teamDonationCount.get(originalDoctor.team_id) || 0) + 1);
+        // Find the selected doctor with the lowest deficit.
+        let minIdx = 0;
+        let minDeficit = this.getDoctorDeficit(selected[0].id, doctorTargetShifts);
+        for (let i = 1; i < selected.length; i++) {
+          const d = this.getDoctorDeficit(selected[i].id, doctorTargetShifts);
+          if (d < minDeficit) { minDeficit = d; minIdx = i; }
         }
 
-        shiftToReplace.doctor_id = floatingDoc.id;
-
-        this.doctorHours.set(originalDoctorId, (this.doctorHours.get(originalDoctorId) || 0) - SCHEDULING_CONSTANTS.SHIFT_DURATION);
-        this.doctorHours.set(floatingDoc.id, (this.doctorHours.get(floatingDoc.id) || 0) + SCHEDULING_CONSTANTS.SHIFT_DURATION);
-        this.doctorShiftCount.set(originalDoctorId, (this.doctorShiftCount.get(originalDoctorId) || 0) - 1);
-        this.doctorShiftCount.set(floatingDoc.id, (this.doctorShiftCount.get(floatingDoc.id) || 0) + 1);
-      }
-    }
-  }
-
-  private canFloatingDoctorTakeShift(
-    floatingDoc: DoctorWithTeam,
-    candidate: Shift,
-    shifts: Shift[]
-  ): boolean {
-    const floatingShifts = shifts
-      .filter(s => s.doctor_id === floatingDoc.id)
-      .sort((a, b) => new Date(a.shift_date).getTime() - new Date(b.shift_date).getTime());
-
-    const candidateDate = new Date(candidate.shift_date);
-    const candidateStart = candidate.shift_type === 'day'
-      ? new Date(candidateDate.getFullYear(), candidateDate.getMonth(), candidateDate.getDate(), 8, 0)
-      : new Date(candidateDate.getFullYear(), candidateDate.getMonth(), candidateDate.getDate(), 20, 0);
-    const candidateEnd = candidate.shift_type === 'day'
-      ? new Date(candidateDate.getFullYear(), candidateDate.getMonth(), candidateDate.getDate(), 20, 0)
-      : new Date(candidateDate.getFullYear(), candidateDate.getMonth(), candidateDate.getDate() + 1, 8, 0);
-
-    for (const existing of floatingShifts) {
-      const existingDate = new Date(existing.shift_date);
-      const existingEnd = existing.shift_type === 'day'
-        ? new Date(existingDate.getFullYear(), existingDate.getMonth(), existingDate.getDate(), 20, 0)
-        : new Date(existingDate.getFullYear(), existingDate.getMonth(), existingDate.getDate() + 1, 8, 0);
-      const existingStart = existing.shift_type === 'day'
-        ? new Date(existingDate.getFullYear(), existingDate.getMonth(), existingDate.getDate(), 8, 0)
-        : new Date(existingDate.getFullYear(), existingDate.getMonth(), existingDate.getDate(), 20, 0);
-
-      if (existingEnd <= candidateStart) {
-        // existing shift ends before candidate starts — check required rest after existing
-        const hours = (candidateStart.getTime() - existingEnd.getTime()) / (1000 * 60 * 60);
-        const required = existing.shift_type === 'day'
-          ? SCHEDULING_CONSTANTS.DAY_SHIFT_REST
-          : SCHEDULING_CONSTANTS.NIGHT_SHIFT_REST;
-        if (hours < required) return false;
-      } else if (existingStart >= candidateEnd) {
-        // existing shift starts after candidate ends — check required rest after candidate
-        const hours = (existingStart.getTime() - candidateEnd.getTime()) / (1000 * 60 * 60);
-        const required = candidate.shift_type === 'day'
-          ? SCHEDULING_CONSTANTS.DAY_SHIFT_REST
-          : SCHEDULING_CONSTANTS.NIGHT_SHIFT_REST;
-        if (hours < required) return false;
-      }
-    }
-
-    return true;
-  }
-
-  private findShiftToReplace(
-    shifts: Shift[],
-    floatingDoc: DoctorWithTeam,
-    doctorsByTeam: Map<string, DoctorWithTeam[]>,
-    teamDonationCount: Map<string, number>
-  ): Shift | null {
-    // Prioritise teams that have donated the fewest shifts so far (equal distribution).
-    const sortedTeams = [...this.teams].sort((a, b) =>
-      (teamDonationCount.get(a.id) || 0) - (teamDonationCount.get(b.id) || 0)
-    );
-
-    for (const team of sortedTeams) {
-      const teamDocs = (doctorsByTeam.get(team.id) || [])
-        .slice()
-        .sort((a, b) => (this.doctorHours.get(b.id) || 0) - (this.doctorHours.get(a.id) || 0));
-
-      for (const teamDoc of teamDocs) {
-        const teamDocShifts = shifts.filter(s => s.doctor_id === teamDoc.id);
-
-        for (const shift of teamDocShifts) {
-          const shiftDate = new Date(shift.shift_date);
-          const floatingDocAlreadyWorking = shifts.some(
-            s => s.doctor_id === floatingDoc.id && s.shift_date === shift.shift_date
-          );
-          if (
-            !this.isDoctorOnLeave(floatingDoc.id, shiftDate) &&
-            !floatingDocAlreadyWorking &&
-            this.canFloatingDoctorTakeShift(floatingDoc, shift, shifts)
-          ) {
-            return shift;
-          }
+        if (floaterDeficit > minDeficit) {
+          selected[minIdx] = floater;
+        } else {
+          break;
         }
       }
     }
 
-    return null;
+    // Backfill remaining slots from other teams + floating doctors.
+    if (selected.length < slotsNeeded) {
+      const selectedIds = new Set(selected.map(d => d.id));
+
+      const remaining: DoctorWithTeam[] = [];
+
+      // Other teams.
+      for (const teamId of sortedTeamIds) {
+        if (teamId === bestTeamId) continue;
+        for (const doc of teamAvailable.get(teamId) || []) {
+          if (!selectedIds.has(doc.id)) remaining.push(doc);
+        }
+      }
+
+      // Floating doctors.
+      for (const doc of availableFloating) {
+        if (!selectedIds.has(doc.id)) remaining.push(doc);
+      }
+
+      // Sort all remaining by deficit desc.
+      remaining.sort((a, b) => {
+        const aDeficit = this.getDoctorDeficit(a.id, doctorTargetShifts);
+        const bDeficit = this.getDoctorDeficit(b.id, doctorTargetShifts);
+        if (aDeficit !== bDeficit) return bDeficit - aDeficit;
+        return (this.doctorHours.get(a.id) || 0) - (this.doctorHours.get(b.id) || 0);
+      });
+
+      for (const doc of remaining) {
+        if (selected.length >= slotsNeeded) break;
+        selected.push(doc);
+      }
+    }
+
+    return selected;
   }
 
   private checkDoctorNorms(): string[] {

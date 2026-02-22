@@ -273,7 +273,7 @@ export default function ShiftGridCalendar({
     const dayShifts = doctorShifts.filter(s => s.shift_type === 'day').length;
     const nightShifts = doctorShifts.filter(s => s.shift_type === 'night').length;
     const totalHours = (dayShifts + nightShifts) * SCHEDULING_CONSTANTS.SHIFT_DURATION;
-    const doctorLeaveDays = leaveDays.filter(l => l.doctor_id === doctorId).length;
+    const doctorLeaveDays = leaveDays.filter(l => l.doctor_id === doctorId && l.leave_date.startsWith(monthPrefix)).length;
     const workingDays = SchedulingEngine.getWorkingDaysInMonthStatic(currentMonth, currentYear);
     const baseNorm = SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * workingDays - SCHEDULING_CONSTANTS.SHIFT_DURATION * doctorLeaveDays;
     
