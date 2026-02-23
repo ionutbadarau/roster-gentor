@@ -540,11 +540,11 @@ export default function ShiftGridCalendar({
                   <div
                     key={day}
                     className={`w-10 min-w-10 p-1 text-center border-r text-xs ${
-                      isWeekend(day) ? 'bg-muted/50' : ''
+                      isWeekend(day) ? 'bg-muted text-muted-foreground' : ''
                     }`}
                   >
                     <div className="font-semibold">{day}</div>
-                    <div className="text-muted-foreground">{getDayOfWeek(day)}</div>
+                    <div className="">{getDayOfWeek(day)}</div>
                   </div>
                 ))}
               </div>
@@ -555,7 +555,7 @@ export default function ShiftGridCalendar({
                 const teamColor = getTeamColor(doctor);
 
                 return (
-                  <div key={doctor.id} className="flex border-b hover:bg-accent/30">
+                  <div key={doctor.id} className="flex border-b hover:bg-slate-100">
                     <div
                       className="w-48 min-w-48 p-2 border-r flex items-center gap-2 sticky left-0 bg-background z-10"
                     >
@@ -584,7 +584,7 @@ export default function ShiftGridCalendar({
                         <div
                           key={day}
                           className={`w-10 min-w-10 border-r flex items-center justify-center relative ${
-                            isWeekend(day) ? 'bg-muted/30' : ''
+                            isWeekend(day) ? 'bg-muted/50' : ''
                           }`}
                         >
                           <button
@@ -594,11 +594,19 @@ export default function ShiftGridCalendar({
                                 : violation
                                 ? 'bg-red-200 dark:bg-red-900/60 text-red-800 dark:text-red-200 ring-2 ring-red-500 ring-inset'
                                 : isLeave
-                                ? 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-800'
+                                ? isWeekend(day)
+                                  ? 'bg-orange-50 dark:bg-orange-900/50 text-orange-600 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-800/70'
+                                  : 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-800'
                                 : shift?.shift_type === 'day'
-                                ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800'
+                                ? isWeekend(day)
+                                  ? 'bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800/70'
+                                  : 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800'
                                 : shift?.shift_type === 'night'
-                                ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800'
+                                ? isWeekend(day)
+                                  ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-800/70'
+                                  : 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800'
+                                : isWeekend(day)
+                                ? 'bg-muted/60 hover:bg-muted/80'
                                 : 'hover:bg-accent'
                             }`}
                             title={violation ? t('scheduling.grid.insufficientRestTooltip') : t('scheduling.grid.multiSelectTooltip')}

@@ -68,7 +68,10 @@ export class SchedulingEngine {
 
   private calculateBaseNorm(doctorId: string): number {
     const workingDays = this.getWorkingDaysInMonth();
-    const doctorLeaveDays = this.leaveDays.filter(l => l.doctor_id === doctorId).length;
+    const monthPrefix = this.getMonthPrefix();
+    const doctorLeaveDays = this.leaveDays.filter(
+      l => l.doctor_id === doctorId && l.leave_date.startsWith(monthPrefix)
+    ).length;
     // Each leave day counts as a full 12h shift worth of credit toward the norm.
     return SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * workingDays - SCHEDULING_CONSTANTS.SHIFT_DURATION * doctorLeaveDays;
   }
@@ -166,12 +169,25 @@ export class SchedulingEngine {
     });
 
     // Compute each doctor's target number of shifts from their base norm.
-    // Doctors with leave days get a lower target.
     const doctorTargetShifts = new Map<string, number>();
     this.doctors.forEach(d => {
       const baseNorm = this.calculateBaseNorm(d.id);
       doctorTargetShifts.set(d.id, Math.ceil(baseNorm / SCHEDULING_CONSTANTS.SHIFT_DURATION));
     });
+
+    // Pre-compute total available days per doctor (days in month minus leave days).
+    const doctorTotalAvailDays = new Map<string, number>();
+    for (const doc of this.doctors) {
+      let count = 0;
+      for (let d = 1; d <= daysInMonth; d++) {
+        if (!this.isDoctorOnLeave(doc.id, new Date(this.year, this.month, d))) count++;
+      }
+      doctorTotalAvailDays.set(doc.id, count);
+    }
+
+    // Track elapsed available days per doctor (updated day by day).
+    const doctorElapsedAvailDays = new Map<string, number>();
+    this.doctors.forEach(d => doctorElapsedAvailDays.set(d.id, 0));
 
     const teamIds = this.teams.map(t => t.id);
 
@@ -179,10 +195,18 @@ export class SchedulingEngine {
       const currentDate = new Date(this.year, this.month, day);
       const dateStr = this.formatDate(currentDate);
 
+      // Update elapsed available days for each doctor.
+      for (const doc of this.doctors) {
+        if (!this.isDoctorOnLeave(doc.id, currentDate)) {
+          doctorElapsedAvailDays.set(doc.id, (doctorElapsedAvailDays.get(doc.id) || 0) + 1);
+        }
+      }
+
       for (const shiftType of ['day', 'night'] as const) {
         const slotsNeeded = shiftType === 'day' ? this.shiftsPerDay : this.shiftsPerNight;
         const selected = this.selectDoctorsForShift(
-          doctorsByTeam, floatingDoctors, teamIds, currentDate, shiftType, slotsNeeded, doctorTargetShifts
+          doctorsByTeam, floatingDoctors, teamIds, currentDate, shiftType,
+          slotsNeeded, doctorTargetShifts, doctorTotalAvailDays, doctorElapsedAvailDays
         );
 
         for (const doctor of selected) {
@@ -212,51 +236,16 @@ export class SchedulingEngine {
     return { shifts, conflicts, warnings, doctorStats };
   }
 
-  // How many more shifts a doctor still needs to reach their target.
-  private getDoctorDeficit(doctorId: string, doctorTargetShifts: Map<string, number>): number {
-    const target = doctorTargetShifts.get(doctorId) || 0;
-    const current = this.doctorShiftCount.get(doctorId) || 0;
-    return target - current;
-  }
-
-  // Filters doctors by availability and sorts by deficit desc → cadence → fewest hours.
-  private getSortedAvailableDoctorsByNeed(
-    doctors: DoctorWithTeam[],
-    currentDate: Date,
-    shiftType: 'day' | 'night',
-    doctorTargetShifts: Map<string, number>
-  ): DoctorWithTeam[] {
-    return doctors
-      .filter(doc => this.canDoctorWork(doc, currentDate, shiftType))
-      .sort((a, b) => {
-        // Primary: highest deficit first (most needs shifts).
-        const aDeficit = this.getDoctorDeficit(a.id, doctorTargetShifts);
-        const bDeficit = this.getDoctorDeficit(b.id, doctorTargetShifts);
-        if (aDeficit !== bDeficit) return bDeficit - aDeficit;
-
-        // Secondary: cadence preference (Z→N→Z pattern).
-        const aLastShift = this.doctorLastShift.get(a.id);
-        const bLastShift = this.doctorLastShift.get(b.id);
-        const aFollowsCadence = aLastShift && (
-          (shiftType === 'day' && aLastShift.type === 'night') ||
-          (shiftType === 'night' && aLastShift.type === 'day')
-        );
-        const bFollowsCadence = bLastShift && (
-          (shiftType === 'day' && bLastShift.type === 'night') ||
-          (shiftType === 'night' && bLastShift.type === 'day')
-        );
-        if (aFollowsCadence && !bFollowsCadence) return -1;
-        if (!aFollowsCadence && bFollowsCadence) return 1;
-
-        // Tertiary: fewest hours so far.
-        return (this.doctorHours.get(a.id) || 0) - (this.doctorHours.get(b.id) || 0);
-      });
-  }
-
-  // Norm-driven selection: picks the team whose available members have the
-  // highest collective deficit, merges with floating doctors, and selects
-  // the top candidates by deficit. This ensures both team cohesion and fair
-  // distribution to floating doctors.
+  // Pace-aware, team-preferring selection algorithm.
+  //
+  // For each doctor computes a "paceGap" — how far behind their expected schedule
+  // they are, given their target shifts and remaining available days. This ensures
+  // doctors with upcoming leave get shifts early (their pace falls behind faster),
+  // while doctors without leave aren't starved either.
+  //
+  // Hard partition: doctors who haven't met their target are always preferred over
+  // those who have. Within the under-target group, greedy team-aware selection
+  // groups same-team doctors when their paceGaps are similar.
   private selectDoctorsForShift(
     doctorsByTeam: Map<string, DoctorWithTeam[]>,
     floatingDoctors: DoctorWithTeam[],
@@ -264,100 +253,85 @@ export class SchedulingEngine {
     currentDate: Date,
     shiftType: 'day' | 'night',
     slotsNeeded: number,
-    doctorTargetShifts: Map<string, number>
+    doctorTargetShifts: Map<string, number>,
+    doctorTotalAvailDays: Map<string, number>,
+    doctorElapsedAvailDays: Map<string, number>
   ): DoctorWithTeam[] {
-    // For each team compute available members (only those with positive deficit)
-    // and collective need score.
-    const teamAvailableWithNeed = new Map<string, DoctorWithTeam[]>();
-    const teamAllAvailable = new Map<string, DoctorWithTeam[]>();
-    const teamNeedScore = new Map<string, number>();
-
-    for (const teamId of teamIds) {
-      const allAvail = this.getSortedAvailableDoctorsByNeed(
-        doctorsByTeam.get(teamId) || [], currentDate, shiftType, doctorTargetShifts
-      );
-      teamAllAvailable.set(teamId, allAvail);
-
-      const withNeed = allAvail.filter(d => this.getDoctorDeficit(d.id, doctorTargetShifts) > 0);
-      teamAvailableWithNeed.set(teamId, withNeed);
-
-      teamNeedScore.set(
-        teamId,
-        withNeed.reduce((sum, d) => sum + this.getDoctorDeficit(d.id, doctorTargetShifts), 0)
-      );
+    // Candidate with computed priority.
+    interface Candidate {
+      doc: DoctorWithTeam;
+      paceGap: number;
+      underTarget: boolean;
     }
 
-    // Sort teams: prefer teams with more members that still need shifts,
-    // then by highest collective deficit.
-    const sortedTeamIds = [...teamIds].sort((a, b) => {
-      const aNeedCount = teamAvailableWithNeed.get(a)!.length;
-      const bNeedCount = teamAvailableWithNeed.get(b)!.length;
-      if (aNeedCount !== bNeedCount) return bNeedCount - aNeedCount;
-      return (teamNeedScore.get(b) || 0) - (teamNeedScore.get(a) || 0);
-    });
+    const candidates: Candidate[] = [];
 
-    // Get available floating doctors.
-    const availableFloating = this.getSortedAvailableDoctorsByNeed(
-      floatingDoctors, currentDate, shiftType, doctorTargetShifts
-    );
+    const consider = (doc: DoctorWithTeam) => {
+      if (!this.canDoctorWork(doc, currentDate, shiftType)) return;
 
-    // Build candidate pool: best team's doctors with positive deficit + floating doctors with positive deficit.
-    const bestTeamId = sortedTeamIds[0];
-    const bestTeamWithNeed = teamAvailableWithNeed.get(bestTeamId) || [];
-    const floatersWithNeed = availableFloating.filter(d => this.getDoctorDeficit(d.id, doctorTargetShifts) > 0);
+      const target = doctorTargetShifts.get(doc.id) || 0;
+      const current = this.doctorShiftCount.get(doc.id) || 0;
+      const totalAvail = doctorTotalAvailDays.get(doc.id) || 1;
+      const elapsedAvail = doctorElapsedAvailDays.get(doc.id) || 1;
 
-    const candidatePool = [...bestTeamWithNeed, ...floatersWithNeed];
+      // paceGap: expected shifts by now minus actual shifts.
+      // Positive = behind schedule, negative = ahead.
+      const expectedByNow = target * (elapsedAvail / totalAvail);
+      const paceGap = expectedByNow - current;
 
-    // Sort the merged pool by deficit descending, then fewest hours.
-    candidatePool.sort((a, b) => {
-      const aDeficit = this.getDoctorDeficit(a.id, doctorTargetShifts);
-      const bDeficit = this.getDoctorDeficit(b.id, doctorTargetShifts);
-      if (aDeficit !== bDeficit) return bDeficit - aDeficit;
-      return (this.doctorHours.get(a.id) || 0) - (this.doctorHours.get(b.id) || 0);
-    });
+      candidates.push({ doc, paceGap, underTarget: current < target });
+    };
 
-    const selected = candidatePool.slice(0, slotsNeeded);
+    for (const teamId of teamIds) {
+      for (const doc of doctorsByTeam.get(teamId) || []) consider(doc);
+    }
+    for (const doc of floatingDoctors) consider(doc);
 
-    // If not enough, backfill from other teams (with positive deficit first, then any available).
-    if (selected.length < slotsNeeded) {
-      const selectedIds = new Set(selected.map(d => d.id));
+    // Hard partition: under-target first, then met-target.
+    // Within each group, sort by paceGap descending (most behind first).
+    const underTarget = candidates
+      .filter(c => c.underTarget)
+      .sort((a, b) => b.paceGap - a.paceGap);
+    const metTarget = candidates
+      .filter(c => !c.underTarget)
+      .sort((a, b) => b.paceGap - a.paceGap);
 
-      // Other teams' doctors with positive deficit.
-      const backfillPool: DoctorWithTeam[] = [];
-      for (const teamId of sortedTeamIds) {
-        if (teamId === bestTeamId) continue;
-        for (const doc of teamAvailableWithNeed.get(teamId) || []) {
-          if (!selectedIds.has(doc.id)) backfillPool.push(doc);
-        }
-      }
-      // Floating doctors without positive deficit.
-      for (const doc of availableFloating) {
-        if (!selectedIds.has(doc.id) && this.getDoctorDeficit(doc.id, doctorTargetShifts) <= 0) {
-          backfillPool.push(doc);
-        }
-      }
-      // Other teams' doctors without positive deficit.
-      for (const teamId of sortedTeamIds) {
-        for (const doc of teamAllAvailable.get(teamId) || []) {
-          if (!selectedIds.has(doc.id) && this.getDoctorDeficit(doc.id, doctorTargetShifts) <= 0) {
-            backfillPool.push(doc);
+    const pool = [...underTarget, ...metTarget];
+    if (pool.length === 0) return [];
+
+    // Team-aware greedy selection.
+    // After picking the first doctor (highest paceGap), for subsequent slots prefer
+    // a same-team doctor if one exists within a reasonable paceGap threshold.
+    const TEAM_GAP_THRESHOLD = 1.5;
+    const selected: DoctorWithTeam[] = [];
+    const usedIds = new Set<string>();
+
+    for (let slot = 0; slot < slotsNeeded; slot++) {
+      // Get remaining candidates in priority order.
+      const remaining = pool.filter(c => !usedIds.has(c.doc.id));
+      if (remaining.length === 0) break;
+
+      if (selected.length === 0) {
+        // First slot: always pick the highest priority candidate.
+        selected.push(remaining[0].doc);
+        usedIds.add(remaining[0].doc.id);
+      } else {
+        // Subsequent slots: prefer same-team within threshold.
+        const selectedTeams = new Set(selected.map(d => d.team_id).filter(Boolean));
+        const bestGap = remaining[0].paceGap;
+
+        let pick: Candidate | undefined;
+        for (const c of remaining) {
+          if (bestGap - c.paceGap > TEAM_GAP_THRESHOLD) break;
+          if (c.doc.team_id && selectedTeams.has(c.doc.team_id)) {
+            pick = c;
+            break;
           }
         }
-      }
 
-      backfillPool.sort((a, b) => {
-        const aDeficit = this.getDoctorDeficit(a.id, doctorTargetShifts);
-        const bDeficit = this.getDoctorDeficit(b.id, doctorTargetShifts);
-        if (aDeficit !== bDeficit) return bDeficit - aDeficit;
-        return (this.doctorHours.get(a.id) || 0) - (this.doctorHours.get(b.id) || 0);
-      });
-
-      for (const doc of backfillPool) {
-        if (selected.length >= slotsNeeded) break;
-        if (!selectedIds.has(doc.id)) {
-          selected.push(doc);
-          selectedIds.add(doc.id);
-        }
+        const chosen = pick || remaining[0];
+        selected.push(chosen.doc);
+        usedIds.add(chosen.doc.id);
       }
     }
 
@@ -398,7 +372,10 @@ export class SchedulingEngine {
     return this.doctors.map(doctor => {
       const baseNorm = this.calculateBaseNorm(doctor.id);
       const totalHours = this.doctorHours.get(doctor.id) || 0;
-      const leaveDays = this.leaveDays.filter(l => l.doctor_id === doctor.id).length;
+      const monthPrefix = this.getMonthPrefix();
+      const leaveDays = this.leaveDays.filter(
+        l => l.doctor_id === doctor.id && l.leave_date.startsWith(monthPrefix)
+      ).length;
       
       return {
         doctorId: doctor.id,
@@ -416,6 +393,11 @@ export class SchedulingEngine {
   private formatDate(date: Date): string {
     const pad = (n: number) => String(n).padStart(2, '0');
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  }
+
+  private getMonthPrefix(): string {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${this.year}-${pad(this.month + 1)}`;
   }
 
   static calculatePossibleLeaveDays(
