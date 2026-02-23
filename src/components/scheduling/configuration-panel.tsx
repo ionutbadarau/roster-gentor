@@ -10,6 +10,7 @@ import { Doctor, Team } from '@/types/scheduling';
 import { createClient } from '../../../supabase/client';
 import { Plus, Trash2, Users, Save } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import { useTranslation } from '@/lib/i18n';
 
 interface ConfigurationPanelProps {
   doctors: Doctor[];
@@ -29,12 +30,13 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
 
   const supabase = createClient();
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const handleAddTeam = async () => {
     if (!newTeamName.trim()) {
       toast({
-        title: 'Eroare',
-        description: 'Numele echipei este obligatoriu',
+        title: t('common.error'),
+        description: t('scheduling.config.teamNameRequired'),
         variant: 'destructive',
       });
       return;
@@ -51,8 +53,8 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
       if (error) throw error;
 
       toast({
-        title: 'Succes',
-        description: 'Echipa a fost adăugată cu succes',
+        title: t('common.success'),
+        description: t('scheduling.config.teamAddedSuccess'),
       });
 
       setNewTeamName('');
@@ -62,8 +64,8 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
     } catch (error) {
       console.error('Error adding team:', error);
       toast({
-        title: 'Eroare',
-        description: 'Nu s-a putut adăuga echipa',
+        title: t('common.error'),
+        description: t('scheduling.config.teamAddError'),
         variant: 'destructive',
       });
     } finally {
@@ -79,16 +81,16 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
       if (error) throw error;
 
       toast({
-        title: 'Succes',
-        description: 'Echipa a fost ștearsă cu succes',
+        title: t('common.success'),
+        description: t('scheduling.config.teamDeletedSuccess'),
       });
 
       onUpdate();
     } catch (error) {
       console.error('Error deleting team:', error);
       toast({
-        title: 'Eroare',
-        description: 'Nu s-a putut șterge echipa',
+        title: t('common.error'),
+        description: t('scheduling.config.teamDeleteError'),
         variant: 'destructive',
       });
     } finally {
@@ -99,8 +101,8 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
   const handleAddDoctor = async () => {
     if (!newDoctorName.trim()) {
       toast({
-        title: 'Eroare',
-        description: 'Numele doctorului este obligatoriu',
+        title: t('common.error'),
+        description: t('scheduling.config.doctorNameRequired'),
         variant: 'destructive',
       });
       return;
@@ -118,8 +120,8 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
       if (error) throw error;
 
       toast({
-        title: 'Succes',
-        description: 'Doctorul a fost adăugat cu succes',
+        title: t('common.success'),
+        description: t('scheduling.config.doctorAddedSuccess'),
       });
 
       setNewDoctorName('');
@@ -130,8 +132,8 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
     } catch (error) {
       console.error('Error adding doctor:', error);
       toast({
-        title: 'Eroare',
-        description: 'Nu s-a putut adăuga doctorul',
+        title: t('common.error'),
+        description: t('scheduling.config.doctorAddError'),
         variant: 'destructive',
       });
     } finally {
@@ -147,16 +149,16 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
       if (error) throw error;
 
       toast({
-        title: 'Succes',
-        description: 'Doctorul a fost eliminat cu succes',
+        title: t('common.success'),
+        description: t('scheduling.config.doctorDeletedSuccess'),
       });
 
       onUpdate();
     } catch (error) {
       console.error('Error deleting doctor:', error);
       toast({
-        title: 'Eroare',
-        description: 'Nu s-a putut elimina doctorul',
+        title: t('common.error'),
+        description: t('scheduling.config.doctorDeleteError'),
         variant: 'destructive',
       });
     } finally {
@@ -174,26 +176,26 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Configurare Echipe
+            {t('scheduling.config.teamsTitle')}
           </CardTitle>
           <CardDescription>
-            Definește echipele și capacitatea maximă
+            {t('scheduling.config.teamsDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="team-name">Nume Echipă</Label>
+              <Label htmlFor="team-name">{t('scheduling.config.teamName')}</Label>
               <Input
                 id="team-name"
-                placeholder="ex. Echipa Alpha"
+                placeholder={t('scheduling.config.teamNamePlaceholder')}
                 value={newTeamName}
                 onChange={(e) => setNewTeamName(e.target.value)}
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Culoare Echipă</Label>
+              <Label>{t('scheduling.config.teamColor')}</Label>
               <div className="flex gap-2">
                 {teamColors.map((color) => (
                   <button
@@ -209,7 +211,7 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="max-members">Membri Maximi</Label>
+              <Label htmlFor="max-members">{t('scheduling.config.maxMembers')}</Label>
               <Input
                 id="max-members"
                 type="number"
@@ -222,12 +224,12 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
 
             <Button onClick={handleAddTeam} disabled={loading} className="w-full">
               <Plus className="h-4 w-4 mr-2" />
-              Adaugă Echipă
+              {t('scheduling.config.addTeam')}
             </Button>
           </div>
 
           <div className="space-y-2">
-            <Label>Echipe Existente ({teams.length})</Label>
+            <Label>{t('scheduling.config.existingTeams')} ({teams.length})</Label>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {teams.map((team) => (
                 <div
@@ -242,7 +244,7 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
                     <div>
                       <p className="font-medium">{team.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        Max {team.max_members} membri
+                        {t('scheduling.config.maxMembersLabel', { count: team.max_members })}
                       </p>
                     </div>
                   </div>
@@ -258,7 +260,7 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
               ))}
               {teams.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  Nicio echipă configurată încă
+                  {t('scheduling.config.noTeams')}
                 </p>
               )}
             </div>
@@ -270,37 +272,37 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Gestionare Doctori
+            {t('scheduling.config.doctorsTitle')}
           </CardTitle>
           <CardDescription>
-            Adaugă doctori și asignează-i la echipe
+            {t('scheduling.config.doctorsDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="doctor-name">Nume Doctor</Label>
+              <Label htmlFor="doctor-name">{t('scheduling.config.doctorName')}</Label>
               <Input
                 id="doctor-name"
-                placeholder="Dr. Ion Popescu"
+                placeholder={t('scheduling.config.doctorNamePlaceholder')}
                 value={newDoctorName}
                 onChange={(e) => setNewDoctorName(e.target.value)}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="doctor-email">Email (Opțional)</Label>
+              <Label htmlFor="doctor-email">{t('scheduling.config.doctorEmail')}</Label>
               <Input
                 id="doctor-email"
                 type="email"
-                placeholder="doctor@spital.ro"
+                placeholder={t('scheduling.config.doctorEmailPlaceholder')}
                 value={newDoctorEmail}
                 onChange={(e) => setNewDoctorEmail(e.target.value)}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="team-select">Asignează la Echipă</Label>
+              <Label htmlFor="team-select">{t('scheduling.config.assignTeam')}</Label>
               <select
                 id="team-select"
                 className="w-full px-3 py-2 rounded-md border border-input bg-background"
@@ -308,7 +310,7 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
                 onChange={(e) => setSelectedTeamId(e.target.value)}
                 disabled={isFloating}
               >
-                <option value="">Fără Echipă (Flotant)</option>
+                <option value="">{t('scheduling.config.noTeamOption')}</option>
                 {teams.map((team) => (
                   <option key={team.id} value={team.id}>
                     {team.name}
@@ -319,9 +321,9 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
 
             <div className="flex items-center justify-between p-3 rounded-lg border">
               <div>
-                <Label htmlFor="floating-switch">Personal Flotant</Label>
+                <Label htmlFor="floating-switch">{t('scheduling.config.floatingStaff')}</Label>
                 <p className="text-xs text-muted-foreground">
-                  Poate înlocui în orice echipă
+                  {t('scheduling.config.floatingStaffDesc')}
                 </p>
               </div>
               <Switch
@@ -336,12 +338,12 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
 
             <Button onClick={handleAddDoctor} disabled={loading} className="w-full">
               <Plus className="h-4 w-4 mr-2" />
-              Adaugă Doctor
+              {t('scheduling.config.addDoctor')}
             </Button>
           </div>
 
           <div className="space-y-2">
-            <Label>Doctori ({doctors.length})</Label>
+            <Label>{t('scheduling.config.doctorsLabel')} ({doctors.length})</Label>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {doctors.map((doctor) => {
                 const team = teams.find((t) => t.id === doctor.team_id);
@@ -361,10 +363,10 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
                         <p className="font-medium">{doctor.name}</p>
                         <p className="text-xs text-muted-foreground">
                           {doctor.is_floating
-                            ? 'Personal Flotant'
+                            ? t('scheduling.config.floatingLabel')
                             : team
                             ? team.name
-                            : 'Fără Echipă'}
+                            : t('scheduling.config.noTeamLabel')}
                         </p>
                       </div>
                     </div>
@@ -381,7 +383,7 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
               })}
               {doctors.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  Niciun doctor adăugat încă
+                  {t('scheduling.config.noDoctors')}
                 </p>
               )}
             </div>

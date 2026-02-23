@@ -9,12 +9,14 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu'
 import { Button } from './ui/button'
-import { UserCircle, Home } from 'lucide-react'
+import { UserCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { useTranslation } from '@/lib/i18n'
 
 export default function DashboardNavbar() {
   const supabase = createClient()
   const router = useRouter()
+  const { t, language, setLanguage } = useTranslation()
 
   return (
     <nav className="w-full border-b border-gray-200 bg-white py-4">
@@ -25,6 +27,14 @@ export default function DashboardNavbar() {
           </Link>
         </div>
         <div className="flex gap-4 items-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setLanguage(language === 'ro' ? 'en' : 'ro')}
+            className="text-xs font-semibold px-2"
+          >
+            {language === 'ro' ? 'EN' : 'RO'}
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">
@@ -36,7 +46,7 @@ export default function DashboardNavbar() {
                 await supabase.auth.signOut()
                 router.refresh()
               }}>
-                Sign out
+                {t('nav.signOut')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

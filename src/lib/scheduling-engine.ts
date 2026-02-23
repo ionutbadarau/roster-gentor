@@ -375,7 +375,7 @@ export class SchedulingEngine {
         const shortfall = baseNorm - currentHours;
         const requiredLeaveDays = Math.ceil(shortfall / SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY);
         warnings.push(
-          `Norma de baza nu poate fi indeplinita pentru ${doc.name}. Alege cel putin ${requiredLeaveDays} zile de concediu pentru a genera tabelul.`
+          `scheduling.engine.normWarning::${JSON.stringify({ name: doc.name, days: requiredLeaveDays })}`
         );
       }
     }
@@ -469,7 +469,7 @@ export class SchedulingEngine {
       return {
         isValid: false,
         requiredLeaveDays: possibleLeaveDays,
-        message: `Prea multe zile de concediu selectate. Maximum permis: ${possibleLeaveDays} zile.`,
+        message: `scheduling.engine.tooManyLeaveDays::${JSON.stringify({ max: possibleLeaveDays })}`,
       };
     }
     
@@ -499,7 +499,7 @@ export class SchedulingEngine {
         conflicts.push({
           type: 'understaffed',
           date,
-          message: `Understaffed day shift: only ${dayShiftCount} doctor(s)`,
+          message: `scheduling.engine.understaffedDay::${JSON.stringify({ count: dayShiftCount })}`,
         });
       }
 
@@ -507,7 +507,7 @@ export class SchedulingEngine {
         conflicts.push({
           type: 'understaffed',
           date,
-          message: `Understaffed night shift: only ${nightShiftCount} doctor(s)`,
+          message: `scheduling.engine.understaffedNight::${JSON.stringify({ count: nightShiftCount })}`,
         });
       }
     });
@@ -538,7 +538,7 @@ export class SchedulingEngine {
             type: 'rest_violation',
             date: currShift.shift_date,
             doctor_id: doctorId,
-            message: `Rest violation: Less than ${SCHEDULING_CONSTANTS.DAY_SHIFT_REST} hours after day shift`,
+            message: `scheduling.engine.restViolationDay::${JSON.stringify({ hours: SCHEDULING_CONSTANTS.DAY_SHIFT_REST })}`,
           });
         }
 
@@ -547,7 +547,7 @@ export class SchedulingEngine {
             type: 'rest_violation',
             date: currShift.shift_date,
             doctor_id: doctorId,
-            message: `Rest violation: Less than ${SCHEDULING_CONSTANTS.NIGHT_SHIFT_REST} hours after night shift`,
+            message: `scheduling.engine.restViolationNight::${JSON.stringify({ hours: SCHEDULING_CONSTANTS.NIGHT_SHIFT_REST })}`,
           });
         }
       }

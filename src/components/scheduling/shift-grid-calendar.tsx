@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { useTranslation } from '@/lib/i18n';
 
 interface ShiftGridCalendarProps {
   doctors: Doctor[];
@@ -53,10 +54,9 @@ export default function ShiftGridCalendar({
   const supabase = createClient();
   const { toast } = useToast();
 
-  const monthNames = [
-    'Ianuarie', 'Februarie', 'Martie', 'Aprilie', 'Mai', 'Iunie',
-    'Iulie', 'August', 'Septembrie', 'Octombrie', 'Noiembrie', 'Decembrie'
-  ];
+  const { t, tArray, tMessage } = useTranslation();
+
+  const monthNames = tArray('months');
 
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
@@ -70,13 +70,13 @@ export default function ShiftGridCalendar({
   const sortedDoctors = useMemo(() => {
     const teamDoctors = doctors.filter(d => d.team_id && !d.is_floating);
     const floatingDoctors = doctors.filter(d => d.is_floating || !d.team_id);
-    
+
     teamDoctors.sort((a, b) => {
       const teamA = teams.find(t => t.id === a.team_id);
       const teamB = teams.find(t => t.id === b.team_id);
       return (teamA?.order || 0) - (teamB?.order || 0);
     });
-    
+
     return [...teamDoctors, ...floatingDoctors];
   }, [doctors, teams]);
 
@@ -99,8 +99,8 @@ export default function ShiftGridCalendar({
   const handleGenerateSchedule = async () => {
     if (doctors.length === 0) {
       toast({
-        title: 'Eroare',
-        description: 'Adaugă doctori înainte de a genera programul',
+        title: t('common.error'),
+        description: t('scheduling.grid.toastNoDoctors'),
         variant: 'destructive',
       });
       return;
@@ -144,16 +144,16 @@ export default function ShiftGridCalendar({
       if (error) throw error;
 
       toast({
-        title: 'Succes',
-        description: `Program generat pentru ${monthNames[currentMonth]} ${currentYear}`,
+        title: t('common.success'),
+        description: t('scheduling.grid.toastGenerateSuccess', { month: monthNames[currentMonth], year: currentYear }),
       });
 
       onShiftsUpdate(result.shifts);
     } catch (error) {
       console.error('Error generating schedule:', error);
       toast({
-        title: 'Eroare',
-        description: 'Nu s-a putut genera programul',
+        title: t('common.error'),
+        description: t('scheduling.grid.toastGenerateError'),
         variant: 'destructive',
       });
     } finally {
@@ -180,8 +180,8 @@ export default function ShiftGridCalendar({
 
   const getDayOfWeek = (day: number): string => {
     const date = new Date(currentYear, currentMonth, day);
-    const days = ['D', 'L', 'Ma', 'Mi', 'J', 'V', 'S'];
-    return days[date.getDay()];
+    const dayNames = tArray('daysShort');
+    return dayNames[date.getDay()];
   };
 
   const isWeekend = (day: number): boolean => {
@@ -200,7 +200,7 @@ export default function ShiftGridCalendar({
     const doctorLeaveDays = leaveDays.filter(l => l.doctor_id === doctorId && l.leave_date.startsWith(monthPrefix)).length;
     const workingDays = SchedulingEngine.getWorkingDaysInMonthStatic(currentMonth, currentYear);
     const baseNorm = SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * workingDays - SCHEDULING_CONSTANTS.SHIFT_DURATION * doctorLeaveDays;
-    
+
     return { dayShifts, nightShifts, totalHours, baseNorm };
   };
 
@@ -375,14 +375,14 @@ export default function ShiftGridCalendar({
       onShiftsUpdate(updatedShifts);
       onLeaveDaysUpdate(updatedLeaveDays);
 
-      const label = action === 'day' ? 'Tură de Zi' : action === 'night' ? 'Tură de Noapte' : 'Concediu';
+      const label = action === 'day' ? t('scheduling.grid.dayShift') : action === 'night' ? t('scheduling.grid.nightShift') : t('scheduling.grid.leave');
       toast({
-        title: `${label} — ${selectedDays.length} zile`,
-        description: `${label} aplicat(ă) pentru zilele ${selectedDays[0]}–${selectedDays[selectedDays.length - 1]} ${monthNames[currentMonth]}`,
+        title: t('scheduling.grid.batchApplied', { label, count: selectedDays.length }),
+        description: t('scheduling.grid.batchAppliedDesc', { label, start: selectedDays[0], end: selectedDays[selectedDays.length - 1], month: monthNames[currentMonth] }),
       });
     } catch (error) {
       console.error('Error applying batch action:', error);
-      toast({ title: 'Eroare', description: 'Nu s-au putut actualiza celulele', variant: 'destructive' });
+      toast({ title: t('common.error'), description: t('scheduling.grid.toastClearCellsError'), variant: 'destructive' });
     }
   };
 
@@ -417,12 +417,12 @@ export default function ShiftGridCalendar({
       onLeaveDaysUpdate(updatedLeaveDays);
 
       toast({
-        title: 'Selecție golită',
-        description: `Zilele ${selectedDays[0]}–${selectedDays[selectedDays.length - 1]} ${monthNames[currentMonth]} au fost golite`,
+        title: t('scheduling.grid.clearedTitle'),
+        description: t('scheduling.grid.clearedDesc', { start: selectedDays[0], end: selectedDays[selectedDays.length - 1], month: monthNames[currentMonth] }),
       });
     } catch (error) {
       console.error('Error clearing cells:', error);
-      toast({ title: 'Eroare', description: 'Nu s-au putut goli celulele', variant: 'destructive' });
+      toast({ title: t('common.error'), description: t('scheduling.grid.toastClearError'), variant: 'destructive' });
     }
   };
 
@@ -450,14 +450,23 @@ export default function ShiftGridCalendar({
       onLeaveDaysUpdate(leaveDays.filter(l => l.leave_date < monthStart || l.leave_date > monthEnd));
 
       toast({
-        title: 'Lună golită',
-        description: `Toate turele și concediile din ${monthNames[currentMonth]} ${currentYear} au fost șterse`,
+        title: t('scheduling.grid.clearedMonthTitle'),
+        description: t('scheduling.grid.clearedMonthDesc', { month: monthNames[currentMonth], year: currentYear }),
       });
     } catch (error) {
       console.error('Error clearing month:', error);
-      toast({ title: 'Eroare', description: 'Nu s-a putut goli luna', variant: 'destructive' });
+      toast({ title: t('common.error'), description: t('scheduling.grid.toastClearMonthError'), variant: 'destructive' });
     }
   };
+
+  // Helper to extract the letter between parentheses from a label string, e.g. "Day Shift (D)" -> "D"
+  const extractCellLetter = (label: string, fallback: string): string => {
+    return label.match(/\((.)\)/)?.[1] || fallback;
+  };
+
+  const dayShiftLetter = extractCellLetter(t('scheduling.grid.dayShiftLabel'), 'Z');
+  const nightShiftLetter = extractCellLetter(t('scheduling.grid.nightShiftLabel'), 'N');
+  const leaveLetter = extractCellLetter(t('scheduling.grid.leaveLabel'), 'C');
 
   return (
     <div className="space-y-4">
@@ -467,26 +476,26 @@ export default function ShiftGridCalendar({
             <div>
               <CardTitle className="flex items-center gap-2">
                 <CalendarIcon className="h-5 w-5" />
-                Program Lunar
+                {t('scheduling.grid.title')}
               </CardTitle>
               <CardDescription>
-                Vizualizează și editează turele pentru fiecare doctor
+                {t('scheduling.grid.description')}
               </CardDescription>
             </div>
             <div className="flex items-center gap-4">
               <div className="text-sm">
-                <span className="text-muted-foreground">Zile concediu luna aceasta: </span>
+                <span className="text-muted-foreground">{t('scheduling.grid.leaveDaysThisMonth') + ': '}</span>
                 <Badge variant="outline">
                   {currentLeaveDaysCount}
                 </Badge>
               </div>
               <Button variant="outline" onClick={handleClearMonth}>
                 <Trash2 className="h-4 w-4 mr-2" />
-                Golește Luna
+                {t('scheduling.grid.clearMonth')}
               </Button>
               <Button onClick={handleGenerateSchedule} disabled={generating}>
                 <Sparkles className="h-4 w-4 mr-2" />
-                {generating ? 'Se generează...' : 'Generează Program'}
+                {generating ? t('scheduling.grid.generating') : t('scheduling.grid.generate')}
               </Button>
             </div>
           </div>
@@ -510,7 +519,7 @@ export default function ShiftGridCalendar({
               <AlertDescription className="text-yellow-800 dark:text-yellow-200">
                 <ul className="list-disc list-inside">
                   {warnings.map((warning, idx) => (
-                    <li key={idx}>{warning}</li>
+                    <li key={idx}>{tMessage(warning)}</li>
                   ))}
                 </ul>
               </AlertDescription>
@@ -522,10 +531,10 @@ export default function ShiftGridCalendar({
               {/* Header row with days */}
               <div className="flex border-b">
                 <div className="w-48 min-w-48 p-2 font-semibold border-r bg-muted sticky left-0 z-10">
-                  Doctor
+                  {t('scheduling.grid.doctorColumn')}
                 </div>
                 <div className="w-20 min-w-20 p-2 font-semibold border-r bg-muted text-center text-xs">
-                  Ore
+                  {t('scheduling.grid.hoursColumn')}
                 </div>
                 {days.map(day => (
                   <div
@@ -544,10 +553,10 @@ export default function ShiftGridCalendar({
               {sortedDoctors.map(doctor => {
                 const stats = getDoctorStats(doctor.id);
                 const teamColor = getTeamColor(doctor);
-                
+
                 return (
                   <div key={doctor.id} className="flex border-b hover:bg-accent/30">
-                    <div 
+                    <div
                       className="w-48 min-w-48 p-2 border-r flex items-center gap-2 sticky left-0 bg-background z-10"
                     >
                       <div
@@ -592,11 +601,11 @@ export default function ShiftGridCalendar({
                                 ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800'
                                 : 'hover:bg-accent'
                             }`}
-                            title={violation ? 'Perioadă de odihnă insuficientă!' : 'Click și trage pentru selecție multiplă'}
+                            title={violation ? t('scheduling.grid.insufficientRestTooltip') : t('scheduling.grid.multiSelectTooltip')}
                             onMouseDown={(e) => handleCellMouseDown(doctor.id, day, e)}
                             onMouseEnter={() => handleCellMouseEnter(doctor.id, day)}
                           >
-                            {isLeave ? 'C' : shift?.shift_type === 'day' ? 'Z' : shift?.shift_type === 'night' ? 'N' : ''}
+                            {isLeave ? leaveLetter : shift?.shift_type === 'day' ? dayShiftLetter : shift?.shift_type === 'night' ? nightShiftLetter : ''}
                           </button>
                         </div>
                       );
@@ -628,28 +637,28 @@ export default function ShiftGridCalendar({
               }}
             >
               <div className="px-2 py-1.5 text-xs text-muted-foreground font-medium border-b mb-1">
-                {selectionPopup.days.length} {selectionPopup.days.length === 1 ? 'zi selectată' : 'zile selectate'}
+                {selectionPopup.days.length} {selectionPopup.days.length === 1 ? t('scheduling.grid.selectedSingular') : t('scheduling.grid.selectedPlural')}
               </div>
               <button
                 className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
                 onClick={() => handleBatchAction('day')}
               >
                 <span className="w-4 h-4 rounded bg-blue-500 flex-shrink-0" />
-                Tură de Zi (Z)
+                {t('scheduling.grid.dayShiftLabel')}
               </button>
               <button
                 className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
                 onClick={() => handleBatchAction('night')}
               >
                 <span className="w-4 h-4 rounded bg-indigo-500 flex-shrink-0" />
-                Tură de Noapte (N)
+                {t('scheduling.grid.nightShiftLabel')}
               </button>
               <button
                 className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
                 onClick={() => handleBatchAction('leave')}
               >
                 <span className="w-4 h-4 rounded bg-orange-500 flex-shrink-0" />
-                Concediu (C)
+                {t('scheduling.grid.leaveLabel')}
               </button>
               {selectionHasAssignments && (
                 <>
@@ -659,7 +668,7 @@ export default function ShiftGridCalendar({
                     onClick={handleBatchClear}
                   >
                     <X className="w-4 h-4 flex-shrink-0" />
-                    Golește selecția
+                    {t('scheduling.grid.clearSelection')}
                   </button>
                 </>
               )}
@@ -670,24 +679,24 @@ export default function ShiftGridCalendar({
           {/* Legend */}
           <div className="mt-6 flex items-center gap-6 text-sm flex-wrap">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900 rounded flex items-center justify-center text-blue-700 dark:text-blue-300 text-xs font-bold">Z</div>
-              <span className="text-muted-foreground">Tură de Zi (08:00-20:00)</span>
+              <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900 rounded flex items-center justify-center text-blue-700 dark:text-blue-300 text-xs font-bold">{dayShiftLetter}</div>
+              <span className="text-muted-foreground">{t('scheduling.grid.dayShiftLegend')}</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-indigo-100 dark:bg-indigo-900 rounded flex items-center justify-center text-indigo-700 dark:text-indigo-300 text-xs font-bold">N</div>
-              <span className="text-muted-foreground">Tură de Noapte (20:00-08:00)</span>
+              <div className="w-6 h-6 bg-indigo-100 dark:bg-indigo-900 rounded flex items-center justify-center text-indigo-700 dark:text-indigo-300 text-xs font-bold">{nightShiftLetter}</div>
+              <span className="text-muted-foreground">{t('scheduling.grid.nightShiftLegend')}</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-orange-100 dark:bg-orange-900 rounded flex items-center justify-center text-orange-700 dark:text-orange-300 text-xs font-bold">C</div>
-              <span className="text-muted-foreground">Concediu</span>
+              <div className="w-6 h-6 bg-orange-100 dark:bg-orange-900 rounded flex items-center justify-center text-orange-700 dark:text-orange-300 text-xs font-bold">{leaveLetter}</div>
+              <span className="text-muted-foreground">{t('scheduling.grid.leaveLegend')}</span>
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-xs">F</Badge>
-              <span className="text-muted-foreground">Doctor Flotant</span>
+              <span className="text-muted-foreground">{t('scheduling.grid.floatingBadge')}</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 bg-red-200 dark:bg-red-900/60 rounded ring-2 ring-red-500 flex items-center justify-center text-red-800 dark:text-red-200 text-xs font-bold">!</div>
-              <span className="text-muted-foreground">Odihnă insuficientă</span>
+              <span className="text-muted-foreground">{t('scheduling.grid.insufficientRest')}</span>
             </div>
           </div>
         </CardContent>

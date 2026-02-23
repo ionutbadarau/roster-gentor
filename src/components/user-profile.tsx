@@ -4,10 +4,12 @@ import { Button } from './ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu'
 import { createClient } from '../../supabase/client'
 import { useRouter } from 'next/navigation'
+import { useTranslation } from '@/lib/i18n'
 
 export default function UserProfile() {
     const supabase = createClient()
     const router = useRouter()
+    const { t } = useTranslation()
 
     return (
         <DropdownMenu>
@@ -21,7 +23,7 @@ export default function UserProfile() {
                     await supabase.auth.signOut()
                     router.refresh()
                 }}>
-                    Sign out
+                    {t('nav.signOut')}
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>

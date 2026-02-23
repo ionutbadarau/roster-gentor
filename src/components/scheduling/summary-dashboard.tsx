@@ -7,6 +7,7 @@ import { SchedulingEngine, SCHEDULING_CONSTANTS } from '@/lib/scheduling-engine'
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import QuickStartGuide from './quick-start-guide';
+import { useTranslation } from '@/lib/i18n';
 
 interface SummaryDashboardProps {
   doctors: Doctor[];
@@ -23,10 +24,8 @@ export default function SummaryDashboard({
   currentMonth,
   currentYear,
 }: SummaryDashboardProps) {
-  const monthNames = [
-    'Ianuarie', 'Februarie', 'Martie', 'Aprilie', 'Mai', 'Iunie',
-    'Iulie', 'August', 'Septembrie', 'Octombrie', 'Noiembrie', 'Decembrie'
-  ];
+  const { t, tArray, tMessage } = useTranslation();
+  const monthNames = tArray('months');
 
   const conflicts = SchedulingEngine.detectConflicts(shifts, doctors);
   const dayShifts = shifts.filter((s) => s.shift_type === 'day').length;
@@ -68,46 +67,46 @@ export default function SummaryDashboard({
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Doctori</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('scheduling.summary.totalDoctors')}</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{doctors.length}</div>
             <p className="text-xs text-muted-foreground">
-              {teamDoctors} în echipe, {floatingDoctors} flotanți
+              {t('scheduling.summary.inTeamsFloating', { teams: teamDoctors, floating: floatingDoctors })}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Ture</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('scheduling.summary.totalShifts')}</CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{shifts.length}</div>
             <p className="text-xs text-muted-foreground">
-              {dayShifts} zi, {nightShifts} noapte
+              {t('scheduling.summary.dayNight', { day: dayShifts, night: nightShifts })}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Ore</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('scheduling.summary.totalHours')}</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalHours}h</div>
             <p className="text-xs text-muted-foreground">
-              Pentru {monthNames[currentMonth]} {currentYear}
+              {t('scheduling.summary.forMonthYear', { month: monthNames[currentMonth], year: currentYear })}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Conflicte</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('scheduling.summary.conflicts')}</CardTitle>
             {conflicts.length > 0 ? (
               <AlertTriangle className="h-4 w-4 text-yellow-600" />
             ) : (
@@ -119,7 +118,7 @@ export default function SummaryDashboard({
               {conflicts.length}
             </div>
             <p className="text-xs text-muted-foreground">
-              {conflicts.length === 0 ? 'Totul în regulă' : 'Probleme detectate'}
+              {conflicts.length === 0 ? t('scheduling.summary.allGood') : t('scheduling.summary.issuesDetected')}
             </p>
           </CardContent>
         </Card>
@@ -128,37 +127,37 @@ export default function SummaryDashboard({
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Statistici Acoperire</CardTitle>
+            <CardTitle>{t('scheduling.summary.coverageStats')}</CardTitle>
             <CardDescription>
-              Acoperire ture pentru {monthNames[currentMonth]} {currentYear}
+              {t('scheduling.summary.coverageFor', { month: monthNames[currentMonth], year: currentYear })}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Acoperire Ture de Zi</span>
+                <span className="text-muted-foreground">{t('scheduling.summary.dayCoverage')}</span>
                 <span className="font-medium">{Math.round(dayCoverage)}%</span>
               </div>
               <Progress value={Math.min(dayCoverage, 100)} className="h-2" />
               <p className="text-xs text-muted-foreground">
-                {dayShifts} din {requiredDayShifts} ture necesare
+                {t('scheduling.summary.ofRequired', { actual: dayShifts, required: requiredDayShifts })}
               </p>
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Acoperire Ture de Noapte</span>
+                <span className="text-muted-foreground">{t('scheduling.summary.nightCoverage')}</span>
                 <span className="font-medium">{Math.round(nightCoverage)}%</span>
               </div>
               <Progress value={Math.min(nightCoverage, 100)} className="h-2" />
               <p className="text-xs text-muted-foreground">
-                {nightShifts} din {requiredNightShifts} ture necesare
+                {t('scheduling.summary.ofRequired', { actual: nightShifts, required: requiredNightShifts })}
               </p>
             </div>
 
             <div className="pt-4 border-t">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Acoperire Totală</span>
+                <span className="text-sm font-medium">{t('scheduling.summary.totalCoverage')}</span>
                 <span className="text-lg font-bold">
                   {Math.round(((dayShifts + nightShifts) / (requiredDayShifts + requiredNightShifts)) * 100) || 0}%
                 </span>
@@ -167,11 +166,11 @@ export default function SummaryDashboard({
 
             <div className="pt-4 border-t">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Normă de bază / doctor</span>
+                <span className="text-muted-foreground">{t('scheduling.summary.baseNorm')}</span>
                 <span className="font-medium">{baseNormPerDoctor}h</span>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                ({workingDays} zile lucrătoare × {SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY}h)
+                {t('scheduling.summary.workingDaysCalc', { days: workingDays, hours: SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY })}
               </p>
             </div>
           </CardContent>
@@ -179,9 +178,9 @@ export default function SummaryDashboard({
 
         <Card>
           <CardHeader>
-            <CardTitle>Prezentare Echipe</CardTitle>
+            <CardTitle>{t('scheduling.summary.teamsOverview')}</CardTitle>
             <CardDescription>
-              {teams.length} echipe configurate
+              {t('scheduling.summary.teamsConfigured', { count: teams.length })}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -196,19 +195,19 @@ export default function SummaryDashboard({
                     <div>
                       <p className="font-medium">{team.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {doctorCount} doctor{doctorCount !== 1 ? 'i' : ''}
+                        {t('scheduling.summary.doctorCount', { count: doctorCount, suffix: doctorCount !== 1 ? 's' : '' })}
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="font-semibold">{shiftCount}</p>
-                    <p className="text-xs text-muted-foreground">ture</p>
+                    <p className="text-xs text-muted-foreground">{t('scheduling.summary.shifts')}</p>
                   </div>
                 </div>
               ))}
               {teams.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  Nicio echipă configurată încă
+                  {t('scheduling.summary.noTeams')}
                 </p>
               )}
             </div>
@@ -221,10 +220,10 @@ export default function SummaryDashboard({
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-yellow-600" />
-              Conflicte Program
+              {t('scheduling.summary.conflictsTitle')}
             </CardTitle>
             <CardDescription>
-              Probleme care necesită atenție
+              {t('scheduling.summary.conflictsDesc')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -232,7 +231,7 @@ export default function SummaryDashboard({
               {conflicts.map((conflict, index) => (
                 <Alert key={index} className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
                   <AlertDescription className="text-sm">
-                    <span className="font-medium">{conflict.date}:</span> {conflict.message}
+                    <span className="font-medium">{conflict.date}:</span> {tMessage(conflict.message)}
                   </AlertDescription>
                 </Alert>
               ))}
@@ -245,7 +244,7 @@ export default function SummaryDashboard({
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            Niciun doctor configurat. Adaugă doctori în tab-ul Configurare pentru a începe.
+            {t('scheduling.summary.noDoctorAlert')}
           </AlertDescription>
         </Alert>
       )}
@@ -254,7 +253,7 @@ export default function SummaryDashboard({
         <Alert>
           <Calendar className="h-4 w-4" />
           <AlertDescription>
-            Niciun program generat încă. Mergi la tab-ul Tabel pentru a genera un program.
+            {t('scheduling.summary.noScheduleAlert')}
           </AlertDescription>
         </Alert>
       )}

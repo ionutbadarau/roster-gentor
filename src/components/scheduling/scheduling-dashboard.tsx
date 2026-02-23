@@ -1,18 +1,32 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card } from '@/components/ui/card';
 import ConfigurationPanel from './configuration-panel';
-import MonthlyCalendar from './monthly-calendar';
 import ShiftGridCalendar from './shift-grid-calendar';
 import DoctorView from './doctor-view';
 import SummaryDashboard from './summary-dashboard';
 import { Doctor, Team, Shift, LeaveDay } from '@/types/scheduling';
 import { createClient } from '../../../supabase/client';
-import { Calendar, Settings, Users, BarChart3, Grid3X3 } from 'lucide-react';
+import { Settings, Users, BarChart3, Grid3X3 } from 'lucide-react';
+import { useTranslation } from '@/lib/i18n';
+
+const VALID_TABS = ['dashboard', 'grid', 'doctors', 'config'] as const;
+type TabValue = (typeof VALID_TABS)[number];
 
 export default function SchedulingDashboard() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const { t } = useTranslation();
+
+  const tabFromUrl = searchParams.get('tab') as TabValue | null;
+  const activeTab: TabValue = tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : 'grid';
+
+  const handleTabChange = useCallback((value: string) => {
+    router.replace(`/dashboard?tab=${value}`, { scroll: false });
+  }, [router]);
+
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
@@ -66,7 +80,7 @@ export default function SchedulingDashboard() {
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Se încarcă datele...</p>
+          <p className="text-muted-foreground">{t('common.loading')}</p>
         </div>
       </div>
     );
@@ -75,33 +89,29 @@ export default function SchedulingDashboard() {
   return (
     <div className="container mx-auto px-4 py-6 max-w-[100rem]">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Planificare Ture Medici</h1>
+        <h1 className="text-3xl font-bold mb-2">{t('scheduling.dashboard.title')}</h1>
         <p className="text-muted-foreground">
-          Gestionează programul personalului medical cu generare automată și detectare conflicte
+          {t('scheduling.dashboard.description')}
         </p>
       </div>
 
-      <Tabs defaultValue="grid" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 mb-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+        <TabsList className="grid w-full grid-cols-4 mb-6">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
-            <span className="hidden sm:inline">Dashboard</span>
+            <span className="hidden sm:inline">{t('scheduling.dashboard.tabDashboard')}</span>
           </TabsTrigger>
           <TabsTrigger value="grid" className="flex items-center gap-2">
             <Grid3X3 className="h-4 w-4" />
-            <span className="hidden sm:inline">Tabel</span>
-          </TabsTrigger>
-          <TabsTrigger value="calendar" className="flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            <span className="hidden sm:inline">Calendar</span>
+            <span className="hidden sm:inline">{t('scheduling.dashboard.tabGrid')}</span>
           </TabsTrigger>
           <TabsTrigger value="doctors" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
-            <span className="hidden sm:inline">Doctori</span>
+            <span className="hidden sm:inline">{t('scheduling.dashboard.tabDoctors')}</span>
           </TabsTrigger>
           <TabsTrigger value="config" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
-            <span className="hidden sm:inline">Configurare</span>
+            <span className="hidden sm:inline">{t('scheduling.dashboard.tabConfig')}</span>
           </TabsTrigger>
         </TabsList>
 
@@ -129,21 +139,6 @@ export default function SchedulingDashboard() {
             }}
             onShiftsUpdate={handleScheduleGenerated}
             onLeaveDaysUpdate={handleLeaveDaysUpdate}
-          />
-        </TabsContent>
-
-        <TabsContent value="calendar" className="space-y-4">
-          <MonthlyCalendar
-            doctors={doctors}
-            teams={teams}
-            shifts={shifts}
-            currentMonth={currentMonth}
-            currentYear={currentYear}
-            onMonthChange={(month, year) => {
-              setCurrentMonth(month);
-              setCurrentYear(year);
-            }}
-            onShiftsUpdate={handleScheduleGenerated}
           />
         </TabsContent>
 

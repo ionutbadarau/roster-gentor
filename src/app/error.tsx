@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
+import { useTranslation } from '@/lib/i18n';
 
 export default function Error({
   error,
@@ -12,8 +13,9 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const { t } = useTranslation();
+
   useEffect(() => {
-    // Log the error to an error reporting service
     console.error('Application error:', error);
   }, [error]);
 
@@ -23,10 +25,10 @@ export default function Error({
         <CardHeader>
           <div className="flex items-center gap-2">
             <AlertCircle className="h-5 w-5 text-destructive" />
-            <CardTitle>Something went wrong</CardTitle>
+            <CardTitle>{t('errors.generic.title')}</CardTitle>
           </div>
           <CardDescription>
-            An unexpected error occurred. Please try again.
+            {t('errors.generic.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -38,14 +40,14 @@ export default function Error({
         </CardContent>
         <CardFooter className="flex gap-2">
           <Button onClick={reset} className="flex-1">
-            Try again
+            {t('errors.generic.tryAgain')}
           </Button>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={() => window.location.href = '/'}
             className="flex-1"
           >
-            Go home
+            {t('errors.generic.goHome')}
           </Button>
         </CardFooter>
       </Card>

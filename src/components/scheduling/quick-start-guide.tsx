@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle2, Circle } from 'lucide-react';
+import { useTranslation } from '@/lib/i18n';
 
 interface QuickStartGuideProps {
   hasTeams: boolean;
@@ -10,20 +11,22 @@ interface QuickStartGuideProps {
 }
 
 export default function QuickStartGuide({ hasTeams, hasDoctors, hasSchedule }: QuickStartGuideProps) {
+  const { t } = useTranslation();
+
   const steps = [
     {
-      title: 'Creează Echipe',
-      description: 'Configurează echipele în tab-ul Configurare',
+      title: t('scheduling.quickStart.createTeams'),
+      description: t('scheduling.quickStart.createTeamsDesc'),
       completed: hasTeams,
     },
     {
-      title: 'Adaugă Doctori',
-      description: 'Adaugă doctori și asignează-i la echipe',
+      title: t('scheduling.quickStart.addDoctors'),
+      description: t('scheduling.quickStart.addDoctorsDesc'),
       completed: hasDoctors,
     },
     {
-      title: 'Generează Program',
-      description: 'Creează programul lunar în tab-ul Tabel',
+      title: t('scheduling.quickStart.generateSchedule'),
+      description: t('scheduling.quickStart.generateScheduleDesc'),
       completed: hasSchedule,
     },
   ];
@@ -35,8 +38,8 @@ export default function QuickStartGuide({ hasTeams, hasDoctors, hasSchedule }: Q
   return (
     <Card className="border-primary/50 bg-primary/5">
       <CardHeader>
-        <CardTitle>Ghid de Pornire Rapidă</CardTitle>
-        <CardDescription>Urmează acești pași pentru a începe planificarea turelor</CardDescription>
+        <CardTitle>{t('scheduling.quickStart.title')}</CardTitle>
+        <CardDescription>{t('scheduling.quickStart.description')}</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
