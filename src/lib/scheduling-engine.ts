@@ -444,6 +444,7 @@ export class SchedulingEngine {
       paceGap: number;
       underTarget: boolean;
       lookaheadPenalty: number;
+      continuationBonus: number;
     }
 
     const candidates: Candidate[] = [];
@@ -463,7 +464,23 @@ export class SchedulingEngine {
 
       const lookaheadPenalty = this.getLookaheadPenalty(doc, currentDate, shiftType);
 
-      candidates.push({ doc, paceGap, underTarget: current < target, lookaheadPenalty });
+      // Continuation bonus: doctors prefer day(N) → night(N+1) rotation.
+      // If selecting for a night shift, strongly prefer doctors who worked
+      // the day shift yesterday — this creates the preferred pattern.
+      let continuationBonus = 0;
+      if (shiftType === 'night') {
+        const lastShift = this.doctorLastShift.get(doc.id);
+        if (lastShift && lastShift.type === 'day') {
+          const yesterday = currentDate.getDate() - 1;
+          if (lastShift.date.getDate() === yesterday &&
+              lastShift.date.getMonth() === currentDate.getMonth() &&
+              lastShift.date.getFullYear() === currentDate.getFullYear()) {
+            continuationBonus = 10;
+          }
+        }
+      }
+
+      candidates.push({ doc, paceGap, underTarget: current < target, lookaheadPenalty, continuationBonus });
     };
 
     for (const teamId of teamIds) {
@@ -476,7 +493,8 @@ export class SchedulingEngine {
     // descending — most behind first, but penalised if their rest would
     // cause understaffing on upcoming days.
     const sortByScore = (a: Candidate, b: Candidate) =>
-      (b.paceGap - b.lookaheadPenalty) - (a.paceGap - a.lookaheadPenalty);
+      (b.paceGap - b.lookaheadPenalty + b.continuationBonus) -
+      (a.paceGap - a.lookaheadPenalty + a.continuationBonus);
 
     const underTarget = candidates
       .filter(c => c.underTarget)
