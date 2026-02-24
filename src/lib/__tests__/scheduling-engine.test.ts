@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SchedulingEngine, SCHEDULING_CONSTANTS } from '@/lib/scheduling-engine';
-import type { DoctorWithTeam, Team, LeaveDay } from '@/types/scheduling';
+import type { DoctorWithTeam, Team, LeaveDay, NationalHoliday } from '@/types/scheduling';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -32,6 +32,10 @@ function makeDoctor(
 
 function makeLeaveDay(doctorId: string, date: string): LeaveDay {
   return { id: uid(), doctor_id: doctorId, leave_date: date };
+}
+
+function makeHoliday(date: string, description = ''): NationalHoliday {
+  return { id: uid(), holiday_date: date, description };
 }
 
 function formatDate(year: number, month: number, day: number): string {
@@ -291,16 +295,19 @@ describe('SchedulingEngine', () => {
       );
       expect(maxLeave).toBe(11);
 
-      // Distribute 11 leave days: 2 each for 5 doctors + 1 for a 6th
+      // Distribute 11 leave days: 2 each for 5 doctors + 1 for a 6th.
+      // Skip index 6 (Fri Jan 9) to avoid a Fri+Mon bridge-day pair for Doctor 3
+      // which would reduce their available days via the bridge-day logic.
+      const safeIndices = [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11];
       const leaveDays: LeaveDay[] = [];
       let leaveIdx = 0;
       for (let d = 0; d < 5; d++) {
         leaveDays.push(
-          makeLeaveDay(doctors[d].id, workingDates[leaveIdx++]),
-          makeLeaveDay(doctors[d].id, workingDates[leaveIdx++]),
+          makeLeaveDay(doctors[d].id, workingDates[safeIndices[leaveIdx++]]),
+          makeLeaveDay(doctors[d].id, workingDates[safeIndices[leaveIdx++]]),
         );
       }
-      leaveDays.push(makeLeaveDay(doctors[5].id, workingDates[leaveIdx]));
+      leaveDays.push(makeLeaveDay(doctors[5].id, workingDates[safeIndices[leaveIdx]]));
 
       expect(leaveDays).toHaveLength(11);
 
@@ -566,6 +573,401 @@ describe('SchedulingEngine', () => {
         c => c.type === 'understaffed',
       );
       expect(understaffed.length).toBeGreaterThan(0);
+    });
+  });
+
+  // ── 7. National holidays ──────────────────────────────────────────────────
+  // January 2026 calendar reference:
+  //   Thu 1, Fri 2, [Sat 3, Sun 4], Mon 5, Tue 6, Wed 7, Thu 8, Fri 9,
+  //   [Sat 10, Sun 11], Mon 12, Tue 13, Wed 14, Thu 15, Fri 16, ...
+
+  describe('National holidays', () => {
+    it('holidays on weekdays reduce working days and base norm for all doctors', () => {
+      // Jan 7 (Wed) and Jan 8 (Thu) are holidays → 22 - 2 = 20 working days
+      const holidays = [
+        makeHoliday(formatDate(TEST_YEAR, TEST_MONTH, 7)),
+        makeHoliday(formatDate(TEST_YEAR, TEST_MONTH, 8)),
+      ];
+
+      const workingDays = SchedulingEngine.getWorkingDaysInMonthStatic(
+        TEST_MONTH, TEST_YEAR, holidays,
+      );
+      expect(workingDays).toBe(WORKING_DAYS - 2); // 20
+
+      const { teams, doctors } = createTeamsAndDoctors([7, 7], 0);
+      const engine = new SchedulingEngine({
+        month: TEST_MONTH,
+        year: TEST_YEAR,
+        doctors,
+        teams,
+        shiftsPerDay: SHIFTS_PER_DAY,
+        shiftsPerNight: SHIFTS_PER_NIGHT,
+        nationalHolidays: holidays,
+      });
+      const result = engine.generateSchedule();
+
+      // All doctors should have the reduced base norm (7 × 20 = 140h)
+      const expectedNorm = SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * 20;
+      for (const stat of result.doctorStats) {
+        expect(stat.baseNorm).toBe(expectedNorm);
+      }
+    });
+
+    it('holidays on weekends do not reduce working days', () => {
+      // Jan 3 (Sat) is already a weekend — marking it as holiday changes nothing
+      const holidays = [
+        makeHoliday(formatDate(TEST_YEAR, TEST_MONTH, 3)),
+      ];
+
+      const workingDays = SchedulingEngine.getWorkingDaysInMonthStatic(
+        TEST_MONTH, TEST_YEAR, holidays,
+      );
+      expect(workingDays).toBe(WORKING_DAYS); // still 22
+    });
+
+    it('doctors are still scheduled on holidays (holidays reduce norm, not slots)', () => {
+      const holidays = [
+        makeHoliday(formatDate(TEST_YEAR, TEST_MONTH, 7)), // Wed
+      ];
+
+      const { teams, doctors } = createTeamsAndDoctors([7, 7], 0);
+      const engine = new SchedulingEngine({
+        month: TEST_MONTH,
+        year: TEST_YEAR,
+        doctors,
+        teams,
+        shiftsPerDay: SHIFTS_PER_DAY,
+        shiftsPerNight: SHIFTS_PER_NIGHT,
+        nationalHolidays: holidays,
+      });
+      const result = engine.generateSchedule();
+
+      // Shifts should still exist on Jan 7 — holidays reduce norm but don't block scheduling
+      const holidayShifts = result.shifts.filter(
+        s => s.shift_date === formatDate(TEST_YEAR, TEST_MONTH, 7),
+      );
+      expect(holidayShifts.length).toBeGreaterThan(0);
+    });
+
+    it('calculatePossibleLeaveDays accounts for holidays', () => {
+      // 2 holidays on weekdays → 20 working days → lower norm → fewer excess hours
+      const holidays = [
+        makeHoliday(formatDate(TEST_YEAR, TEST_MONTH, 7)),
+        makeHoliday(formatDate(TEST_YEAR, TEST_MONTH, 8)),
+      ];
+
+      const withoutHolidays = SchedulingEngine.calculatePossibleLeaveDays(
+        TEST_MONTH, TEST_YEAR, 15, SHIFTS_PER_DAY, SHIFTS_PER_NIGHT,
+      );
+      const withHolidays = SchedulingEngine.calculatePossibleLeaveDays(
+        TEST_MONTH, TEST_YEAR, 15, SHIFTS_PER_DAY, SHIFTS_PER_NIGHT, holidays,
+      );
+
+      // Fewer working days → lower total capacity → fewer possible leave days
+      expect(withHolidays).toBeLessThan(withoutHolidays);
+    });
+  });
+
+  // ── 8. Bridge days ────────────────────────────────────────────────────────
+
+  describe('Bridge days', () => {
+    // January 2026: Fri 9, [Sat 10, Sun 11], Mon 12
+    // Leave on Fri 9 + Mon 12 → Sat 10 & Sun 11 are bridge days
+
+    it('weekend between two leave days is detected as bridge days', () => {
+      const { doctors } = createTeamsAndDoctors([7, 7], 0);
+      const doc = doctors[0];
+
+      const leaveDays = [
+        makeLeaveDay(doc.id, formatDate(TEST_YEAR, TEST_MONTH, 9)),  // Fri
+        makeLeaveDay(doc.id, formatDate(TEST_YEAR, TEST_MONTH, 12)), // Mon
+      ];
+
+      const bridgeDays = SchedulingEngine.computeDoctorBridgeDays(
+        doc.id, leaveDays, TEST_MONTH, TEST_YEAR,
+      );
+
+      expect(bridgeDays.has(formatDate(TEST_YEAR, TEST_MONTH, 10))).toBe(true); // Sat
+      expect(bridgeDays.has(formatDate(TEST_YEAR, TEST_MONTH, 11))).toBe(true); // Sun
+      expect(bridgeDays.size).toBe(2);
+    });
+
+    it('no bridge days when leave days are not adjacent to weekends', () => {
+      const { doctors } = createTeamsAndDoctors([7, 7], 0);
+      const doc = doctors[0];
+
+      // Leave on Tue 6 and Wed 7 — no weekend in between
+      const leaveDays = [
+        makeLeaveDay(doc.id, formatDate(TEST_YEAR, TEST_MONTH, 6)),
+        makeLeaveDay(doc.id, formatDate(TEST_YEAR, TEST_MONTH, 7)),
+      ];
+
+      const bridgeDays = SchedulingEngine.computeDoctorBridgeDays(
+        doc.id, leaveDays, TEST_MONTH, TEST_YEAR,
+      );
+
+      expect(bridgeDays.size).toBe(0);
+    });
+
+    it('no bridge days when only one side of weekend has leave', () => {
+      const { doctors } = createTeamsAndDoctors([7, 7], 0);
+      const doc = doctors[0];
+
+      // Leave only on Fri 9 — weekend follows but no leave on Mon 12
+      const leaveDays = [
+        makeLeaveDay(doc.id, formatDate(TEST_YEAR, TEST_MONTH, 9)),
+      ];
+
+      const bridgeDays = SchedulingEngine.computeDoctorBridgeDays(
+        doc.id, leaveDays, TEST_MONTH, TEST_YEAR,
+      );
+
+      expect(bridgeDays.size).toBe(0);
+    });
+
+    it('national holiday between two leave days is detected as bridge day', () => {
+      const { doctors } = createTeamsAndDoctors([7, 7], 0);
+      const doc = doctors[0];
+
+      // Leave on Tue 6 and Thu 8, holiday on Wed 7
+      const holidays = [
+        makeHoliday(formatDate(TEST_YEAR, TEST_MONTH, 7)), // Wed
+      ];
+      const leaveDays = [
+        makeLeaveDay(doc.id, formatDate(TEST_YEAR, TEST_MONTH, 6)),  // Tue
+        makeLeaveDay(doc.id, formatDate(TEST_YEAR, TEST_MONTH, 8)),  // Thu
+      ];
+
+      const bridgeDays = SchedulingEngine.computeDoctorBridgeDays(
+        doc.id, leaveDays, TEST_MONTH, TEST_YEAR, holidays,
+      );
+
+      expect(bridgeDays.has(formatDate(TEST_YEAR, TEST_MONTH, 7))).toBe(true);
+      expect(bridgeDays.size).toBe(1);
+    });
+
+    it('holiday + weekend combined as bridge between leave days', () => {
+      const { doctors } = createTeamsAndDoctors([7, 7], 0);
+      const doc = doctors[0];
+
+      // Leave on Thu 8 and Mon 12. Fri 9 is holiday, Sat 10 / Sun 11 are weekend.
+      // All three (Fri 9, Sat 10, Sun 11) should be bridge days.
+      const holidays = [
+        makeHoliday(formatDate(TEST_YEAR, TEST_MONTH, 9)), // Fri
+      ];
+      const leaveDays = [
+        makeLeaveDay(doc.id, formatDate(TEST_YEAR, TEST_MONTH, 8)),  // Thu
+        makeLeaveDay(doc.id, formatDate(TEST_YEAR, TEST_MONTH, 12)), // Mon
+      ];
+
+      const bridgeDays = SchedulingEngine.computeDoctorBridgeDays(
+        doc.id, leaveDays, TEST_MONTH, TEST_YEAR, holidays,
+      );
+
+      expect(bridgeDays.has(formatDate(TEST_YEAR, TEST_MONTH, 9))).toBe(true);  // Fri holiday
+      expect(bridgeDays.has(formatDate(TEST_YEAR, TEST_MONTH, 10))).toBe(true); // Sat
+      expect(bridgeDays.has(formatDate(TEST_YEAR, TEST_MONTH, 11))).toBe(true); // Sun
+      expect(bridgeDays.size).toBe(3);
+    });
+
+    it('bridge days only apply to the doctor who has leave, not others', () => {
+      const { doctors } = createTeamsAndDoctors([7, 7], 0);
+      const doc1 = doctors[0];
+      const doc2 = doctors[1];
+
+      // Only doc1 has leave on Fri 9 + Mon 12
+      const leaveDays = [
+        makeLeaveDay(doc1.id, formatDate(TEST_YEAR, TEST_MONTH, 9)),
+        makeLeaveDay(doc1.id, formatDate(TEST_YEAR, TEST_MONTH, 12)),
+      ];
+
+      const bridgeDoc1 = SchedulingEngine.computeDoctorBridgeDays(
+        doc1.id, leaveDays, TEST_MONTH, TEST_YEAR,
+      );
+      const bridgeDoc2 = SchedulingEngine.computeDoctorBridgeDays(
+        doc2.id, leaveDays, TEST_MONTH, TEST_YEAR,
+      );
+
+      expect(bridgeDoc1.size).toBe(2); // Sat 10, Sun 11
+      expect(bridgeDoc2.size).toBe(0); // no leave → no bridge days
+    });
+
+    it('bridge days block scheduling for the affected doctor', () => {
+      const { teams, doctors } = createTeamsAndDoctors([7, 7], 0);
+      const doc = doctors[0];
+
+      // Leave on Fri 9 + Mon 12 → bridge on Sat 10, Sun 11
+      const leaveDays = [
+        makeLeaveDay(doc.id, formatDate(TEST_YEAR, TEST_MONTH, 9)),
+        makeLeaveDay(doc.id, formatDate(TEST_YEAR, TEST_MONTH, 12)),
+      ];
+
+      const engine = new SchedulingEngine({
+        month: TEST_MONTH,
+        year: TEST_YEAR,
+        doctors,
+        teams,
+        shiftsPerDay: SHIFTS_PER_DAY,
+        shiftsPerNight: SHIFTS_PER_NIGHT,
+        leaveDays,
+      });
+      const result = engine.generateSchedule();
+
+      // Doctor should have no shifts on leave days (Fri 9, Mon 12) or bridge days (Sat 10, Sun 11)
+      const blockedDates = [9, 10, 11, 12].map(d => formatDate(TEST_YEAR, TEST_MONTH, d));
+      const docShiftsOnBlocked = result.shifts.filter(
+        s => s.doctor_id === doc.id && blockedDates.includes(s.shift_date),
+      );
+      expect(docShiftsOnBlocked).toHaveLength(0);
+
+      // Other doctors CAN work on Sat 10, Sun 11 (bridge only affects doc)
+      const othersOnBridge = result.shifts.filter(
+        s => s.doctor_id !== doc.id &&
+          (s.shift_date === formatDate(TEST_YEAR, TEST_MONTH, 10) ||
+           s.shift_date === formatDate(TEST_YEAR, TEST_MONTH, 11)),
+      );
+      expect(othersOnBridge.length).toBeGreaterThan(0);
+    });
+
+    it('bridge days do NOT reduce base norm (only explicit leave days do)', () => {
+      const { teams, doctors } = createTeamsAndDoctors([7, 7], 0);
+      const doc = doctors[0];
+
+      // Leave on Fri 9 + Mon 12 → 2 leave days, 2 bridge days
+      const leaveDays = [
+        makeLeaveDay(doc.id, formatDate(TEST_YEAR, TEST_MONTH, 9)),
+        makeLeaveDay(doc.id, formatDate(TEST_YEAR, TEST_MONTH, 12)),
+      ];
+
+      const engine = new SchedulingEngine({
+        month: TEST_MONTH,
+        year: TEST_YEAR,
+        doctors,
+        teams,
+        shiftsPerDay: SHIFTS_PER_DAY,
+        shiftsPerNight: SHIFTS_PER_NIGHT,
+        leaveDays,
+      });
+      const result = engine.generateSchedule();
+
+      const stat = result.doctorStats.find(s => s.doctorId === doc.id)!;
+      // Norm reduced by 2 leave days only (not 4 including bridge days)
+      const expectedNorm = BASE_NORM - SCHEDULING_CONSTANTS.SHIFT_DURATION * 2; // 154 - 24 = 130
+      expect(stat.baseNorm).toBe(expectedNorm);
+      expect(stat.leaveDays).toBe(2);
+    });
+
+    it('March 2026 — 4×3 + 2 floating, holidays on 5th & 11th, leave for doc5 (9–13) and doc14 (16–20) — no understaffed days', () => {
+      // March 2026: 31 days, Sun 1 … Tue 31
+      // Weekends: 1,7,8,14,15,21,22,28,29  → 22 weekdays − 2 holidays = 20 working days
+      // 14 doctors, 3 per day/night shift → 31 × 6 = 186 total slots
+      const MARCH_MONTH = 2; // 0-indexed
+      const MARCH_YEAR = 2026;
+
+      const { teams, doctors } = createTeamsAndDoctors([3, 3, 3, 3], 2);
+      expect(doctors).toHaveLength(14);
+
+      // Doctor 2 from team 2 = doctors[4] (team1: 0-2, team2: 3-5)
+      const doc5 = doctors[4];
+      expect(doc5.team_id).toBe(teams[1].id);
+
+      // Last floating doctor = doctors[13]
+      const doc14 = doctors[13];
+      expect(doc14.is_floating).toBe(true);
+
+      const holidays: NationalHoliday[] = [
+        makeHoliday(formatDate(MARCH_YEAR, MARCH_MONTH, 5)),  // Thu
+        makeHoliday(formatDate(MARCH_YEAR, MARCH_MONTH, 11)), // Wed
+      ];
+
+      // Doc5 leave: 9 (Mon), 10 (Tue), 12 (Thu), 13 (Fri) — skip 11 (holiday)
+      // Day 11 becomes a bridge day (holiday between leave days 10 and 12)
+      const leaveDays: LeaveDay[] = [
+        makeLeaveDay(doc5.id, formatDate(MARCH_YEAR, MARCH_MONTH, 9)),
+        makeLeaveDay(doc5.id, formatDate(MARCH_YEAR, MARCH_MONTH, 10)),
+        makeLeaveDay(doc5.id, formatDate(MARCH_YEAR, MARCH_MONTH, 12)),
+        makeLeaveDay(doc5.id, formatDate(MARCH_YEAR, MARCH_MONTH, 13)),
+      ];
+
+      // Doc14 leave: 16 (Mon) through 20 (Fri)
+      for (let day = 16; day <= 20; day++) {
+        leaveDays.push(makeLeaveDay(doc14.id, formatDate(MARCH_YEAR, MARCH_MONTH, day)));
+      }
+
+      // Verify bridge day is correctly computed for doc5
+      const bridgeDays = SchedulingEngine.computeDoctorBridgeDays(
+        doc5.id, leaveDays, MARCH_MONTH, MARCH_YEAR, holidays,
+      );
+      expect(bridgeDays.has(formatDate(MARCH_YEAR, MARCH_MONTH, 11))).toBe(true);
+      expect(bridgeDays.size).toBe(1);
+
+      // Generate schedule
+      const engine = new SchedulingEngine({
+        month: MARCH_MONTH,
+        year: MARCH_YEAR,
+        doctors,
+        teams,
+        shiftsPerDay: SHIFTS_PER_DAY,
+        shiftsPerNight: SHIFTS_PER_NIGHT,
+        leaveDays,
+        nationalHolidays: holidays,
+      });
+      const result = engine.generateSchedule();
+
+      // No rest violations
+      const restViolations = result.conflicts.filter(c => c.type === 'rest_violation');
+      expect(restViolations).toHaveLength(0);
+
+      // No understaffed days — every day must have ≥3 day shifts and ≥3 night shifts
+      const understaffed = result.conflicts.filter(c => c.type === 'understaffed');
+      expect(understaffed).toHaveLength(0);
+
+      // Verify doc5 has no shifts on leave days or bridge day
+      const doc5BlockedDates = [9, 10, 11, 12, 13].map(d => formatDate(MARCH_YEAR, MARCH_MONTH, d));
+      const doc5ShiftsOnBlocked = result.shifts.filter(
+        s => s.doctor_id === doc5.id && doc5BlockedDates.includes(s.shift_date),
+      );
+      expect(doc5ShiftsOnBlocked).toHaveLength(0);
+
+      // Verify doc14 has no shifts during leave week
+      const doc14LeaveDates = [16, 17, 18, 19, 20].map(d => formatDate(MARCH_YEAR, MARCH_MONTH, d));
+      const doc14ShiftsOnLeave = result.shifts.filter(
+        s => s.doctor_id === doc14.id && doc14LeaveDates.includes(s.shift_date),
+      );
+      expect(doc14ShiftsOnLeave).toHaveLength(0);
+
+      // Every day should have exactly 3 day + 3 night shifts
+      for (let day = 1; day <= 31; day++) {
+        const dateStr = formatDate(MARCH_YEAR, MARCH_MONTH, day);
+        const dayShifts = result.shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'day');
+        const nightShifts = result.shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'night');
+        expect(dayShifts.length).toBeGreaterThanOrEqual(SHIFTS_PER_DAY);
+        expect(nightShifts.length).toBeGreaterThanOrEqual(SHIFTS_PER_NIGHT);
+      }
+    });
+
+    it('extended bridge: leave Fri + holiday Mon + leave Tue → Mon is bridge', () => {
+      const { doctors } = createTeamsAndDoctors([7, 7], 0);
+      const doc = doctors[0];
+
+      // Leave Fri 2, holiday Mon 5, leave Tue 6
+      // Sat 3, Sun 4 are weekend, Mon 5 is holiday → all between leave Fri 2 and leave Tue 6
+      const holidays = [
+        makeHoliday(formatDate(TEST_YEAR, TEST_MONTH, 5)), // Mon
+      ];
+      const leaveDays = [
+        makeLeaveDay(doc.id, formatDate(TEST_YEAR, TEST_MONTH, 2)),  // Fri
+        makeLeaveDay(doc.id, formatDate(TEST_YEAR, TEST_MONTH, 6)),  // Tue
+      ];
+
+      const bridgeDays = SchedulingEngine.computeDoctorBridgeDays(
+        doc.id, leaveDays, TEST_MONTH, TEST_YEAR, holidays,
+      );
+
+      expect(bridgeDays.has(formatDate(TEST_YEAR, TEST_MONTH, 3))).toBe(true);  // Sat
+      expect(bridgeDays.has(formatDate(TEST_YEAR, TEST_MONTH, 4))).toBe(true);  // Sun
+      expect(bridgeDays.has(formatDate(TEST_YEAR, TEST_MONTH, 5))).toBe(true);  // Mon holiday
+      expect(bridgeDays.size).toBe(3);
     });
   });
 });

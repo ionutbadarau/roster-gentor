@@ -1,4 +1,4 @@
-import { Doctor, Shift, ScheduleConflict, Team, DoctorWithTeam, LeaveDay, DoctorMonthlyStats, ScheduleGenerationResult, ScheduleValidation } from '@/types/scheduling';
+import { Doctor, Shift, ScheduleConflict, Team, DoctorWithTeam, LeaveDay, NationalHoliday, DoctorMonthlyStats, ScheduleGenerationResult, ScheduleValidation } from '@/types/scheduling';
 
 // Constants
 export const SCHEDULING_CONSTANTS = {
@@ -18,6 +18,7 @@ export interface ScheduleGenerationOptions {
   shiftsPerDay: number;
   shiftsPerNight: number;
   leaveDays?: LeaveDay[];
+  nationalHolidays?: NationalHoliday[];
 }
 
 export class SchedulingEngine {
@@ -28,7 +29,10 @@ export class SchedulingEngine {
   private shiftsPerDay: number;
   private shiftsPerNight: number;
   private leaveDays: LeaveDay[];
-  private doctorLastShift: Map<string, { date: Date; type: 'day' | 'night' | '24h'; endTime: Date }> = new Map();
+  private nationalHolidays: NationalHoliday[];
+  private holidayDateSet: Set<string>;
+  private doctorBridgeDays: Map<string, Set<string>>;
+  private doctorLastShift: Map<string, { date: Date; type: 'day' | 'night' | '24h'; endTime: number }> = new Map();
   private doctorShiftCount: Map<string, number> = new Map();
   private doctorHours: Map<string, number> = new Map();
   private doctorWeeklyHours: Map<string, Map<number, number>> = new Map();
@@ -41,6 +45,9 @@ export class SchedulingEngine {
     this.shiftsPerDay = options.shiftsPerDay;
     this.shiftsPerNight = options.shiftsPerNight;
     this.leaveDays = options.leaveDays || [];
+    this.nationalHolidays = options.nationalHolidays || [];
+    this.holidayDateSet = new Set(this.nationalHolidays.map(h => h.holiday_date));
+    this.doctorBridgeDays = this.computeBridgeDays();
   }
 
   private getDaysInMonth(): number {
@@ -53,11 +60,84 @@ export class SchedulingEngine {
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(this.year, this.month, day);
       const dayOfWeek = date.getDay();
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      if (dayOfWeek !== 0 && dayOfWeek !== 6 && !this.isHoliday(date)) {
         workingDays++;
       }
     }
     return workingDays;
+  }
+
+  private isHoliday(date: Date): boolean {
+    return this.holidayDateSet.has(this.formatDate(date));
+  }
+
+  private isNonWorkingDay(date: Date): boolean {
+    const dayOfWeek = date.getDay();
+    return dayOfWeek === 0 || dayOfWeek === 6 || this.isHoliday(date);
+  }
+
+  // Compute bridge days per doctor: weekends/holidays that sit between leave days
+  // and should block scheduling but NOT count as leave.
+  private computeBridgeDays(): Map<string, Set<string>> {
+    const result = new Map<string, Set<string>>();
+    const monthPrefix = `${this.year}-${String(this.month + 1).padStart(2, '0')}`;
+    const daysInMonth = this.getDaysInMonth();
+
+    // Group leave days by doctor
+    const leaveByDoctor = new Map<string, Set<string>>();
+    for (const l of this.leaveDays) {
+      if (!l.leave_date.startsWith(monthPrefix)) continue;
+      if (!leaveByDoctor.has(l.doctor_id)) leaveByDoctor.set(l.doctor_id, new Set());
+      leaveByDoctor.get(l.doctor_id)!.add(l.leave_date);
+    }
+
+    leaveByDoctor.forEach((leaveDates, doctorId) => {
+      const bridgeDays = new Set<string>();
+
+      // For each day in the month, check if it's a non-working day between leave days
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(this.year, this.month, day);
+        const dateStr = this.formatDate(date);
+
+        // Only consider non-working days that are NOT already leave days
+        if (!this.isNonWorkingDay(date) || leaveDates.has(dateStr)) continue;
+
+        // Check if there's a leave day before and after this gap
+        let hasLeaveBefore = false;
+        let hasLeaveAfter = false;
+
+        // Walk backward through consecutive non-working days to find a leave day
+        for (let d = day - 1; d >= 1; d--) {
+          const checkDate = new Date(this.year, this.month, d);
+          const checkStr = this.formatDate(checkDate);
+          if (leaveDates.has(checkStr)) { hasLeaveBefore = true; break; }
+          if (!this.isNonWorkingDay(checkDate) && !leaveDates.has(checkStr)) break;
+        }
+
+        // Walk forward through consecutive non-working days to find a leave day
+        for (let d = day + 1; d <= daysInMonth; d++) {
+          const checkDate = new Date(this.year, this.month, d);
+          const checkStr = this.formatDate(checkDate);
+          if (leaveDates.has(checkStr)) { hasLeaveAfter = true; break; }
+          if (!this.isNonWorkingDay(checkDate) && !leaveDates.has(checkStr)) break;
+        }
+
+        if (hasLeaveBefore && hasLeaveAfter) {
+          bridgeDays.add(dateStr);
+        }
+      }
+
+      if (bridgeDays.size > 0) {
+        result.set(doctorId, bridgeDays);
+      }
+    });
+
+    return result;
+  }
+
+  private isDoctorOnBridgeDay(doctorId: string, date: Date): boolean {
+    const dateStr = this.formatDate(date);
+    return this.doctorBridgeDays.get(doctorId)?.has(dateStr) ?? false;
   }
 
   private getWeekNumber(date: Date): number {
@@ -81,20 +161,30 @@ export class SchedulingEngine {
     return this.leaveDays.some(l => l.doctor_id === doctorId && l.leave_date === dateStr);
   }
 
+  // Build a UTC timestamp for a given date and hour, avoiding DST-related
+  // arithmetic errors when computing rest periods across timezone transitions.
+  private static utcMs(year: number, month: number, day: number, hour: number): number {
+    return Date.UTC(year, month, day, hour, 0, 0);
+  }
+
   private canDoctorWork(doctor: DoctorWithTeam, date: Date, shiftType: 'day' | 'night'): boolean {
     if (this.isDoctorOnLeave(doctor.id, date)) {
       return false;
     }
 
+    if (this.isDoctorOnBridgeDay(doctor.id, date)) {
+      return false;
+    }
+
     const lastShift = this.doctorLastShift.get(doctor.id);
-    
+
     if (!lastShift) return true;
 
-    const shiftStartTime = shiftType === 'day' 
-      ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), 8, 0) 
-      : new Date(date.getFullYear(), date.getMonth(), date.getDate(), 20, 0);
-    
-    const hoursSinceLastShift = (shiftStartTime.getTime() - lastShift.endTime.getTime()) / (1000 * 60 * 60);
+    const shiftStartMs = shiftType === 'day'
+      ? SchedulingEngine.utcMs(date.getFullYear(), date.getMonth(), date.getDate(), 8)
+      : SchedulingEngine.utcMs(date.getFullYear(), date.getMonth(), date.getDate(), 20);
+
+    const hoursSinceLastShift = (shiftStartMs - lastShift.endTime) / (1000 * 60 * 60);
 
     if (lastShift.type === 'day' && hoursSinceLastShift < SCHEDULING_CONSTANTS.DAY_SHIFT_REST) {
       return false;
@@ -117,10 +207,93 @@ export class SchedulingEngine {
     return true;
   }
 
+  // Look-ahead: compute a penalty for assigning this doctor to a shift today.
+  // If their mandatory rest would block them on a future day that's already
+  // tight on availability, we penalise so the algorithm prefers other doctors.
+  //
+  // For days at offset ≥ 2, the raw availability from canDoctorWork() doesn't
+  // account for intermediate days' assignments (which haven't happened yet).
+  // We compensate by subtracting the expected consumption of those intermediate
+  // days: each intermediate day will assign shiftsPerNight night-shift doctors
+  // (blocked 48h → unavailable next day) and shiftsPerDay day-shift doctors
+  // (blocked 24h → unavailable for next day's day shift).
+  private getLookaheadPenalty(
+    candidate: DoctorWithTeam,
+    currentDate: Date,
+    shiftType: 'day' | 'night',
+  ): number {
+    const daysInMonth = this.getDaysInMonth();
+    const currentDay = currentDate.getDate();
+
+    // Simulate rest period end for this candidate (using UTC to avoid DST issues)
+    const restHours = shiftType === 'night'
+      ? SCHEDULING_CONSTANTS.NIGHT_SHIFT_REST
+      : SCHEDULING_CONSTANTS.DAY_SHIFT_REST;
+    const shiftEndMs = shiftType === 'day'
+      ? SchedulingEngine.utcMs(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), 20)
+      : SchedulingEngine.utcMs(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate() + 1, 8);
+    const restEndTime = shiftEndMs + restHours * 60 * 60 * 1000;
+
+    let penalty = 0;
+
+    // Check the next 3 days
+    for (let offset = 1; offset <= 3; offset++) {
+      const futureDay = currentDay + offset;
+      if (futureDay > daysInMonth) continue;
+
+      const futureDate = new Date(this.year, this.month, futureDay);
+
+      const dayShiftStartMs = SchedulingEngine.utcMs(futureDate.getFullYear(), futureDate.getMonth(), futureDate.getDate(), 8);
+      const nightShiftStartMs = SchedulingEngine.utcMs(futureDate.getFullYear(), futureDate.getMonth(), futureDate.getDate(), 20);
+
+      const blockedForDay = dayShiftStartMs < restEndTime;
+      const blockedForNight = nightShiftStartMs < restEndTime;
+
+      if (!blockedForDay && !blockedForNight) continue;
+
+      // Count how many OTHER doctors are available on the future date
+      // based on currently-recorded shifts (rest constraints).
+      let availForDay = 0;
+      let availForNight = 0;
+      for (const doc of this.doctors) {
+        if (doc.id === candidate.id) continue;
+        if (this.isDoctorOnLeave(doc.id, futureDate)) continue;
+        if (this.isDoctorOnBridgeDay(doc.id, futureDate)) continue;
+        if (this.canDoctorWork(doc, futureDate, 'day')) availForDay++;
+        if (this.canDoctorWork(doc, futureDate, 'night')) availForNight++;
+      }
+
+      // For offset ≥ 2, account for intermediate days' future assignments.
+      // Each intermediate day will assign doctors whose rest blocks future days:
+      //   - night shift doctors (48h rest) → blocked for day AND night next day
+      //   - day shift doctors (24h rest) → blocked for day shift next day
+      if (offset >= 2) {
+        const intermediateDays = offset - 1;
+        // Night shifts from each intermediate day block doctors for both day+night
+        availForDay -= this.shiftsPerNight * intermediateDays;
+        availForNight -= this.shiftsPerNight * intermediateDays;
+        // Day shifts from each intermediate day block doctors for day shift only
+        availForDay -= this.shiftsPerDay * intermediateDays;
+      }
+
+      // Penalise if blocking this candidate would leave a future day tight.
+      // Required + 2 margin for offset ≥ 2 (more conservative for farther days).
+      const margin = offset >= 2 ? 2 : 1;
+      if (blockedForDay && availForDay < this.shiftsPerDay + margin) {
+        penalty += 5;
+      }
+      if (blockedForNight && availForNight < this.shiftsPerNight + margin) {
+        penalty += 5;
+      }
+    }
+
+    return penalty;
+  }
+
   private recordShift(doctor: DoctorWithTeam, date: Date, shiftType: 'day' | 'night'): void {
     const shiftEndTime = shiftType === 'day'
-      ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), 20, 0)
-      : new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1, 8, 0);
+      ? SchedulingEngine.utcMs(date.getFullYear(), date.getMonth(), date.getDate(), 20)
+      : SchedulingEngine.utcMs(date.getFullYear(), date.getMonth(), date.getDate() + 1, 8);
 
     this.doctorLastShift.set(doctor.id, { 
       date, 
@@ -175,12 +348,13 @@ export class SchedulingEngine {
       doctorTargetShifts.set(d.id, Math.ceil(baseNorm / SCHEDULING_CONSTANTS.SHIFT_DURATION));
     });
 
-    // Pre-compute total available days per doctor (days in month minus leave days).
+    // Pre-compute total available days per doctor (days in month minus leave days and bridge days).
     const doctorTotalAvailDays = new Map<string, number>();
     for (const doc of this.doctors) {
       let count = 0;
       for (let d = 1; d <= daysInMonth; d++) {
-        if (!this.isDoctorOnLeave(doc.id, new Date(this.year, this.month, d))) count++;
+        const date = new Date(this.year, this.month, d);
+        if (!this.isDoctorOnLeave(doc.id, date) && !this.isDoctorOnBridgeDay(doc.id, date)) count++;
       }
       doctorTotalAvailDays.set(doc.id, count);
     }
@@ -197,7 +371,7 @@ export class SchedulingEngine {
 
       // Update elapsed available days for each doctor.
       for (const doc of this.doctors) {
-        if (!this.isDoctorOnLeave(doc.id, currentDate)) {
+        if (!this.isDoctorOnLeave(doc.id, currentDate) && !this.isDoctorOnBridgeDay(doc.id, currentDate)) {
           doctorElapsedAvailDays.set(doc.id, (doctorElapsedAvailDays.get(doc.id) || 0) + 1);
         }
       }
@@ -230,8 +404,15 @@ export class SchedulingEngine {
 
     this.applyShiftRounding(shifts);
 
-    const conflicts = SchedulingEngine.detectConflicts(shifts, this.doctors);
+    const conflicts = SchedulingEngine.detectConflicts(shifts, this.doctors, this.shiftsPerDay, this.shiftsPerNight);
     const doctorStats = this.calculateDoctorStats();
+
+    // Surface understaffed conflicts as warnings so they're visible in the UI
+    for (const c of conflicts) {
+      if (c.type === 'understaffed') {
+        warnings.push(c.message);
+      }
+    }
 
     return { shifts, conflicts, warnings, doctorStats };
   }
@@ -262,6 +443,7 @@ export class SchedulingEngine {
       doc: DoctorWithTeam;
       paceGap: number;
       underTarget: boolean;
+      lookaheadPenalty: number;
     }
 
     const candidates: Candidate[] = [];
@@ -279,7 +461,9 @@ export class SchedulingEngine {
       const expectedByNow = target * (elapsedAvail / totalAvail);
       const paceGap = expectedByNow - current;
 
-      candidates.push({ doc, paceGap, underTarget: current < target });
+      const lookaheadPenalty = this.getLookaheadPenalty(doc, currentDate, shiftType);
+
+      candidates.push({ doc, paceGap, underTarget: current < target, lookaheadPenalty });
     };
 
     for (const teamId of teamIds) {
@@ -288,13 +472,18 @@ export class SchedulingEngine {
     for (const doc of floatingDoctors) consider(doc);
 
     // Hard partition: under-target first, then met-target.
-    // Within each group, sort by paceGap descending (most behind first).
+    // Within each group, sort by adjusted score (paceGap minus lookahead penalty)
+    // descending — most behind first, but penalised if their rest would
+    // cause understaffing on upcoming days.
+    const sortByScore = (a: Candidate, b: Candidate) =>
+      (b.paceGap - b.lookaheadPenalty) - (a.paceGap - a.lookaheadPenalty);
+
     const underTarget = candidates
       .filter(c => c.underTarget)
-      .sort((a, b) => b.paceGap - a.paceGap);
+      .sort(sortByScore);
     const metTarget = candidates
       .filter(c => !c.underTarget)
-      .sort((a, b) => b.paceGap - a.paceGap);
+      .sort(sortByScore);
 
     const pool = [...underTarget, ...metTarget];
     if (pool.length === 0) return [];
@@ -405,28 +594,32 @@ export class SchedulingEngine {
     year: number,
     totalDoctors: number,
     shiftsPerDay: number,
-    shiftsPerNight: number
+    shiftsPerNight: number,
+    nationalHolidays: NationalHoliday[] = []
   ): number {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const totalShiftsNeeded = daysInMonth * (shiftsPerDay + shiftsPerNight);
-    const workingDays = SchedulingEngine.getWorkingDaysInMonthStatic(month, year);
-    
+    const workingDays = SchedulingEngine.getWorkingDaysInMonthStatic(month, year, nationalHolidays);
+
     const baseNormPerDoctor = SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * workingDays;
     const totalCapacityHours = totalDoctors * baseNormPerDoctor;
     const totalShiftHours = totalShiftsNeeded * SCHEDULING_CONSTANTS.SHIFT_DURATION;
-    
+
     const excessHours = totalCapacityHours - totalShiftHours;
-    
+
     return Math.max(0, Math.floor(excessHours / SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY));
   }
 
-  static getWorkingDaysInMonthStatic(month: number, year: number): number {
+  static getWorkingDaysInMonthStatic(month: number, year: number, nationalHolidays: NationalHoliday[] = []): number {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const holidaySet = new Set(nationalHolidays.map(h => h.holiday_date));
+    const pad = (n: number) => String(n).padStart(2, '0');
     let workingDays = 0;
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(year, month, day);
       const dayOfWeek = date.getDay();
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      const dateStr = `${year}-${pad(month + 1)}-${pad(day)}`;
+      if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidaySet.has(dateStr)) {
         workingDays++;
       }
     }
@@ -439,10 +632,11 @@ export class SchedulingEngine {
     month: number,
     year: number,
     shiftsPerDay: number,
-    shiftsPerNight: number
+    shiftsPerNight: number,
+    nationalHolidays: NationalHoliday[] = []
   ): ScheduleValidation {
     const possibleLeaveDays = SchedulingEngine.calculatePossibleLeaveDays(
-      month, year, doctors.length, shiftsPerDay, shiftsPerNight
+      month, year, doctors.length, shiftsPerDay, shiftsPerNight, nationalHolidays
     );
     
     const totalLeaveDays = leaveDays.length;
@@ -462,7 +656,120 @@ export class SchedulingEngine {
     };
   }
 
-  static detectConflicts(shifts: Shift[], doctors: Doctor[]): ScheduleConflict[] {
+  // Compute bridge days for a doctor: non-working days (weekends/holidays) between leave days.
+  // Returns a Set of date strings that are bridge days for this doctor.
+  static computeDoctorBridgeDays(
+    doctorId: string,
+    leaveDays: LeaveDay[],
+    month: number,
+    year: number,
+    nationalHolidays: NationalHoliday[] = []
+  ): Set<string> {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const monthPrefix = `${year}-${pad(month + 1)}`;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const holidaySet = new Set(nationalHolidays.map(h => h.holiday_date));
+
+    const leaveDates = new Set(
+      leaveDays
+        .filter(l => l.doctor_id === doctorId && l.leave_date.startsWith(monthPrefix))
+        .map(l => l.leave_date)
+    );
+
+    const formatDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+    const isNonWorking = (d: Date) => {
+      const dow = d.getDay();
+      return dow === 0 || dow === 6 || holidaySet.has(formatDate(d));
+    };
+
+    const bridgeDays = new Set<string>();
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day);
+      const dateStr = formatDate(date);
+
+      if (!isNonWorking(date) || leaveDates.has(dateStr)) continue;
+
+      let hasLeaveBefore = false;
+      let hasLeaveAfter = false;
+
+      for (let d = day - 1; d >= 1; d--) {
+        const checkDate = new Date(year, month, d);
+        const checkStr = formatDate(checkDate);
+        if (leaveDates.has(checkStr)) { hasLeaveBefore = true; break; }
+        if (!isNonWorking(checkDate) && !leaveDates.has(checkStr)) break;
+      }
+
+      for (let d = day + 1; d <= daysInMonth; d++) {
+        const checkDate = new Date(year, month, d);
+        const checkStr = formatDate(checkDate);
+        if (leaveDates.has(checkStr)) { hasLeaveAfter = true; break; }
+        if (!isNonWorking(checkDate) && !leaveDates.has(checkStr)) break;
+      }
+
+      if (hasLeaveBefore && hasLeaveAfter) {
+        bridgeDays.add(dateStr);
+      }
+    }
+
+    return bridgeDays;
+  }
+
+  // Pre-generation analysis: for each day, check if enough doctors are available
+  // (not on leave, not on bridge day) to fill the required shift slots.
+  // Returns a map of day number → { available, required } for understaffed days only.
+  static computeUnderstaffedDays(
+    month: number,
+    year: number,
+    doctors: Doctor[],
+    leaveDays: LeaveDay[],
+    shiftsPerDay: number,
+    shiftsPerNight: number,
+    nationalHolidays: NationalHoliday[] = []
+  ): Map<number, { available: number; required: number }> {
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const required = shiftsPerDay + shiftsPerNight;
+    const result = new Map<number, { available: number; required: number }>();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const monthPrefix = `${year}-${pad(month + 1)}`;
+
+    // Pre-compute bridge days per doctor
+    const bridgeDaysByDoctor = new Map<string, Set<string>>();
+    for (const doc of doctors) {
+      bridgeDaysByDoctor.set(
+        doc.id,
+        SchedulingEngine.computeDoctorBridgeDays(doc.id, leaveDays, month, year, nationalHolidays)
+      );
+    }
+
+    // Build a set of leave dates per doctor for fast lookup
+    const leaveDatesByDoctor = new Map<string, Set<string>>();
+    for (const l of leaveDays) {
+      if (!l.leave_date.startsWith(monthPrefix)) continue;
+      if (!leaveDatesByDoctor.has(l.doctor_id)) leaveDatesByDoctor.set(l.doctor_id, new Set());
+      leaveDatesByDoctor.get(l.doctor_id)!.add(l.leave_date);
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${year}-${pad(month + 1)}-${pad(day)}`;
+      let available = 0;
+
+      for (const doc of doctors) {
+        const isOnLeave = leaveDatesByDoctor.get(doc.id)?.has(dateStr) ?? false;
+        const isOnBridge = bridgeDaysByDoctor.get(doc.id)?.has(dateStr) ?? false;
+        if (!isOnLeave && !isOnBridge) available++;
+      }
+
+      if (available < required) {
+        result.set(day, { available, required });
+      }
+    }
+
+    return result;
+  }
+
+  static detectConflicts(shifts: Shift[], doctors: Doctor[], requiredPerDay = 2, requiredPerNight = 2): ScheduleConflict[] {
     const conflicts: ScheduleConflict[] = [];
     const shiftsByDate = new Map<string, Shift[]>();
 
@@ -477,19 +784,19 @@ export class SchedulingEngine {
       const dayShiftCount = dayShifts.filter(s => s.shift_type === 'day').length;
       const nightShiftCount = dayShifts.filter(s => s.shift_type === 'night').length;
 
-      if (dayShiftCount < 2) {
+      if (dayShiftCount < requiredPerDay) {
         conflicts.push({
           type: 'understaffed',
           date,
-          message: `scheduling.engine.understaffedDay::${JSON.stringify({ count: dayShiftCount })}`,
+          message: `scheduling.engine.understaffedDay::${JSON.stringify({ count: dayShiftCount, required: requiredPerDay, date })}`,
         });
       }
 
-      if (nightShiftCount < 2) {
+      if (nightShiftCount < requiredPerNight) {
         conflicts.push({
           type: 'understaffed',
           date,
-          message: `scheduling.engine.understaffedNight::${JSON.stringify({ count: nightShiftCount })}`,
+          message: `scheduling.engine.understaffedNight::${JSON.stringify({ count: nightShiftCount, required: requiredPerNight, date })}`,
         });
       }
     });

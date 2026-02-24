@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Doctor, Team, Shift, LeaveDay } from '@/types/scheduling';
+import { Doctor, Team, Shift, LeaveDay, NationalHoliday } from '@/types/scheduling';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles, AlertTriangle, X, Trash2 } from 'lucide-react';
 import { SchedulingEngine, SCHEDULING_CONSTANTS } from '@/lib/scheduling-engine';
 import { createClient } from '../../../supabase/client';
@@ -18,11 +18,15 @@ interface ShiftGridCalendarProps {
   teams: Team[];
   shifts: Shift[];
   leaveDays: LeaveDay[];
+  nationalHolidays: NationalHoliday[];
+  shiftsPerDay: number;
+  shiftsPerNight: number;
   currentMonth: number;
   currentYear: number;
   onMonthChange: (month: number, year: number) => void;
   onShiftsUpdate: (shifts: Shift[]) => void;
   onLeaveDaysUpdate: (leaveDays: LeaveDay[]) => void;
+  onNationalHolidaysUpdate: (holidays: NationalHoliday[]) => void;
 }
 
 export default function ShiftGridCalendar({
@@ -30,14 +34,18 @@ export default function ShiftGridCalendar({
   teams,
   shifts,
   leaveDays,
+  nationalHolidays,
+  shiftsPerDay,
+  shiftsPerNight,
   currentMonth,
   currentYear,
   onMonthChange,
   onShiftsUpdate,
   onLeaveDaysUpdate,
+  onNationalHolidaysUpdate,
 }: ShiftGridCalendarProps) {
   const [generating, setGenerating] = useState(false);
-  const [warnings, setWarnings] = useState<string[]>([]);
+  const [generationWarnings, setGenerationWarnings] = useState<string[]>([]);
   const [dragState, setDragState] = useState<{
     doctorId: string;
     startDay: number;
@@ -61,10 +69,79 @@ export default function ShiftGridCalendar({
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
+  // Count only explicit leave days (bridge days don't count as leave)
   const currentLeaveDaysCount = leaveDays.filter(l => {
     const date = new Date(l.leave_date);
     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
   }).length;
+
+  // Count bridge days across all doctors for display
+  const totalBridgeDaysCount = useMemo(() => {
+    let count = 0;
+    for (const doctor of doctors) {
+      const bridgeDays = SchedulingEngine.computeDoctorBridgeDays(doctor.id, leaveDays, currentMonth, currentYear, nationalHolidays);
+      count += bridgeDays.size;
+    }
+    return count;
+  }, [doctors, leaveDays, currentMonth, currentYear, nationalHolidays]);
+
+  // Detect days where too many doctors are on leave/bridge to fill shifts (pre-generation)
+  const understaffedDays = useMemo(() => {
+    return SchedulingEngine.computeUnderstaffedDays(
+      currentMonth, currentYear, doctors, leaveDays, shiftsPerDay, shiftsPerNight, nationalHolidays
+    );
+  }, [currentMonth, currentYear, doctors, leaveDays, shiftsPerDay, shiftsPerNight, nationalHolidays]);
+
+  // Detect days where generated shifts don't meet the configured threshold (post-generation)
+  const shiftShortfallDays = useMemo(() => {
+    const result = new Map<number, { dayCount: number; nightCount: number }>();
+    const monthPrefix = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+    const monthShifts = shifts.filter(s => s.shift_date.startsWith(monthPrefix));
+    if (monthShifts.length === 0) return result;
+
+    const byDate = new Map<string, { day: number; night: number }>();
+    for (const s of monthShifts) {
+      if (!byDate.has(s.shift_date)) byDate.set(s.shift_date, { day: 0, night: 0 });
+      const counts = byDate.get(s.shift_date)!;
+      if (s.shift_type === 'day') counts.day++;
+      else if (s.shift_type === 'night') counts.night++;
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${monthPrefix}-${String(d).padStart(2, '0')}`;
+      const counts = byDate.get(dateStr);
+      // Only flag days that have at least some shifts (i.e. schedule was generated)
+      // but not enough to meet the threshold
+      if (!counts) continue;
+      if (counts.day < shiftsPerDay || counts.night < shiftsPerNight) {
+        result.set(d, { dayCount: counts.day, nightCount: counts.night });
+      }
+    }
+    return result;
+  }, [shifts, currentMonth, currentYear, daysInMonth, shiftsPerDay, shiftsPerNight]);
+
+  // A day is "understaffed" if it fails either the pre-generation or post-generation check
+  const isUnderstaffedDay = (day: number): boolean => understaffedDays.has(day) || shiftShortfallDays.has(day);
+
+  // Reactive warnings: combine generation norm warnings with shift shortfall warnings
+  const warnings = useMemo(() => {
+    const result: string[] = [...generationWarnings];
+    const monthPrefix = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+
+    // Add shortfall warnings from actual shift data
+    shiftShortfallDays.forEach(({ dayCount, nightCount }, day) => {
+      const dateStr = `${monthPrefix}-${String(day).padStart(2, '0')}`;
+      if (dayCount < shiftsPerDay) {
+        result.push(`scheduling.engine.understaffedDay::${JSON.stringify({ count: dayCount, required: shiftsPerDay, date: dateStr })}`);
+      }
+      if (nightCount < shiftsPerNight) {
+        result.push(`scheduling.engine.understaffedNight::${JSON.stringify({ count: nightCount, required: shiftsPerNight, date: dateStr })}`);
+      }
+    });
+
+    // Deduplicate by message content
+    return Array.from(new Set(result));
+  }, [generationWarnings, shiftShortfallDays, currentMonth, currentYear, shiftsPerDay, shiftsPerNight]);
 
   // Sort doctors: team doctors first (by team order), then floating
   const sortedDoctors = useMemo(() => {
@@ -119,13 +196,14 @@ export default function ShiftGridCalendar({
         year: currentYear,
         doctors,
         teams,
-        shiftsPerDay: 3,
-        shiftsPerNight: 3,
+        shiftsPerDay,
+        shiftsPerNight,
         leaveDays,
+        nationalHolidays,
       });
 
       const result = engine.generateSchedule();
-      setWarnings(result.warnings);
+      setGenerationWarnings(result.warnings);
 
       // Delete existing shifts for this month from DB
       const { error: deleteError } = await supabase
@@ -190,6 +268,52 @@ export default function ShiftGridCalendar({
     return dayOfWeek === 0 || dayOfWeek === 6;
   };
 
+  const isNationalHoliday = (day: number): boolean => {
+    const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return nationalHolidays.some(h => h.holiday_date === dateStr);
+  };
+
+  const isNonWorkingDay = (day: number): boolean => {
+    return isWeekend(day) || isNationalHoliday(day);
+  };
+
+  const isBridgeDay = (doctorId: string, day: number): boolean => {
+    const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const bridgeDays = SchedulingEngine.computeDoctorBridgeDays(doctorId, leaveDays, currentMonth, currentYear, nationalHolidays);
+    return bridgeDays.has(dateStr);
+  };
+
+  const handleToggleHoliday = async (day: number) => {
+    const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const existing = nationalHolidays.find(h => h.holiday_date === dateStr);
+
+    try {
+      if (existing) {
+        await supabase.from('national_holidays').delete().eq('id', existing.id);
+        onNationalHolidaysUpdate(nationalHolidays.filter(h => h.id !== existing.id));
+        toast({
+          title: t('scheduling.grid.holidayRemovedTitle'),
+          description: t('scheduling.grid.holidayRemovedDesc', { day, month: monthNames[currentMonth] }),
+        });
+      } else {
+        const { data, error } = await supabase
+          .from('national_holidays')
+          .insert({ holiday_date: dateStr })
+          .select()
+          .single();
+        if (error) throw error;
+        onNationalHolidaysUpdate([...nationalHolidays, data]);
+        toast({
+          title: t('scheduling.grid.holidayAddedTitle'),
+          description: t('scheduling.grid.holidayAddedDesc', { day, month: monthNames[currentMonth] }),
+        });
+      }
+    } catch (error) {
+      console.error('Error toggling holiday:', error);
+      toast({ title: t('common.error'), description: t('scheduling.grid.holidayToggleError'), variant: 'destructive' });
+    }
+  };
+
   // Calculate doctor stats for the current month only.
   const getDoctorStats = (doctorId: string) => {
     const monthPrefix = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
@@ -198,7 +322,7 @@ export default function ShiftGridCalendar({
     const nightShifts = doctorShifts.filter(s => s.shift_type === 'night').length;
     const totalHours = (dayShifts + nightShifts) * SCHEDULING_CONSTANTS.SHIFT_DURATION;
     const doctorLeaveDays = leaveDays.filter(l => l.doctor_id === doctorId && l.leave_date.startsWith(monthPrefix)).length;
-    const workingDays = SchedulingEngine.getWorkingDaysInMonthStatic(currentMonth, currentYear);
+    const workingDays = SchedulingEngine.getWorkingDaysInMonthStatic(currentMonth, currentYear, nationalHolidays);
     const baseNorm = SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * workingDays - SCHEDULING_CONSTANTS.SHIFT_DURATION * doctorLeaveDays;
 
     return { dayShifts, nightShifts, totalHours, baseNorm };
@@ -329,6 +453,11 @@ export default function ShiftGridCalendar({
 
       for (const day of selectedDays) {
         const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+        // When applying leave, skip non-working days (weekends/holidays) —
+        // they will automatically become bridge days between adjacent leave days
+        if (action === 'leave' && isNonWorkingDay(day)) continue;
+
         const existingShift = updatedShifts.find(s => s.doctor_id === doctorId && s.shift_date === dateStr);
         const existingLeave = updatedLeaveDays.find(l => l.doctor_id === doctorId && l.leave_date === dateStr);
 
@@ -483,11 +612,21 @@ export default function ShiftGridCalendar({
               </CardDescription>
             </div>
             <div className="flex items-center gap-4">
-              <div className="text-sm">
-                <span className="text-muted-foreground">{t('scheduling.grid.leaveDaysThisMonth') + ': '}</span>
-                <Badge variant="outline">
-                  {currentLeaveDaysCount}
-                </Badge>
+              <div className="text-sm flex items-center gap-3">
+                <span>
+                  <span className="text-muted-foreground">{t('scheduling.grid.leaveDaysThisMonth') + ': '}</span>
+                  <Badge variant="outline">
+                    {currentLeaveDaysCount}
+                  </Badge>
+                </span>
+                {totalBridgeDaysCount > 0 && (
+                  <span>
+                    <span className="text-muted-foreground">{t('scheduling.grid.bridgeDaysThisMonth') + ': '}</span>
+                    <Badge variant="outline" className="bg-amber-50 dark:bg-amber-900/30">
+                      {totalBridgeDaysCount}
+                    </Badge>
+                  </span>
+                )}
               </div>
               <Button variant="outline" onClick={handleClearMonth}>
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -513,19 +652,6 @@ export default function ShiftGridCalendar({
             </Button>
           </div>
 
-          {warnings.length > 0 && (
-            <Alert className="mb-4 border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
-              <AlertTriangle className="h-4 w-4 text-yellow-600" />
-              <AlertDescription className="text-yellow-800 dark:text-yellow-200">
-                <ul className="list-disc list-inside">
-                  {warnings.map((warning, idx) => (
-                    <li key={idx}>{tMessage(warning)}</li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          )}
-
           <ScrollArea className="w-full">
             <div className="min-w-max">
               {/* Header row with days */}
@@ -539,12 +665,22 @@ export default function ShiftGridCalendar({
                 {days.map(day => (
                   <div
                     key={day}
-                    className={`w-10 min-w-10 p-1 text-center border-r text-xs ${
-                      isWeekend(day) ? 'bg-muted text-muted-foreground' : ''
+                    className={`w-10 min-w-10 p-1 text-center border-r text-xs cursor-pointer select-none transition-colors ${
+                      isUnderstaffedDay(day)
+                        ? 'bg-red-200 dark:bg-red-900 text-red-800 dark:text-red-200 hover:bg-red-300 dark:hover:bg-red-800'
+                        : isNationalHoliday(day)
+                        ? 'bg-green-200 dark:bg-green-900 text-green-800 dark:text-green-200 hover:bg-green-300 dark:hover:bg-green-800'
+                        : isWeekend(day)
+                        ? 'bg-muted text-muted-foreground hover:bg-muted/80'
+                        : 'hover:bg-accent'
                     }`}
+                    title={isUnderstaffedDay(day)
+                      ? t('scheduling.grid.understaffedWarning', { day, ...understaffedDays.get(day)! })
+                      : t('scheduling.grid.holidayToggleTooltip')}
+                    onClick={() => handleToggleHoliday(day)}
                   >
                     <div className="font-semibold">{day}</div>
-                    <div className="">{getDayOfWeek(day)}</div>
+                    <div>{getDayOfWeek(day)}</div>
                   </div>
                 ))}
               </div>
@@ -579,12 +715,14 @@ export default function ShiftGridCalendar({
                       const isLeave = isLeaveDay(doctor.id, day);
                       const selected = isCellSelected(doctor.id, day);
                       const violation = hasRestViolation(doctor.id, day);
+                      const bridge = isBridgeDay(doctor.id, day);
+                      const nonWorking = isNonWorkingDay(day);
 
                       return (
                         <div
                           key={day}
                           className={`w-10 min-w-10 border-r flex items-center justify-center relative ${
-                            isWeekend(day) ? 'bg-muted/50' : ''
+                            isUnderstaffedDay(day) ? 'bg-red-50 dark:bg-red-950/30' : isNationalHoliday(day) ? 'bg-rose-50 dark:bg-rose-950/30' : isWeekend(day) ? 'bg-muted/50' : ''
                           }`}
                         >
                           <button
@@ -593,27 +731,29 @@ export default function ShiftGridCalendar({
                                 ? 'ring-2 ring-primary ring-inset bg-primary/20'
                                 : violation
                                 ? 'bg-red-200 dark:bg-red-900/60 text-red-800 dark:text-red-200 ring-2 ring-red-500 ring-inset'
+                                : bridge
+                                ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-500 dark:text-amber-400'
                                 : isLeave
-                                ? isWeekend(day)
+                                ? nonWorking
                                   ? 'bg-orange-50 dark:bg-orange-900/50 text-orange-600 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-800/70'
                                   : 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-800'
                                 : shift?.shift_type === 'day'
-                                ? isWeekend(day)
+                                ? nonWorking
                                   ? 'bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800/70'
                                   : 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800'
                                 : shift?.shift_type === 'night'
-                                ? isWeekend(day)
+                                ? nonWorking
                                   ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-800/70'
                                   : 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800'
-                                : isWeekend(day)
+                                : nonWorking
                                 ? 'bg-muted/60 hover:bg-muted/80'
                                 : 'hover:bg-accent'
                             }`}
-                            title={violation ? t('scheduling.grid.insufficientRestTooltip') : t('scheduling.grid.multiSelectTooltip')}
+                            title={violation ? t('scheduling.grid.insufficientRestTooltip') : bridge ? t('scheduling.grid.bridgeDayTooltip') : t('scheduling.grid.multiSelectTooltip')}
                             onMouseDown={(e) => handleCellMouseDown(doctor.id, day, e)}
                             onMouseEnter={() => handleCellMouseEnter(doctor.id, day)}
                           >
-                            {isLeave ? leaveLetter : shift?.shift_type === 'day' ? dayShiftLetter : shift?.shift_type === 'night' ? nightShiftLetter : ''}
+                            {bridge ? '·' : isLeave ? leaveLetter : shift?.shift_type === 'day' ? dayShiftLetter : shift?.shift_type === 'night' ? nightShiftLetter : ''}
                           </button>
                         </div>
                       );
@@ -684,6 +824,34 @@ export default function ShiftGridCalendar({
             );
           })()}
 
+          {/* Warnings — shown below table */}
+          {warnings.length > 0 && (
+            <Alert className="mt-4 border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              <AlertDescription className="text-yellow-800 dark:text-yellow-200">
+                <ul className="list-disc list-inside">
+                  {warnings.map((warning, idx) => (
+                    <li key={idx}>{tMessage(warning)}</li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {understaffedDays.size > 0 && (
+            <Alert className="mt-4 border-red-500 bg-red-50 dark:bg-red-950">
+              <AlertTriangle className="h-4 w-4 text-red-600" />
+              <AlertDescription className="text-red-800 dark:text-red-200">
+                <div className="font-medium mb-1">{t('scheduling.grid.understaffedDaysTitle')}</div>
+                <ul className="list-disc list-inside">
+                  {Array.from(understaffedDays.entries()).map(([day, { available, required }]) => (
+                    <li key={day}>{t('scheduling.grid.understaffedWarning', { day, available, required })}</li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Legend */}
           <div className="mt-6 flex items-center gap-6 text-sm flex-wrap">
             <div className="flex items-center gap-2">
@@ -697,6 +865,14 @@ export default function ShiftGridCalendar({
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 bg-orange-100 dark:bg-orange-900 rounded flex items-center justify-center text-orange-700 dark:text-orange-300 text-xs font-bold">{leaveLetter}</div>
               <span className="text-muted-foreground">{t('scheduling.grid.leaveLegend')}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-rose-200 dark:bg-rose-900 rounded flex items-center justify-center text-rose-800 dark:text-rose-200 text-xs font-bold">H</div>
+              <span className="text-muted-foreground">{t('scheduling.grid.holidayLegend')}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-amber-50 dark:bg-amber-900/30 rounded flex items-center justify-center text-amber-500 dark:text-amber-400 text-xs font-bold">·</div>
+              <span className="text-muted-foreground">{t('scheduling.grid.bridgeDayLegend')}</span>
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-xs">F</Badge>

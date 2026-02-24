@@ -7,7 +7,7 @@ import ConfigurationPanel from './configuration-panel';
 import ShiftGridCalendar from './shift-grid-calendar';
 import DoctorView from './doctor-view';
 import SummaryDashboard from './summary-dashboard';
-import { Doctor, Team, Shift, LeaveDay } from '@/types/scheduling';
+import { Doctor, Team, Shift, LeaveDay, NationalHoliday } from '@/types/scheduling';
 import { createClient } from '../../../supabase/client';
 import { Settings, Users, BarChart3, Grid3X3 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
@@ -31,6 +31,9 @@ export default function SchedulingDashboard() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [leaveDays, setLeaveDays] = useState<LeaveDay[]>([]);
+  const [nationalHolidays, setNationalHolidays] = useState<NationalHoliday[]>([]);
+  const [shiftsPerDay, setShiftsPerDay] = useState(3);
+  const [shiftsPerNight, setShiftsPerNight] = useState(3);
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
@@ -45,17 +48,25 @@ export default function SchedulingDashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [doctorsRes, teamsRes, shiftsRes, leaveDaysRes] = await Promise.all([
+      const [doctorsRes, teamsRes, shiftsRes, leaveDaysRes, holidaysRes, configRes] = await Promise.all([
         supabase.from('doctors').select('*'),
         supabase.from('teams').select('*'),
         supabase.from('shifts').select('*'),
         supabase.from('leave_days').select('*'),
+        supabase.from('national_holidays').select('*'),
+        supabase.from('schedule_config').select('*').limit(1).single(),
       ]);
 
       if (doctorsRes.data) setDoctors(doctorsRes.data);
       if (teamsRes.data) setTeams(teamsRes.data);
       if (shiftsRes.data) setShifts(shiftsRes.data);
       if (leaveDaysRes.data) setLeaveDays(leaveDaysRes.data);
+      if (holidaysRes.data) setNationalHolidays(holidaysRes.data);
+      if (configRes.data?.config_data) {
+        const cfg = configRes.data.config_data as Record<string, number>;
+        if (cfg.shiftsPerDay) setShiftsPerDay(cfg.shiftsPerDay);
+        if (cfg.shiftsPerNight) setShiftsPerNight(cfg.shiftsPerNight);
+      }
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -73,6 +84,10 @@ export default function SchedulingDashboard() {
 
   const handleLeaveDaysUpdate = (newLeaveDays: LeaveDay[]) => {
     setLeaveDays(newLeaveDays);
+  };
+
+  const handleNationalHolidaysUpdate = (newHolidays: NationalHoliday[]) => {
+    setNationalHolidays(newHolidays);
   };
 
   if (loading) {
@@ -131,6 +146,9 @@ export default function SchedulingDashboard() {
             teams={teams}
             shifts={shifts}
             leaveDays={leaveDays}
+            nationalHolidays={nationalHolidays}
+            shiftsPerDay={shiftsPerDay}
+            shiftsPerNight={shiftsPerNight}
             currentMonth={currentMonth}
             currentYear={currentYear}
             onMonthChange={(month, year) => {
@@ -139,6 +157,7 @@ export default function SchedulingDashboard() {
             }}
             onShiftsUpdate={handleScheduleGenerated}
             onLeaveDaysUpdate={handleLeaveDaysUpdate}
+            onNationalHolidaysUpdate={handleNationalHolidaysUpdate}
           />
         </TabsContent>
 
@@ -158,6 +177,8 @@ export default function SchedulingDashboard() {
           <ConfigurationPanel
             doctors={doctors}
             teams={teams}
+            shiftsPerDay={shiftsPerDay}
+            shiftsPerNight={shiftsPerNight}
             onUpdate={handleConfigUpdate}
           />
         </TabsContent>

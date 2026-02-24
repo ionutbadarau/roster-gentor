@@ -8,17 +8,19 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Doctor, Team } from '@/types/scheduling';
 import { createClient } from '../../../supabase/client';
-import { Plus, Trash2, Users, Save } from 'lucide-react';
+import { Plus, Trash2, Users, Save, Settings } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useTranslation } from '@/lib/i18n';
 
 interface ConfigurationPanelProps {
   doctors: Doctor[];
   teams: Team[];
+  shiftsPerDay: number;
+  shiftsPerNight: number;
   onUpdate: () => void;
 }
 
-export default function ConfigurationPanel({ doctors, teams, onUpdate }: ConfigurationPanelProps) {
+export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shiftsPerNight, onUpdate }: ConfigurationPanelProps) {
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamColor, setNewTeamColor] = useState('#3b82f6');
   const [newTeamMaxMembers, setNewTeamMaxMembers] = useState(3);
@@ -26,6 +28,8 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
   const [newDoctorEmail, setNewDoctorEmail] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
   const [isFloating, setIsFloating] = useState(false);
+  const [localShiftsPerDay, setLocalShiftsPerDay] = useState(shiftsPerDay);
+  const [localShiftsPerNight, setLocalShiftsPerNight] = useState(shiftsPerNight);
   const [loading, setLoading] = useState(false);
 
   const supabase = createClient();
@@ -166,12 +170,103 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
     }
   };
 
+  const handleSaveShiftSettings = async () => {
+    setLoading(true);
+    try {
+      // Upsert: check if a config row exists, update or insert
+      const { data: existing } = await supabase
+        .from('schedule_config')
+        .select('id, config_data')
+        .limit(1)
+        .single();
+
+      const newConfigData = {
+        ...(existing?.config_data as Record<string, unknown> || {}),
+        shiftsPerDay: localShiftsPerDay,
+        shiftsPerNight: localShiftsPerNight,
+      };
+
+      if (existing) {
+        const { error } = await supabase
+          .from('schedule_config')
+          .update({ config_data: newConfigData })
+          .eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('schedule_config')
+          .insert({ total_doctors: doctors.length, config_data: newConfigData });
+        if (error) throw error;
+      }
+
+      toast({
+        title: t('common.success'),
+        description: t('scheduling.config.shiftSettingsSaved'),
+      });
+      onUpdate();
+    } catch (error) {
+      console.error('Error saving shift settings:', error);
+      toast({
+        title: t('common.error'),
+        description: t('scheduling.config.shiftSettingsSaveError'),
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const teamColors = [
     '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'
   ];
 
   return (
-    <div className="grid gap-6 md:grid-cols-2">
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            {t('scheduling.config.shiftSettingsTitle')}
+          </CardTitle>
+          <CardDescription>
+            {t('scheduling.config.shiftSettingsDesc')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-end gap-6 flex-wrap">
+            <div className="space-y-2">
+              <Label htmlFor="shifts-per-day">{t('scheduling.config.doctorsPerDayShift')}</Label>
+              <Input
+                id="shifts-per-day"
+                type="number"
+                min="1"
+                max="10"
+                className="w-24"
+                value={localShiftsPerDay}
+                onChange={(e) => setLocalShiftsPerDay(parseInt(e.target.value) || 1)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="shifts-per-night">{t('scheduling.config.doctorsPerNightShift')}</Label>
+              <Input
+                id="shifts-per-night"
+                type="number"
+                min="1"
+                max="10"
+                className="w-24"
+                value={localShiftsPerNight}
+                onChange={(e) => setLocalShiftsPerNight(parseInt(e.target.value) || 1)}
+              />
+            </div>
+            <Button onClick={handleSaveShiftSettings} disabled={loading}>
+              <Save className="h-4 w-4 mr-2" />
+              {t('scheduling.config.saveShiftSettings')}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 md:grid-cols-2">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -390,6 +485,7 @@ export default function ConfigurationPanel({ doctors, teams, onUpdate }: Configu
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

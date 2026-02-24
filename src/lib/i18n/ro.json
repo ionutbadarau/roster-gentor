@@ -51,7 +51,19 @@
       "batchAppliedDesc": "{{label}} aplicat(\u0103) pentru zilele {{start}}\u2013{{end}} {{month}}",
       "dayShift": "Tur\u0103 de Zi",
       "nightShift": "Tur\u0103 de Noapte",
-      "leave": "Concediu"
+      "leave": "Concediu",
+      "holidayLegend": "S\u0103rb\u0103toare Legal\u0103",
+      "bridgeDayLegend": "Zi punte (liber\u0103, nu concediu)",
+      "bridgeDayTooltip": "Zi punte \u2014 liber\u0103 dar nu se contorizeaz\u0103 ca concediu",
+      "bridgeDaysThisMonth": "Zile punte",
+      "holidayToggleTooltip": "Click pentru a comuta s\u0103rb\u0103toarea legal\u0103",
+      "holidayAddedTitle": "S\u0103rb\u0103toare ad\u0103ugat\u0103",
+      "holidayAddedDesc": "{{day}} {{month}} marcat\u0103 ca s\u0103rb\u0103toare legal\u0103",
+      "holidayRemovedTitle": "S\u0103rb\u0103toare \u0219tears\u0103",
+      "holidayRemovedDesc": "{{day}} {{month}} nu mai este s\u0103rb\u0103toare legal\u0103",
+      "holidayToggleError": "Nu s-a putut comuta sărbătoarea",
+      "understaffedWarning": "Ziua {{day}}: doar {{available}} doctori disponibili, dar {{required}} necesari pentru ture. Eliminați câteva zile de concediu.",
+      "understaffedDaysTitle": "Zile cu personal insuficient detectate"
     },
     "config": {
       "teamsTitle": "Configurare Echipe",
@@ -88,7 +100,14 @@
       "doctorAddedSuccess": "Doctorul a fost ad\u0103ugat cu succes",
       "doctorAddError": "Nu s-a putut ad\u0103uga doctorul",
       "doctorDeletedSuccess": "Doctorul a fost eliminat cu succes",
-      "doctorDeleteError": "Nu s-a putut elimina doctorul"
+      "doctorDeleteError": "Nu s-a putut elimina doctorul",
+      "shiftSettingsTitle": "Setări Ture",
+      "shiftSettingsDesc": "Configurează câți doctori sunt necesari pe tură",
+      "doctorsPerDayShift": "Doctori per tură de zi",
+      "doctorsPerNightShift": "Doctori per tură de noapte",
+      "saveShiftSettings": "Salvează Setările",
+      "shiftSettingsSaved": "Setările turelor au fost salvate cu succes",
+      "shiftSettingsSaveError": "Nu s-au putut salva setările turelor"
     },
     "doctorView": {
       "title": "Doctori",
@@ -151,8 +170,8 @@
     "engine": {
       "normWarning": "Norma de baza nu poate fi indeplinita pentru {{name}}. Alege cel putin {{days}} zile de concediu pentru a genera tabelul.",
       "tooManyLeaveDays": "Prea multe zile de concediu selectate. Maximum permis: {{max}} zile.",
-      "understaffedDay": "Tur\u0103 de zi sub-acoperit\u0103: doar {{count}} doctor(i)",
-      "understaffedNight": "Tur\u0103 de noapte sub-acoperit\u0103: doar {{count}} doctor(i)",
+      "understaffedDay": "{{date}}: Tura de zi are {{count}}/{{required}} doctori. Eliminați câteva zile de concediu.",
+      "understaffedNight": "{{date}}: Tura de noapte are {{count}}/{{required}} doctori. Eliminați câteva zile de concediu.",
       "restViolationDay": "Violare perioad\u0103 de odihn\u0103: mai pu\u021bin de {{hours}} ore dup\u0103 tura de zi",
       "restViolationNight": "Violare perioad\u0103 de odihn\u0103: mai pu\u021bin de {{hours}} ore dup\u0103 tura de noapte"
     }

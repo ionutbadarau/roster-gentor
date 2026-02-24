@@ -51,7 +51,19 @@
       "batchAppliedDesc": "{{label}} applied for days {{start}}\u2013{{end}} {{month}}",
       "dayShift": "Day Shift",
       "nightShift": "Night Shift",
-      "leave": "Leave"
+      "leave": "Leave",
+      "holidayLegend": "National Holiday",
+      "bridgeDayLegend": "Bridge Day (free, not leave)",
+      "bridgeDayTooltip": "Bridge day — free but not counted as leave",
+      "bridgeDaysThisMonth": "Bridge days",
+      "holidayToggleTooltip": "Click to toggle national holiday",
+      "holidayAddedTitle": "Holiday added",
+      "holidayAddedDesc": "{{day}} {{month}} marked as national holiday",
+      "holidayRemovedTitle": "Holiday removed",
+      "holidayRemovedDesc": "{{day}} {{month}} is no longer a national holiday",
+      "holidayToggleError": "Could not toggle holiday",
+      "understaffedWarning": "Day {{day}}: only {{available}} doctors available but {{required}} needed for shifts. Consider removing some leave days.",
+      "understaffedDaysTitle": "Understaffed days detected"
     },
     "config": {
       "teamsTitle": "Team Configuration",
@@ -88,7 +100,14 @@
       "doctorAddedSuccess": "Doctor added successfully",
       "doctorAddError": "Could not add doctor",
       "doctorDeletedSuccess": "Doctor removed successfully",
-      "doctorDeleteError": "Could not remove doctor"
+      "doctorDeleteError": "Could not remove doctor",
+      "shiftSettingsTitle": "Shift Settings",
+      "shiftSettingsDesc": "Configure how many doctors are required per shift",
+      "doctorsPerDayShift": "Doctors per Day Shift",
+      "doctorsPerNightShift": "Doctors per Night Shift",
+      "saveShiftSettings": "Save Settings",
+      "shiftSettingsSaved": "Shift settings saved successfully",
+      "shiftSettingsSaveError": "Could not save shift settings"
     },
     "doctorView": {
       "title": "Doctors",
@@ -151,8 +170,8 @@
     "engine": {
       "normWarning": "Base norm cannot be met for {{name}}. Select at least {{days}} leave days to generate the schedule.",
       "tooManyLeaveDays": "Too many leave days selected. Maximum allowed: {{max}} days.",
-      "understaffedDay": "Understaffed day shift: only {{count}} doctor(s)",
-      "understaffedNight": "Understaffed night shift: only {{count}} doctor(s)",
+      "understaffedDay": "{{date}}: Day shift has {{count}}/{{required}} doctors. Consider removing leave days.",
+      "understaffedNight": "{{date}}: Night shift has {{count}}/{{required}} doctors. Consider removing leave days.",
       "restViolationDay": "Rest violation: Less than {{hours}} hours after day shift",
       "restViolationNight": "Rest violation: Less than {{hours}} hours after night shift"
     }

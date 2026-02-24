@@ -17,6 +17,13 @@ export interface LeaveDay {
   created_at?: string;
 }
 
+export interface NationalHoliday {
+  id: string;
+  holiday_date: string;
+  description?: string;
+  created_at?: string;
+}
+
 export interface SchedulingConstants {
   SHIFT_DURATION: 12;
   DAY_SHIFT_REST: 24;

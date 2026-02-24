@@ -39,6 +39,11 @@ CREATE TABLE IF NOT EXISTS public.schedule_config (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Enable RLS and create policies
+ALTER TABLE public.schedule_config ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all operations on schedule_config" ON public.schedule_config
+  FOR ALL USING (true) WITH CHECK (true);
+
 ALTER TABLE public.doctors ADD CONSTRAINT fk_team FOREIGN KEY (team_id) REFERENCES public.teams(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_doctors_team ON public.doctors(team_id);
