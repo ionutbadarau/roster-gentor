@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS public.shifts (
   shift_type TEXT NOT NULL CHECK (shift_type IN ('day', 'night', 'rest')),
   start_time TIME,
   end_time TIME,
+  is_manual BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(doctor_id, shift_date)

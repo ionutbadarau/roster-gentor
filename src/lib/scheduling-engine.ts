@@ -19,6 +19,7 @@ export interface ScheduleGenerationOptions {
   shiftsPerNight: number;
   leaveDays?: LeaveDay[];
   nationalHolidays?: NationalHoliday[];
+  fixedShifts?: Shift[];
 }
 
 export class SchedulingEngine {
@@ -30,6 +31,7 @@ export class SchedulingEngine {
   private shiftsPerNight: number;
   private leaveDays: LeaveDay[];
   private nationalHolidays: NationalHoliday[];
+  private fixedShifts: Shift[];
   private holidayDateSet: Set<string>;
   private doctorBridgeDays: Map<string, Set<string>>;
   private doctorLastShift: Map<string, { date: Date; type: 'day' | 'night' | '24h'; endTime: number }> = new Map();
@@ -46,6 +48,7 @@ export class SchedulingEngine {
     this.shiftsPerNight = options.shiftsPerNight;
     this.leaveDays = options.leaveDays || [];
     this.nationalHolidays = options.nationalHolidays || [];
+    this.fixedShifts = options.fixedShifts || [];
     this.holidayDateSet = new Set(this.nationalHolidays.map(h => h.holiday_date));
     this.doctorBridgeDays = this.computeBridgeDays();
   }
@@ -365,6 +368,29 @@ export class SchedulingEngine {
 
     const teamIds = this.teams.map(t => t.id);
 
+    // Pre-process fixed (manual) shifts: register their rest constraints and
+    // build a lookup so the main loop knows how many slots are already filled.
+    // key = "YYYY-MM-DD:day" or "YYYY-MM-DD:night"
+    const fixedShiftsByDateType = new Map<string, Shift[]>();
+    const fixedSorted = [...this.fixedShifts].sort(
+      (a, b) => a.shift_date.localeCompare(b.shift_date)
+    );
+    for (const fs of fixedSorted) {
+      if (fs.shift_type !== 'day' && fs.shift_type !== 'night') continue;
+      const doctor = this.doctors.find(d => d.id === fs.doctor_id);
+      if (!doctor) continue;
+
+      const key = `${fs.shift_date}:${fs.shift_type}`;
+      if (!fixedShiftsByDateType.has(key)) fixedShiftsByDateType.set(key, []);
+      fixedShiftsByDateType.get(key)!.push(fs);
+
+      // Record the shift so rest constraints, shift counts, and weekly hours
+      // are all accounted for by the time the algorithm runs.
+      const dateParts = fs.shift_date.split('-').map(Number);
+      const fixedDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+      this.recordShift(doctor, fixedDate, fs.shift_type);
+    }
+
     for (let day = 1; day <= daysInMonth; day++) {
       const currentDate = new Date(this.year, this.month, day);
       const dateStr = this.formatDate(currentDate);
@@ -377,7 +403,13 @@ export class SchedulingEngine {
       }
 
       for (const shiftType of ['day', 'night'] as const) {
-        const slotsNeeded = shiftType === 'day' ? this.shiftsPerDay : this.shiftsPerNight;
+        const baseSlots = shiftType === 'day' ? this.shiftsPerDay : this.shiftsPerNight;
+        const fixedKey = `${dateStr}:${shiftType}`;
+        const fixedCount = fixedShiftsByDateType.get(fixedKey)?.length || 0;
+        const slotsNeeded = Math.max(0, baseSlots - fixedCount);
+
+        if (slotsNeeded === 0) continue;
+
         const selected = this.selectDoctorsForShift(
           doctorsByTeam, floatingDoctors, teamIds, currentDate, shiftType,
           slotsNeeded, doctorTargetShifts, doctorTotalAvailDays, doctorElapsedAvailDays

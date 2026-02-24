@@ -50,6 +50,7 @@ export interface Shift {
   shift_type: 'day' | 'night' | 'rest';
   start_time?: string;
   end_time?: string;
+  is_manual?: boolean;
   created_at?: string;
   updated_at?: string;
 }

@@ -55,6 +55,8 @@
       "holidayLegend": "National Holiday",
       "bridgeDayLegend": "Bridge Day (free, not leave)",
       "bridgeDayTooltip": "Bridge day — free but not counted as leave",
+      "manualShiftTooltip": "Manual selection — preserved on re-generation",
+      "manualShiftLegend": "Manual (pinned)",
       "bridgeDaysThisMonth": "Bridge days",
       "holidayToggleTooltip": "Click to toggle national holiday",
       "holidayAddedTitle": "Holiday added",

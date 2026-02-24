@@ -32,18 +32,18 @@ function resolve(obj: Record<string, unknown>, key: string): unknown {
 }
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>(() => {
-    if (typeof window === 'undefined') return DEFAULT_LANG;
-    const fromCookie = document.cookie.match(/app-language=(en|ro)/)?.[1] as Language | undefined;
-    return fromCookie || DEFAULT_LANG;
-  });
+  // Always start with DEFAULT_LANG so server and client initial render match
+  const [language, setLanguageState] = useState<Language>(DEFAULT_LANG);
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY) as Language | null;
-    if (stored === 'en' || stored === 'ro') {
-      setLanguageState(stored);
-      document.documentElement.lang = stored;
+    // After hydration, read the user's stored preference
+    const fromStorage = localStorage.getItem(STORAGE_KEY) as Language | null;
+    const resolved = (fromStorage === 'en' || fromStorage === 'ro') ? fromStorage : DEFAULT_LANG;
+    if (resolved !== DEFAULT_LANG) {
+      setLanguageState(resolved);
     }
+    document.cookie = `app-language=${resolved}; path=/; max-age=31536000; SameSite=Lax`;
+    document.documentElement.lang = resolved;
   }, []);
 
   const setLanguage = useCallback((lang: Language) => {

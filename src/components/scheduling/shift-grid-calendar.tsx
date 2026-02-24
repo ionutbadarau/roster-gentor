@@ -188,8 +188,14 @@ export default function ShiftGridCalendar({
     const monthEnd = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
 
     try {
-      // Clear current month from local state immediately so the UI is clean
-      onShiftsUpdate(shifts.filter(s => s.shift_date < monthStart || s.shift_date > monthEnd));
+      // Collect manual shifts for this month — these are preserved across re-generation
+      const manualShifts = shifts.filter(
+        s => s.is_manual && s.shift_date >= monthStart && s.shift_date <= monthEnd
+      );
+      const otherMonthShifts = shifts.filter(s => s.shift_date < monthStart || s.shift_date > monthEnd);
+
+      // Clear non-manual shifts from local state immediately so the UI is clean
+      onShiftsUpdate([...otherMonthShifts, ...manualShifts]);
 
       const engine = new SchedulingEngine({
         month: currentMonth,
@@ -200,21 +206,23 @@ export default function ShiftGridCalendar({
         shiftsPerNight,
         leaveDays,
         nationalHolidays,
+        fixedShifts: manualShifts,
       });
 
       const result = engine.generateSchedule();
       setGenerationWarnings(result.warnings);
 
-      // Delete existing shifts for this month from DB
+      // Delete only non-manual shifts for this month from DB
       const { error: deleteError } = await supabase
         .from('shifts')
         .delete()
         .gte('shift_date', monthStart)
-        .lte('shift_date', monthEnd);
+        .lte('shift_date', monthEnd)
+        .eq('is_manual', false);
 
       if (deleteError) throw deleteError;
 
-      // Insert new shifts
+      // Insert new generated (non-manual) shifts
       const { error } = await supabase.from('shifts').insert(
         result.shifts.map(({ id, ...shift }) => shift)
       );
@@ -226,7 +234,7 @@ export default function ShiftGridCalendar({
         description: t('scheduling.grid.toastGenerateSuccess', { month: monthNames[currentMonth], year: currentYear }),
       });
 
-      onShiftsUpdate(result.shifts);
+      onShiftsUpdate([...otherMonthShifts, ...manualShifts, ...result.shifts]);
     } catch (error) {
       console.error('Error generating schedule:', error);
       toast({
@@ -487,13 +495,14 @@ export default function ShiftGridCalendar({
         } else {
           const { data, error } = await supabase
             .from('shifts')
-            .insert({
+            .upsert({
               doctor_id: doctorId,
               shift_date: dateStr,
               shift_type: action,
               start_time: action === 'day' ? '08:00' : '20:00',
               end_time: action === 'day' ? '20:00' : '08:00',
-            })
+              is_manual: true,
+            }, { onConflict: 'doctor_id,shift_date' })
             .select()
             .single();
           if (error) throw error;
@@ -748,8 +757,8 @@ export default function ShiftGridCalendar({
                                 : nonWorking
                                 ? 'bg-muted/60 hover:bg-muted/80'
                                 : 'hover:bg-accent'
-                            }`}
-                            title={violation ? t('scheduling.grid.insufficientRestTooltip') : bridge ? t('scheduling.grid.bridgeDayTooltip') : t('scheduling.grid.multiSelectTooltip')}
+                            } ${shift?.is_manual ? 'ring-2 ring-yellow-400 ring-inset' : ''}`}
+                            title={shift?.is_manual ? t('scheduling.grid.manualShiftTooltip') : violation ? t('scheduling.grid.insufficientRestTooltip') : bridge ? t('scheduling.grid.bridgeDayTooltip') : t('scheduling.grid.multiSelectTooltip')}
                             onMouseDown={(e) => handleCellMouseDown(doctor.id, day, e)}
                             onMouseEnter={() => handleCellMouseEnter(doctor.id, day)}
                           >

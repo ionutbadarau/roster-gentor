@@ -63,7 +63,9 @@
       "holidayRemovedDesc": "{{day}} {{month}} nu mai este s\u0103rb\u0103toare legal\u0103",
       "holidayToggleError": "Nu s-a putut comuta sărbătoarea",
       "understaffedWarning": "Ziua {{day}}: doar {{available}} doctori disponibili, dar {{required}} necesari pentru ture. Eliminați câteva zile de concediu.",
-      "understaffedDaysTitle": "Zile cu personal insuficient detectate"
+      "understaffedDaysTitle": "Zile cu personal insuficient detectate",
+      "manualShiftTooltip": "Selecție manuală — păstrată la regenerare",
+      "manualShiftLegend": "Manual (fixat)"
     },
     "config": {
       "teamsTitle": "Configurare Echipe",
