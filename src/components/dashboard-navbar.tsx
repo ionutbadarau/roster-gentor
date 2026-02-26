@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '../../supabase/client'
 import {
@@ -17,6 +18,13 @@ export default function DashboardNavbar() {
   const supabase = createClient()
   const router = useRouter()
   const { t, language, setLanguage } = useTranslation()
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user?.email) setUserEmail(data.user.email)
+    })
+  }, [])
 
   return (
     <nav className="w-full border-b border-gray-200 bg-white py-4">
@@ -42,6 +50,11 @@ export default function DashboardNavbar() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {userEmail && (
+                <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+                  {userEmail}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={async () => {
                 await supabase.auth.signOut()
                 router.refresh()

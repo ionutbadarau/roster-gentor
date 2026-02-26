@@ -17,10 +17,11 @@ interface ConfigurationPanelProps {
   teams: Team[];
   shiftsPerDay: number;
   shiftsPerNight: number;
+  userId: string | null;
   onUpdate: () => void;
 }
 
-export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shiftsPerNight, onUpdate }: ConfigurationPanelProps) {
+export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shiftsPerNight, userId, onUpdate }: ConfigurationPanelProps) {
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamColor, setNewTeamColor] = useState('#3b82f6');
   const [newTeamMaxMembers, setNewTeamMaxMembers] = useState(3);
@@ -52,6 +53,7 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
         name: newTeamName,
         color: newTeamColor,
         max_members: newTeamMaxMembers,
+        user_id: userId,
       });
 
       if (error) throw error;
@@ -119,6 +121,7 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
         email: newDoctorEmail || null,
         team_id: selectedTeamId || null,
         is_floating: isFloating,
+        user_id: userId,
       });
 
       if (error) throw error;
@@ -195,7 +198,7 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
       } else {
         const { error } = await supabase
           .from('schedule_config')
-          .insert({ total_doctors: doctors.length, config_data: newConfigData });
+          .insert({ total_doctors: doctors.length, config_data: newConfigData, user_id: userId });
         if (error) throw error;
       }
 

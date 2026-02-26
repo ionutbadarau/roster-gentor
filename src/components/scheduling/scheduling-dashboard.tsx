@@ -37,11 +37,17 @@ export default function SchedulingDashboard() {
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const supabase = createClient();
 
   useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        setUserId(data.user.id);
+      }
+    });
     loadData();
   }, []);
 
@@ -151,6 +157,7 @@ export default function SchedulingDashboard() {
             shiftsPerNight={shiftsPerNight}
             currentMonth={currentMonth}
             currentYear={currentYear}
+            userId={userId}
             onMonthChange={(month, year) => {
               setCurrentMonth(month);
               setCurrentYear(year);
@@ -179,6 +186,7 @@ export default function SchedulingDashboard() {
             teams={teams}
             shiftsPerDay={shiftsPerDay}
             shiftsPerNight={shiftsPerNight}
+            userId={userId}
             onUpdate={handleConfigUpdate}
           />
         </TabsContent>

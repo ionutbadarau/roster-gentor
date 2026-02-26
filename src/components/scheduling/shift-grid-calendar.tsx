@@ -23,6 +23,7 @@ interface ShiftGridCalendarProps {
   shiftsPerNight: number;
   currentMonth: number;
   currentYear: number;
+  userId: string | null;
   onMonthChange: (month: number, year: number) => void;
   onShiftsUpdate: (shifts: Shift[]) => void;
   onLeaveDaysUpdate: (leaveDays: LeaveDay[]) => void;
@@ -39,6 +40,7 @@ export default function ShiftGridCalendar({
   shiftsPerNight,
   currentMonth,
   currentYear,
+  userId,
   onMonthChange,
   onShiftsUpdate,
   onLeaveDaysUpdate,
@@ -87,6 +89,7 @@ export default function ShiftGridCalendar({
 
   // Detect days where too many doctors are on leave/bridge to fill shifts (pre-generation)
   const understaffedDays = useMemo(() => {
+    if (doctors.length === 0) return new Map<number, { available: number; required: number }>();
     return SchedulingEngine.computeUnderstaffedDays(
       currentMonth, currentYear, doctors, leaveDays, shiftsPerDay, shiftsPerNight, nationalHolidays
     );
@@ -197,6 +200,15 @@ export default function ShiftGridCalendar({
       // Clear non-manual shifts from local state immediately so the UI is clean
       onShiftsUpdate([...otherMonthShifts, ...manualShifts]);
 
+      // Collect last few days of previous month to seed rest constraints
+      const prevMonthDate = new Date(currentYear, currentMonth, 0); // last day of prev month
+      const prevMonthEnd = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}-${String(prevMonthDate.getDate()).padStart(2, '0')}`;
+      const prevLookbackDay = Math.max(1, prevMonthDate.getDate() - 2); // last 3 days
+      const prevMonthLookback = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}-${String(prevLookbackDay).padStart(2, '0')}`;
+      const previousMonthShifts = shifts.filter(
+        s => s.shift_date >= prevMonthLookback && s.shift_date <= prevMonthEnd
+      );
+
       const engine = new SchedulingEngine({
         month: currentMonth,
         year: currentYear,
@@ -207,6 +219,7 @@ export default function ShiftGridCalendar({
         leaveDays,
         nationalHolidays,
         fixedShifts: manualShifts,
+        previousMonthShifts,
       });
 
       const result = engine.generateSchedule();
@@ -306,7 +319,7 @@ export default function ShiftGridCalendar({
       } else {
         const { data, error } = await supabase
           .from('national_holidays')
-          .insert({ holiday_date: dateStr })
+          .insert({ holiday_date: dateStr, user_id: userId })
           .select()
           .single();
         if (error) throw error;

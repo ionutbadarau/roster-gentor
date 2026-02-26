@@ -20,6 +20,7 @@ export interface ScheduleGenerationOptions {
   leaveDays?: LeaveDay[];
   nationalHolidays?: NationalHoliday[];
   fixedShifts?: Shift[];
+  previousMonthShifts?: Shift[];
 }
 
 export class SchedulingEngine {
@@ -32,6 +33,7 @@ export class SchedulingEngine {
   private leaveDays: LeaveDay[];
   private nationalHolidays: NationalHoliday[];
   private fixedShifts: Shift[];
+  private previousMonthShifts: Shift[];
   private holidayDateSet: Set<string>;
   private doctorBridgeDays: Map<string, Set<string>>;
   private doctorLastShift: Map<string, { date: Date; type: 'day' | 'night' | '24h'; endTime: number }> = new Map();
@@ -49,6 +51,7 @@ export class SchedulingEngine {
     this.leaveDays = options.leaveDays || [];
     this.nationalHolidays = options.nationalHolidays || [];
     this.fixedShifts = options.fixedShifts || [];
+    this.previousMonthShifts = options.previousMonthShifts || [];
     this.holidayDateSet = new Set(this.nationalHolidays.map(h => h.holiday_date));
     this.doctorBridgeDays = this.computeBridgeDays();
   }
@@ -367,6 +370,25 @@ export class SchedulingEngine {
     this.doctors.forEach(d => doctorElapsedAvailDays.set(d.id, 0));
 
     const teamIds = this.teams.map(t => t.id);
+
+    // Seed rest constraints from the last shifts of the previous month so that
+    // doctors who worked near month-end are not scheduled too early (e.g. night
+    // shift on Jan 31 → must not get a shift on Feb 1).
+    for (const ps of this.previousMonthShifts) {
+      if (ps.shift_type !== 'day' && ps.shift_type !== 'night') continue;
+      const doctor = this.doctors.find(d => d.id === ps.doctor_id);
+      if (!doctor) continue;
+      const dateParts = ps.shift_date.split('-').map(Number);
+      const prevDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+      const endTime = ps.shift_type === 'day'
+        ? SchedulingEngine.utcMs(prevDate.getFullYear(), prevDate.getMonth(), prevDate.getDate(), 20)
+        : SchedulingEngine.utcMs(prevDate.getFullYear(), prevDate.getMonth(), prevDate.getDate() + 1, 8);
+      // Only keep the latest shift per doctor
+      const existing = this.doctorLastShift.get(doctor.id);
+      if (!existing || endTime > existing.endTime) {
+        this.doctorLastShift.set(doctor.id, { date: prevDate, type: ps.shift_type, endTime });
+      }
+    }
 
     // Pre-process fixed (manual) shifts: register their rest constraints and
     // build a lookup so the main loop knows how many slots are already filled.
