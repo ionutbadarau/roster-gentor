@@ -87,13 +87,19 @@ export default function ShiftGridCalendar({
     return count;
   }, [doctors, leaveDays, currentMonth, currentYear, nationalHolidays]);
 
+  // Check if a schedule has been generated for the current month (shifts exist in DB)
+  const hasGeneratedForMonth = useMemo(() => {
+    const monthPrefix = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+    return shifts.some(s => s.shift_date.startsWith(monthPrefix));
+  }, [shifts, currentMonth, currentYear]);
+
   // Detect days where too many doctors are on leave/bridge to fill shifts (pre-generation)
   const understaffedDays = useMemo(() => {
-    if (doctors.length === 0) return new Map<number, { available: number; required: number }>();
+    if (doctors.length === 0 || !hasGeneratedForMonth) return new Map<number, { available: number; required: number }>();
     return SchedulingEngine.computeUnderstaffedDays(
       currentMonth, currentYear, doctors, leaveDays, shiftsPerDay, shiftsPerNight, nationalHolidays
     );
-  }, [currentMonth, currentYear, doctors, leaveDays, shiftsPerDay, shiftsPerNight, nationalHolidays]);
+  }, [currentMonth, currentYear, doctors, leaveDays, shiftsPerDay, shiftsPerNight, nationalHolidays, hasGeneratedForMonth]);
 
   // Detect days where generated shifts don't meet the configured threshold (post-generation)
   const shiftShortfallDays = useMemo(() => {

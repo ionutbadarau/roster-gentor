@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SchedulingEngine, SCHEDULING_CONSTANTS } from '@/lib/scheduling-engine';
-import type { DoctorWithTeam, Team, LeaveDay, NationalHoliday } from '@/types/scheduling';
+import type { DoctorWithTeam, Team, LeaveDay, NationalHoliday, Shift } from '@/types/scheduling';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1061,6 +1061,184 @@ describe('SchedulingEngine', () => {
       expect(bridgeDays.has(formatDate(TEST_YEAR, TEST_MONTH, 4))).toBe(true);  // Sun
       expect(bridgeDays.has(formatDate(TEST_YEAR, TEST_MONTH, 5))).toBe(true);  // Mon holiday
       expect(bridgeDays.size).toBe(3);
+    });
+  });
+
+  describe('Fixed (manual) shifts', () => {
+    it('should not block doctors on earlier days when a fixed shift is on a later day', () => {
+      // Regression: fixed shifts were pre-registered before the main loop,
+      // setting doctorLastShift to a future date. canDoctorWork() then saw
+      // negative hours-since-last-shift and blocked the doctor for all earlier days.
+      const team1 = makeTeam('t1', 'Team 1', 0);
+      const doctors = [
+        makeDoctor('d1', 'Doctor 1', 't1', false, team1),
+        makeDoctor('d2', 'Doctor 2', 't1', false, team1),
+        makeDoctor('d3', 'Doctor 3', 't1', false, team1),
+        makeDoctor('d4', 'Doctor 4', undefined, true),
+        makeDoctor('d5', 'Doctor 5', undefined, true),
+      ];
+
+      // Fixed night shift for doctor 1 on the 3rd
+      const fixedShifts: Shift[] = [{
+        id: 'fixed-1',
+        doctor_id: 'd1',
+        shift_date: formatDate(TEST_YEAR, TEST_MONTH, 3),
+        shift_type: 'night',
+        is_manual: true,
+      }];
+
+      const engine = new SchedulingEngine({
+        month: TEST_MONTH,
+        year: TEST_YEAR,
+        doctors,
+        teams: [team1],
+        shiftsPerDay: 1,
+        shiftsPerNight: 1,
+        leaveDays: [],
+        nationalHolidays: [],
+        fixedShifts,
+      });
+
+      const result = engine.generateSchedule();
+
+      // The day shift on the 3rd must be filled by someone
+      const dayShiftsOn3rd = result.shifts.filter(
+        s => s.shift_date === formatDate(TEST_YEAR, TEST_MONTH, 3) && s.shift_type === 'day'
+      );
+      expect(dayShiftsOn3rd.length).toBe(1);
+
+      // Doctor 1 should still have shifts on days 1 and 2 (not blocked by future fixed shift)
+      const doc1ShiftsBefore3rd = result.shifts.filter(
+        s => s.doctor_id === 'd1' && s.shift_date < formatDate(TEST_YEAR, TEST_MONTH, 3)
+      );
+      expect(doc1ShiftsBefore3rd.length).toBeGreaterThan(0);
+
+      // No understaffed warnings for the 3rd
+      const understaffedOn3rd = result.warnings.filter(w => w.includes(formatDate(TEST_YEAR, TEST_MONTH, 3)));
+      expect(understaffedOn3rd.length).toBe(0);
+    });
+
+    it('should not assign a shift that would violate rest before an upcoming fixed shift', () => {
+      // Regression: engine assigned a night shift on day 2, then the fixed night
+      // on day 3 started only 12h later, violating the 48h rest rule.
+      const team1 = makeTeam('t1', 'Team 1', 0);
+      const doctors = [
+        makeDoctor('d1', 'Doctor 1', 't1', false, team1),
+        makeDoctor('d2', 'Doctor 2', 't1', false, team1),
+        makeDoctor('d3', 'Doctor 3', 't1', false, team1),
+        makeDoctor('d4', 'Doctor 4', undefined, true),
+      ];
+
+      // Fixed night shift for doctor 1 on the 3rd
+      const fixedShifts: Shift[] = [{
+        id: 'fixed-1',
+        doctor_id: 'd1',
+        shift_date: formatDate(TEST_YEAR, TEST_MONTH, 3),
+        shift_type: 'night',
+        is_manual: true,
+      }];
+
+      const engine = new SchedulingEngine({
+        month: TEST_MONTH,
+        year: TEST_YEAR,
+        doctors,
+        teams: [team1],
+        shiftsPerDay: 1,
+        shiftsPerNight: 1,
+        leaveDays: [],
+        nationalHolidays: [],
+        fixedShifts,
+      });
+
+      const result = engine.generateSchedule();
+      const allShifts = [...fixedShifts, ...result.shifts];
+
+      // Doctor 1 should NOT have a night shift on day 2 (only 12h gap to fixed night on day 3)
+      const doc1NightOn2 = allShifts.find(
+        s => s.doctor_id === 'd1' && s.shift_date === formatDate(TEST_YEAR, TEST_MONTH, 2) && s.shift_type === 'night'
+      );
+      expect(doc1NightOn2).toBeUndefined();
+
+      // Verify no rest violations exist in the entire schedule
+      const restViolationWarnings = result.warnings.filter(w => w.includes('rest'));
+      expect(restViolationWarnings.length).toBe(0);
+
+      // Doctor 1 CAN have a day shift on day 2 (ends 8pm, fixed night on 3 starts 8pm = 24h gap, OK for day rest)
+      // Not guaranteed to be assigned (depends on algorithm), but should be allowed
+      // The key assertion is that no rest violations exist
+    });
+
+    it('Feb 2026 — 1 team doctor + 4 floating, manual night on 3rd for team doctor — no errors', () => {
+      // Reproduces the user scenario: 5 doctors, 1 in a team, 4 floating.
+      // Doctor 1 has a manual night shift on the 3rd. The engine should generate
+      // a full month with no understaffed warnings and no rest violations.
+      // Note: 4 doctors is too few — the greedy algorithm can't plan ahead to
+      // avoid blocking all doctors from the day shift on Feb 3.
+      const FEB = 1; // February
+      const YEAR = 2026;
+      const team1 = makeTeam('t1', 'Team 1', 0);
+      const doctors = [
+        makeDoctor('d1', 'Doctor 1', 't1', false, team1),
+        makeDoctor('d2', 'Doctor 2', undefined, true),
+        makeDoctor('d3', 'Doctor 3', undefined, true),
+        makeDoctor('d4', 'Doctor 4', undefined, true),
+        makeDoctor('d5', 'Doctor 5', undefined, true),
+      ];
+
+      const fixedShifts: Shift[] = [{
+        id: 'fixed-1',
+        doctor_id: 'd1',
+        shift_date: `2026-02-03`,
+        shift_type: 'night',
+        is_manual: true,
+      }];
+
+      const engine = new SchedulingEngine({
+        month: FEB,
+        year: YEAR,
+        doctors,
+        teams: [team1],
+        shiftsPerDay: 1,
+        shiftsPerNight: 1,
+        leaveDays: [],
+        nationalHolidays: [],
+        fixedShifts,
+      });
+
+      const result = engine.generateSchedule();
+      const allShifts = [...fixedShifts, ...result.shifts];
+
+      const understaffedWarnings = result.warnings.filter(
+        w => w.includes('understaffed') || w.includes('Tura de zi') || w.includes('Tura de noapte')
+           || w.includes('Day shift') || w.includes('Night shift')
+      );
+      expect(understaffedWarnings).toHaveLength(0);
+
+      // No rest violation conflicts
+      const conflicts = SchedulingEngine.detectConflicts(allShifts, doctors, 1, 1);
+      const restViolations = conflicts.filter(c => c.type === 'rest_violation');
+      expect(restViolations).toHaveLength(0);
+
+      // Every day in Feb 2026 (28 days) should have exactly 1 day shift and 1 night shift
+      for (let d = 1; d <= 28; d++) {
+        const dateStr = `2026-02-${String(d).padStart(2, '0')}`;
+        const dayCount = allShifts.filter(s => s.shift_date === dateStr && s.shift_type === 'day').length;
+        const nightCount = allShifts.filter(s => s.shift_date === dateStr && s.shift_type === 'night').length;
+        expect(dayCount).toBe(1);
+        expect(nightCount).toBe(1);
+      }
+
+      // The fixed night shift on the 3rd should be for doctor 1
+      const doc1NightOn3 = allShifts.find(
+        s => s.doctor_id === 'd1' && s.shift_date === '2026-02-03' && s.shift_type === 'night'
+      );
+      expect(doc1NightOn3).toBeDefined();
+
+      // Doctor 1 should NOT have a night on the 2nd (would violate rest before fixed night on 3rd)
+      const doc1NightOn2 = allShifts.find(
+        s => s.doctor_id === 'd1' && s.shift_date === '2026-02-02' && s.shift_type === 'night'
+      );
+      expect(doc1NightOn2).toBeUndefined();
     });
   });
 });

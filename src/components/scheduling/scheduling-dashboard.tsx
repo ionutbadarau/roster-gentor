@@ -68,6 +68,11 @@ export default function SchedulingDashboard() {
       if (shiftsRes.data) setShifts(shiftsRes.data);
       if (leaveDaysRes.data) setLeaveDays(leaveDaysRes.data);
       if (holidaysRes.data) setNationalHolidays(holidaysRes.data);
+
+      // New user with no data — redirect to config tab
+      if ((!doctorsRes.data || doctorsRes.data.length === 0) && (!teamsRes.data || teamsRes.data.length === 0)) {
+        router.replace('/dashboard?tab=config', { scroll: false });
+      }
       if (configRes.data?.config_data) {
         const cfg = configRes.data.config_data as Record<string, number>;
         if (cfg.shiftsPerDay) setShiftsPerDay(cfg.shiftsPerDay);
@@ -80,8 +85,30 @@ export default function SchedulingDashboard() {
     }
   };
 
-  const handleConfigUpdate = () => {
-    loadData();
+  const handleConfigUpdate = async () => {
+    try {
+      const [doctorsRes, teamsRes, shiftsRes, leaveDaysRes, holidaysRes, configRes] = await Promise.all([
+        supabase.from('doctors').select('*'),
+        supabase.from('teams').select('*'),
+        supabase.from('shifts').select('*'),
+        supabase.from('leave_days').select('*'),
+        supabase.from('national_holidays').select('*'),
+        supabase.from('schedule_config').select('*').limit(1).single(),
+      ]);
+
+      if (doctorsRes.data) setDoctors(doctorsRes.data);
+      if (teamsRes.data) setTeams(teamsRes.data);
+      if (shiftsRes.data) setShifts(shiftsRes.data);
+      if (leaveDaysRes.data) setLeaveDays(leaveDaysRes.data);
+      if (holidaysRes.data) setNationalHolidays(holidaysRes.data);
+      if (configRes.data?.config_data) {
+        const cfg = configRes.data.config_data as Record<string, number>;
+        if (cfg.shiftsPerDay) setShiftsPerDay(cfg.shiftsPerDay);
+        if (cfg.shiftsPerNight) setShiftsPerNight(cfg.shiftsPerNight);
+      }
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    }
   };
 
   const handleScheduleGenerated = (newShifts: Shift[]) => {

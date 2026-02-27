@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npx tsc:*)",
-      "Bash(npm test:*)"
+      "Bash(npm test:*)",
+      "Bash(npx jest --verbose --no-coverage)",
+      "Bash(npx vitest run --reporter=verbose)"
     ]
   }
 }

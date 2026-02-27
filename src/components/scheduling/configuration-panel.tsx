@@ -5,10 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Doctor, Team } from '@/types/scheduling';
 import { createClient } from '../../../supabase/client';
-import { Plus, Trash2, Users, Save, Settings } from 'lucide-react';
+import { Plus, Trash2, Users, Save, Settings, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useTranslation } from '@/lib/i18n';
 
@@ -18,7 +17,7 @@ interface ConfigurationPanelProps {
   shiftsPerDay: number;
   shiftsPerNight: number;
   userId: string | null;
-  onUpdate: () => void;
+  onUpdate: () => void | Promise<void>;
 }
 
 export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shiftsPerNight, userId, onUpdate }: ConfigurationPanelProps) {
@@ -26,12 +25,13 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
   const [newTeamColor, setNewTeamColor] = useState('#3b82f6');
   const [newTeamMaxMembers, setNewTeamMaxMembers] = useState(3);
   const [newDoctorName, setNewDoctorName] = useState('');
-  const [newDoctorEmail, setNewDoctorEmail] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
-  const [isFloating, setIsFloating] = useState(false);
   const [localShiftsPerDay, setLocalShiftsPerDay] = useState(shiftsPerDay);
   const [localShiftsPerNight, setLocalShiftsPerNight] = useState(shiftsPerNight);
-  const [loading, setLoading] = useState(false);
+  const [addingTeam, setAddingTeam] = useState(false);
+  const [addingDoctor, setAddingDoctor] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const supabase = createClient();
   const { toast } = useToast();
@@ -47,7 +47,7 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
       return;
     }
 
-    setLoading(true);
+    setAddingTeam(true);
     try {
       const { error } = await supabase.from('teams').insert({
         name: newTeamName,
@@ -66,7 +66,7 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
       setNewTeamName('');
       setNewTeamColor('#3b82f6');
       setNewTeamMaxMembers(3);
-      onUpdate();
+      await onUpdate();
     } catch (error) {
       console.error('Error adding team:', error);
       toast({
@@ -75,12 +75,12 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
         variant: 'destructive',
       });
     } finally {
-      setLoading(false);
+      setAddingTeam(false);
     }
   };
 
   const handleDeleteTeam = async (teamId: string) => {
-    setLoading(true);
+    setDeletingId(teamId);
     try {
       const { error } = await supabase.from('teams').delete().eq('id', teamId);
 
@@ -91,7 +91,7 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
         description: t('scheduling.config.teamDeletedSuccess'),
       });
 
-      onUpdate();
+      await onUpdate();
     } catch (error) {
       console.error('Error deleting team:', error);
       toast({
@@ -100,7 +100,7 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
         variant: 'destructive',
       });
     } finally {
-      setLoading(false);
+      setDeletingId(null);
     }
   };
 
@@ -114,13 +114,13 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
       return;
     }
 
-    setLoading(true);
+    setAddingDoctor(true);
     try {
       const { error } = await supabase.from('doctors').insert({
         name: newDoctorName,
-        email: newDoctorEmail || null,
+        email: null,
         team_id: selectedTeamId || null,
-        is_floating: isFloating,
+        is_floating: !selectedTeamId,
         user_id: userId,
       });
 
@@ -132,10 +132,8 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
       });
 
       setNewDoctorName('');
-      setNewDoctorEmail('');
       setSelectedTeamId('');
-      setIsFloating(false);
-      onUpdate();
+      await onUpdate();
     } catch (error) {
       console.error('Error adding doctor:', error);
       toast({
@@ -144,12 +142,12 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
         variant: 'destructive',
       });
     } finally {
-      setLoading(false);
+      setAddingDoctor(false);
     }
   };
 
   const handleDeleteDoctor = async (doctorId: string) => {
-    setLoading(true);
+    setDeletingId(doctorId);
     try {
       const { error } = await supabase.from('doctors').delete().eq('id', doctorId);
 
@@ -160,7 +158,7 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
         description: t('scheduling.config.doctorDeletedSuccess'),
       });
 
-      onUpdate();
+      await onUpdate();
     } catch (error) {
       console.error('Error deleting doctor:', error);
       toast({
@@ -169,12 +167,12 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
         variant: 'destructive',
       });
     } finally {
-      setLoading(false);
+      setDeletingId(null);
     }
   };
 
   const handleSaveShiftSettings = async () => {
-    setLoading(true);
+    setSavingSettings(true);
     try {
       // Upsert: check if a config row exists, update or insert
       const { data: existing } = await supabase
@@ -206,7 +204,7 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
         title: t('common.success'),
         description: t('scheduling.config.shiftSettingsSaved'),
       });
-      onUpdate();
+      await onUpdate();
     } catch (error) {
       console.error('Error saving shift settings:', error);
       toast({
@@ -215,7 +213,7 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
         variant: 'destructive',
       });
     } finally {
-      setLoading(false);
+      setSavingSettings(false);
     }
   };
 
@@ -261,8 +259,8 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
                 onChange={(e) => setLocalShiftsPerNight(parseInt(e.target.value) || 1)}
               />
             </div>
-            <Button onClick={handleSaveShiftSettings} disabled={loading}>
-              <Save className="h-4 w-4 mr-2" />
+            <Button onClick={handleSaveShiftSettings} disabled={savingSettings}>
+              {savingSettings ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               {t('scheduling.config.saveShiftSettings')}
             </Button>
           </div>
@@ -320,8 +318,8 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
               />
             </div>
 
-            <Button onClick={handleAddTeam} disabled={loading} className="w-full">
-              <Plus className="h-4 w-4 mr-2" />
+            <Button onClick={handleAddTeam} disabled={addingTeam} className="w-full">
+              {addingTeam ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
               {t('scheduling.config.addTeam')}
             </Button>
           </div>
@@ -350,9 +348,9 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
                     variant="ghost"
                     size="sm"
                     onClick={() => handleDeleteTeam(team.id)}
-                    disabled={loading}
+                    disabled={deletingId === team.id}
                   >
-                    <Trash2 className="h-4 w-4 text-destructive" />
+                    {deletingId === team.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
                   </Button>
                 </div>
               ))}
@@ -389,24 +387,12 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="doctor-email">{t('scheduling.config.doctorEmail')}</Label>
-              <Input
-                id="doctor-email"
-                type="email"
-                placeholder={t('scheduling.config.doctorEmailPlaceholder')}
-                value={newDoctorEmail}
-                onChange={(e) => setNewDoctorEmail(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="team-select">{t('scheduling.config.assignTeam')}</Label>
               <select
                 id="team-select"
                 className="w-full px-3 py-2 rounded-md border border-input bg-background"
                 value={selectedTeamId}
                 onChange={(e) => setSelectedTeamId(e.target.value)}
-                disabled={isFloating}
               >
                 <option value="">{t('scheduling.config.noTeamOption')}</option>
                 {teams.map((team) => (
@@ -417,25 +403,8 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
               </select>
             </div>
 
-            <div className="flex items-center justify-between p-3 rounded-lg border">
-              <div>
-                <Label htmlFor="floating-switch">{t('scheduling.config.floatingStaff')}</Label>
-                <p className="text-xs text-muted-foreground">
-                  {t('scheduling.config.floatingStaffDesc')}
-                </p>
-              </div>
-              <Switch
-                id="floating-switch"
-                checked={isFloating}
-                onCheckedChange={(checked) => {
-                  setIsFloating(checked);
-                  if (checked) setSelectedTeamId('');
-                }}
-              />
-            </div>
-
-            <Button onClick={handleAddDoctor} disabled={loading} className="w-full">
-              <Plus className="h-4 w-4 mr-2" />
+            <Button onClick={handleAddDoctor} disabled={addingDoctor} className="w-full">
+              {addingDoctor ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
               {t('scheduling.config.addDoctor')}
             </Button>
           </div>
@@ -472,9 +441,9 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
                       variant="ghost"
                       size="sm"
                       onClick={() => handleDeleteDoctor(doctor.id)}
-                      disabled={loading}
+                      disabled={deletingId === doctor.id}
                     >
-                      <Trash2 className="h-4 w-4 text-destructive" />
+                      {deletingId === doctor.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
                     </Button>
                   </div>
                 );

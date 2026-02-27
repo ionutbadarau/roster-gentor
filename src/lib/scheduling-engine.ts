@@ -37,6 +37,7 @@ export class SchedulingEngine {
   private holidayDateSet: Set<string>;
   private doctorBridgeDays: Map<string, Set<string>>;
   private doctorLastShift: Map<string, { date: Date; type: 'day' | 'night' | '24h'; endTime: number }> = new Map();
+  private fixedShiftsByDoctor: Map<string, { startMs: number; shiftType: 'day' | 'night' }[]> = new Map();
   private doctorShiftCount: Map<string, number> = new Map();
   private doctorHours: Map<string, number> = new Map();
   private doctorWeeklyHours: Map<string, Map<number, number>> = new Map();
@@ -52,6 +53,20 @@ export class SchedulingEngine {
     this.nationalHolidays = options.nationalHolidays || [];
     this.fixedShifts = options.fixedShifts || [];
     this.previousMonthShifts = options.previousMonthShifts || [];
+
+    // Build per-doctor lookup of fixed shift start times for forward rest checks
+    for (const fs of this.fixedShifts) {
+      if (fs.shift_type !== 'day' && fs.shift_type !== 'night') continue;
+      const parts = fs.shift_date.split('-').map(Number);
+      const startMs = fs.shift_type === 'day'
+        ? SchedulingEngine.utcMs(parts[0], parts[1] - 1, parts[2], 8)
+        : SchedulingEngine.utcMs(parts[0], parts[1] - 1, parts[2], 20);
+      if (!this.fixedShiftsByDoctor.has(fs.doctor_id)) {
+        this.fixedShiftsByDoctor.set(fs.doctor_id, []);
+      }
+      this.fixedShiftsByDoctor.get(fs.doctor_id)!.push({ startMs, shiftType: fs.shift_type });
+    }
+
     this.holidayDateSet = new Set(this.nationalHolidays.map(h => h.holiday_date));
     this.doctorBridgeDays = this.computeBridgeDays();
   }
@@ -208,6 +223,26 @@ export class SchedulingEngine {
     const weeklyHours = this.doctorWeeklyHours.get(doctor.id)?.get(weekNumber) || 0;
     if (weeklyHours + SCHEDULING_CONSTANTS.SHIFT_DURATION > SCHEDULING_CONSTANTS.MAX_WEEKLY_HOURS) {
       return false;
+    }
+
+    // Forward check: ensure this shift's mandatory rest period doesn't collide
+    // with an upcoming fixed (manual) shift for this doctor.
+    const fixedForDoctor = this.fixedShiftsByDoctor.get(doctor.id);
+    if (fixedForDoctor) {
+      const shiftEndMs = shiftType === 'day'
+        ? SchedulingEngine.utcMs(date.getFullYear(), date.getMonth(), date.getDate(), 20)
+        : SchedulingEngine.utcMs(date.getFullYear(), date.getMonth(), date.getDate() + 1, 8);
+      const restNeeded = shiftType === 'day'
+        ? SCHEDULING_CONSTANTS.DAY_SHIFT_REST
+        : SCHEDULING_CONSTANTS.NIGHT_SHIFT_REST;
+
+      for (const fixed of fixedForDoctor) {
+        if (fixed.startMs <= shiftEndMs) continue; // fixed shift is before or at this shift's end — irrelevant
+        const gapHours = (fixed.startMs - shiftEndMs) / (1000 * 60 * 60);
+        if (gapHours < restNeeded) {
+          return false;
+        }
+      }
     }
 
     return true;
@@ -390,32 +425,33 @@ export class SchedulingEngine {
       }
     }
 
-    // Pre-process fixed (manual) shifts: register their rest constraints and
-    // build a lookup so the main loop knows how many slots are already filled.
+    // Build a lookup of fixed (manual) shifts by date+type so the main loop
+    // knows how many slots are already filled.
     // key = "YYYY-MM-DD:day" or "YYYY-MM-DD:night"
     const fixedShiftsByDateType = new Map<string, Shift[]>();
-    const fixedSorted = [...this.fixedShifts].sort(
-      (a, b) => a.shift_date.localeCompare(b.shift_date)
-    );
-    for (const fs of fixedSorted) {
+    for (const fs of this.fixedShifts) {
       if (fs.shift_type !== 'day' && fs.shift_type !== 'night') continue;
-      const doctor = this.doctors.find(d => d.id === fs.doctor_id);
-      if (!doctor) continue;
-
       const key = `${fs.shift_date}:${fs.shift_type}`;
       if (!fixedShiftsByDateType.has(key)) fixedShiftsByDateType.set(key, []);
       fixedShiftsByDateType.get(key)!.push(fs);
-
-      // Record the shift so rest constraints, shift counts, and weekly hours
-      // are all accounted for by the time the algorithm runs.
-      const dateParts = fs.shift_date.split('-').map(Number);
-      const fixedDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
-      this.recordShift(doctor, fixedDate, fs.shift_type);
     }
 
     for (let day = 1; day <= daysInMonth; day++) {
       const currentDate = new Date(this.year, this.month, day);
       const dateStr = this.formatDate(currentDate);
+
+      // Register fixed shifts for this day so rest constraints, shift counts,
+      // and weekly hours are accounted for at the right time (not prematurely).
+      for (const shiftType of ['day', 'night'] as const) {
+        const fixedKey = `${dateStr}:${shiftType}`;
+        const fixedForSlot = fixedShiftsByDateType.get(fixedKey);
+        if (fixedForSlot) {
+          for (const fs of fixedForSlot) {
+            const doctor = this.doctors.find(d => d.id === fs.doctor_id);
+            if (doctor) this.recordShift(doctor, currentDate, shiftType);
+          }
+        }
+      }
 
       // Update elapsed available days for each doctor.
       for (const doc of this.doctors) {
@@ -458,7 +494,9 @@ export class SchedulingEngine {
 
     this.applyShiftRounding(shifts);
 
-    const conflicts = SchedulingEngine.detectConflicts(shifts, this.doctors, this.shiftsPerDay, this.shiftsPerNight);
+    // Include fixed (manual) shifts when checking for conflicts
+    const allShifts = [...this.fixedShifts, ...shifts];
+    const conflicts = SchedulingEngine.detectConflicts(allShifts, this.doctors, this.shiftsPerDay, this.shiftsPerNight);
     const doctorStats = this.calculateDoctorStats();
 
     // Surface understaffed conflicts as warnings so they're visible in the UI
