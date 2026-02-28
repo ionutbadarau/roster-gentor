@@ -29,9 +29,11 @@ This is a **doctor shift scheduling SaaS** built with Next.js 14 App Router + Su
 The two most important files in the codebase:
 
 **`src/lib/scheduling-engine.ts`** — Pure algorithmic engine. Generates a full monthly schedule given doctors, teams, and leave days. Key constants and rules:
+
 - 12-hour shifts: day (08:00–20:00), night (20:00–08:00)
 - 24h mandatory rest after day shifts, 48h after night shifts
 - Max 48h/week per doctor
+- The min nr of working hours each doctor needs to have each month is 7h \* nr of working days for that month
 - Teams rotate by their `order` field; floating doctors fill gaps
 - Within a team, doctors with fewer shifts are prioritized (equalization)
 - Returns `{ shifts, conflicts, stats }` — never writes to DB directly
@@ -40,12 +42,12 @@ The two most important files in the codebase:
 
 ### Other Scheduling Components
 
-| File | Role |
-|------|------|
-| `configuration-panel.tsx` | CRUD for teams and doctors via Supabase |
-| `doctor-view.tsx` | Per-doctor schedule filtered from the grid |
-| `summary-dashboard.tsx` | Coverage stats, conflict alerts, quick-start guide |
-| `monthly-calendar.tsx` | Alternative calendar view |
+| File                      | Role                                               |
+| ------------------------- | -------------------------------------------------- |
+| `configuration-panel.tsx` | CRUD for teams and doctors via Supabase            |
+| `doctor-view.tsx`         | Per-doctor schedule filtered from the grid         |
+| `summary-dashboard.tsx`   | Coverage stats, conflict alerts, quick-start guide |
+| `monthly-calendar.tsx`    | Alternative calendar view                          |
 
 ### Data Model (`src/types/scheduling.ts`)
 

@@ -1168,12 +1168,10 @@ describe('SchedulingEngine', () => {
       // The key assertion is that no rest violations exist
     });
 
-    it('Feb 2026 — 1 team doctor + 4 floating, manual night on 3rd for team doctor — no errors', () => {
-      // Reproduces the user scenario: 5 doctors, 1 in a team, 4 floating.
+    it('Feb 2026 — 1 team doctor + 3 floating, manual night on 3rd for team doctor — no errors', () => {
+      // Reproduces the user scenario: 4 doctors, 1 in a team, 3 floating.
       // Doctor 1 has a manual night shift on the 3rd. The engine should generate
       // a full month with no understaffed warnings and no rest violations.
-      // Note: 4 doctors is too few — the greedy algorithm can't plan ahead to
-      // avoid blocking all doctors from the day shift on Feb 3.
       const FEB = 1; // February
       const YEAR = 2026;
       const team1 = makeTeam('t1', 'Team 1', 0);
@@ -1182,7 +1180,6 @@ describe('SchedulingEngine', () => {
         makeDoctor('d2', 'Doctor 2', undefined, true),
         makeDoctor('d3', 'Doctor 3', undefined, true),
         makeDoctor('d4', 'Doctor 4', undefined, true),
-        makeDoctor('d5', 'Doctor 5', undefined, true),
       ];
 
       const fixedShifts: Shift[] = [{
@@ -1239,6 +1236,81 @@ describe('SchedulingEngine', () => {
         s => s.doctor_id === 'd1' && s.shift_date === '2026-02-02' && s.shift_type === 'night'
       );
       expect(doc1NightOn2).toBeUndefined();
+    });
+
+    it('March 2026 — 4 doctors with 2 leave days on consecutive days — no understaffed slots', () => {
+      // Reproduces: 4 doctors (1 team + 3 floating), 1 shift/day, 1 shift/night.
+      // dr t has leave on March 5 (Thu), dr 123 has leave on March 4 (Wed).
+      // The greedy algorithm can paint itself into a corner on March 4 night
+      // because rest constraints from earlier assignments block all 3 available
+      // doctors. The repair phase should fix this.
+      const MARCH = 2; // 0-indexed
+      const YEAR = 2026;
+      const team1 = makeTeam('t1', 'Team 1', 0);
+      const doctors = [
+        makeDoctor('d1', 'Dr T', 't1', false, team1),
+        makeDoctor('d2', 'Dr Htmail', undefined, true),
+        makeDoctor('d3', 'Dr 123', undefined, true),
+        makeDoctor('d4', 'Dr 11', undefined, true),
+      ];
+
+      const leaveDays: LeaveDay[] = [
+        makeLeaveDay('d1', formatDate(YEAR, MARCH, 5)),  // dr t leave Thu March 5
+        makeLeaveDay('d3', formatDate(YEAR, MARCH, 4)),  // dr 123 leave Wed March 4
+      ];
+
+      const engine = new SchedulingEngine({
+        month: MARCH,
+        year: YEAR,
+        doctors,
+        teams: [team1],
+        shiftsPerDay: 1,
+        shiftsPerNight: 1,
+        leaveDays,
+        nationalHolidays: [],
+      });
+
+      const result = engine.generateSchedule();
+
+      // Debug: show first 6 days
+      for (let d = 1; d <= 6; d++) {
+        const dateStr = formatDate(YEAR, MARCH, d);
+        const dayDocs = result.shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'day').map(s => s.doctor_id);
+        const nightDocs = result.shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'night').map(s => s.doctor_id);
+        console.log(`March ${d}: day=[${dayDocs}] night=[${nightDocs}]`);
+      }
+      console.log('warnings:', result.warnings);
+
+      // No understaffed warnings
+      const understaffedWarnings = result.warnings.filter(
+        w => w.includes('understaffed') || w.includes('Day shift') || w.includes('Night shift')
+           || w.includes('Tura de zi') || w.includes('Tura de noapte')
+      );
+      expect(understaffedWarnings).toHaveLength(0);
+
+      // No rest violations
+      const restViolations = result.conflicts.filter(c => c.type === 'rest_violation');
+      expect(restViolations).toHaveLength(0);
+
+      // Every day in March 2026 (31 days) should have exactly 1 day + 1 night shift
+      for (let d = 1; d <= 31; d++) {
+        const dateStr = formatDate(YEAR, MARCH, d);
+        const dayCount = result.shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'day').length;
+        const nightCount = result.shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'night').length;
+        expect(dayCount).toBe(1);
+        expect(nightCount).toBe(1);
+      }
+
+      // Verify leave days are respected
+      const d1OnLeave = result.shifts.filter(
+        s => s.doctor_id === 'd1' && s.shift_date === formatDate(YEAR, MARCH, 5)
+      );
+      expect(d1OnLeave).toHaveLength(0);
+
+      const d3OnLeave = result.shifts.filter(
+        s => s.doctor_id === 'd3' && s.shift_date === formatDate(YEAR, MARCH, 4)
+      );
+      expect(d3OnLeave).toHaveLength(0);
     });
   });
 });

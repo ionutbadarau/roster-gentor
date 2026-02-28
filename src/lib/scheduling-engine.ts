@@ -487,6 +487,15 @@ export class SchedulingEngine {
       }
     }
 
+    // Repair pass: the greedy algorithm may leave slots unfilled when rest
+    // constraints cascade (e.g. 4 doctors + a fixed night shift can block
+    // everyone for the preceding day shift). Re-solve small windows around
+    // unfilled slots using backtracking to find a valid assignment.
+    this.repairUnfilledSlots(shifts, fixedShiftsByDateType);
+
+    // Rebuild counters from final shifts (greedy-pass counters are stale after repair)
+    this.rebuildCounters(shifts);
+
     const normWarnings = this.checkDoctorNorms();
     if (normWarnings.length > 0) {
       warnings.push(...normWarnings);
@@ -635,6 +644,270 @@ export class SchedulingEngine {
     }
 
     return selected;
+  }
+
+  // ── Repair phase helpers ──────────────────────────────────────────────────
+
+  /**
+   * Check rest constraints for a doctor against an explicit list of shifts
+   * (instead of the mutable doctorLastShift map). Used by the repair solver.
+   */
+  private canDoctorWorkWithTimeline(
+    doctorId: string,
+    date: Date,
+    shiftType: 'day' | 'night',
+    existingShifts: Shift[]
+  ): boolean {
+    if (this.isDoctorOnLeave(doctorId, date)) return false;
+    if (this.isDoctorOnBridgeDay(doctorId, date)) return false;
+
+    const shiftStartMs = shiftType === 'day'
+      ? SchedulingEngine.utcMs(date.getFullYear(), date.getMonth(), date.getDate(), 8)
+      : SchedulingEngine.utcMs(date.getFullYear(), date.getMonth(), date.getDate(), 20);
+    const shiftEndMs = shiftType === 'day'
+      ? SchedulingEngine.utcMs(date.getFullYear(), date.getMonth(), date.getDate(), 20)
+      : SchedulingEngine.utcMs(date.getFullYear(), date.getMonth(), date.getDate() + 1, 8);
+
+    for (const s of existingShifts) {
+      if (s.shift_type !== 'day' && s.shift_type !== 'night') continue;
+      const parts = s.shift_date.split('-').map(Number);
+
+      const sStartMs = s.shift_type === 'day'
+        ? SchedulingEngine.utcMs(parts[0], parts[1] - 1, parts[2], 8)
+        : SchedulingEngine.utcMs(parts[0], parts[1] - 1, parts[2], 20);
+      const sEndMs = s.shift_type === 'day'
+        ? SchedulingEngine.utcMs(parts[0], parts[1] - 1, parts[2], 20)
+        : SchedulingEngine.utcMs(parts[0], parts[1] - 1, parts[2] + 1, 8);
+
+      // Overlap
+      if (sStartMs < shiftEndMs && shiftStartMs < sEndMs) return false;
+
+      // Rest after existing shift → proposed shift
+      if (sEndMs <= shiftStartMs) {
+        const restNeeded = s.shift_type === 'day'
+          ? SCHEDULING_CONSTANTS.DAY_SHIFT_REST
+          : SCHEDULING_CONSTANTS.NIGHT_SHIFT_REST;
+        const gapHours = (shiftStartMs - sEndMs) / (1000 * 60 * 60);
+        if (gapHours < restNeeded) return false;
+      }
+
+      // Rest after proposed shift → existing shift
+      if (shiftEndMs <= sStartMs) {
+        const restNeeded = shiftType === 'day'
+          ? SCHEDULING_CONSTANTS.DAY_SHIFT_REST
+          : SCHEDULING_CONSTANTS.NIGHT_SHIFT_REST;
+        const gapHours = (sStartMs - shiftEndMs) / (1000 * 60 * 60);
+        if (gapHours < restNeeded) return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Scan for unfilled slots and attempt to repair them by re-solving a small
+   * window of days (up to 2 days back) using backtracking.
+   */
+  private repairUnfilledSlots(
+    shifts: Shift[],
+    fixedShiftsByDateType: Map<string, Shift[]>
+  ): void {
+    // Skip repair when the doctor pool is structurally too small to ever fill
+    // all slots — backtracking would be futile and expensive.
+    const slotsPerDay = this.shiftsPerDay + this.shiftsPerNight;
+    if (this.doctors.length < slotsPerDay) return;
+
+    const daysInMonth = this.getDaysInMonth();
+
+    // First pass: count unfilled slots. If many days are unfilled, the issue
+    // is structural (too few doctors overall), not a greedy ordering problem.
+    let unfilledCount = 0;
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = this.formatDate(new Date(this.year, this.month, day));
+      for (const shiftType of ['day', 'night'] as const) {
+        const required = shiftType === 'day' ? this.shiftsPerDay : this.shiftsPerNight;
+        const fixedKey = `${dateStr}:${shiftType}`;
+        const fixedCount = fixedShiftsByDateType.get(fixedKey)?.length || 0;
+        const generatedCount = shifts.filter(
+          s => s.shift_date === dateStr && s.shift_type === shiftType
+        ).length;
+        if (fixedCount + generatedCount < required) unfilledCount++;
+      }
+    }
+    // Only attempt repair for isolated gaps (≤ 3 unfilled slots)
+    if (unfilledCount === 0 || unfilledCount > 3) return;
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = this.formatDate(new Date(this.year, this.month, day));
+
+      for (const shiftType of ['day', 'night'] as const) {
+        const required = shiftType === 'day' ? this.shiftsPerDay : this.shiftsPerNight;
+        const fixedKey = `${dateStr}:${shiftType}`;
+        const fixedCount = fixedShiftsByDateType.get(fixedKey)?.length || 0;
+        const generatedCount = shifts.filter(
+          s => s.shift_date === dateStr && s.shift_type === shiftType
+        ).length;
+
+        if (fixedCount + generatedCount >= required) continue;
+
+        // Unfilled slot found — try to repair by re-solving a window.
+        // Start with a small window and expand if the solver fails, because
+        // post-window shifts constrain the solver via rest rules.
+        let repaired = false;
+        for (let radius = 2; radius <= 5 && !repaired; radius++) {
+          repaired = this.tryRepairWindow(shifts, day, fixedShiftsByDateType, radius);
+        }
+      }
+    }
+  }
+
+  /**
+   * Re-solve days [max(1, unfilledDay-2) .. min(daysInMonth, unfilledDay+2)]
+   * using backtracking. The window extends both backward (to undo greedy
+   * choices that caused the gap) and forward (because post-window shifts
+   * constrain doctors via rest rules — widening the window lets the solver
+   * rearrange those too).
+   * Modifies `shifts` in place: removes generated shifts in the window and
+   * replaces them with a valid assignment (if one exists).
+   */
+  private tryRepairWindow(
+    shifts: Shift[],
+    unfilledDay: number,
+    fixedShiftsByDateType: Map<string, Shift[]>,
+    radius: number = 2
+  ): boolean {
+    const daysInMonth = this.getDaysInMonth();
+    const startDay = Math.max(1, unfilledDay - radius);
+    const endDay = Math.min(daysInMonth, unfilledDay + radius);
+
+    // Dates in the repair window
+    const windowDates = new Set<string>();
+    for (let d = startDay; d <= endDay; d++) {
+      windowDates.add(this.formatDate(new Date(this.year, this.month, d)));
+    }
+
+    // Remove generated shifts in the window (keep them for rollback)
+    const removedShifts: Shift[] = [];
+    for (let i = shifts.length - 1; i >= 0; i--) {
+      if (windowDates.has(shifts[i].shift_date)) {
+        removedShifts.push(shifts[i]);
+        shifts.splice(i, 1);
+      }
+    }
+
+    // Build the list of slots to fill
+    interface RepairSlot {
+      day: number;
+      dateStr: string;
+      shiftType: 'day' | 'night';
+    }
+    const slots: RepairSlot[] = [];
+    for (let d = startDay; d <= endDay; d++) {
+      const dateStr = this.formatDate(new Date(this.year, this.month, d));
+      for (const st of ['day', 'night'] as const) {
+        const required = st === 'day' ? this.shiftsPerDay : this.shiftsPerNight;
+        const fixedKey = `${dateStr}:${st}`;
+        const fixedCount = fixedShiftsByDateType.get(fixedKey)?.length || 0;
+        for (let s = 0; s < Math.max(0, required - fixedCount); s++) {
+          slots.push({ day: d, dateStr, shiftType: st });
+        }
+      }
+    }
+
+    if (slots.length === 0) {
+      shifts.push(...removedShifts);
+      return false;
+    }
+
+    // Build baseline timelines per doctor (shifts outside the window + fixed + previous month)
+    const baseTimelines = new Map<string, Shift[]>();
+    for (const doc of this.doctors) {
+      baseTimelines.set(doc.id, [
+        ...this.previousMonthShifts.filter(s => s.doctor_id === doc.id),
+        ...this.fixedShifts.filter(s => s.doctor_id === doc.id),
+        ...shifts.filter(s => s.doctor_id === doc.id),
+      ]);
+    }
+
+    const assignments: (string | null)[] = new Array(slots.length).fill(null);
+
+    const solve = (idx: number): boolean => {
+      if (idx >= slots.length) return true;
+
+      const slot = slots[idx];
+      const date = new Date(this.year, this.month, slot.day);
+
+      for (const doc of this.doctors) {
+        if (this.isDoctorOnLeave(doc.id, date)) continue;
+        if (this.isDoctorOnBridgeDay(doc.id, date)) continue;
+
+        // Don't assign same doctor twice to the same date+shiftType
+        const alreadyOnSlot = assignments.some((id, i) =>
+          i < idx && id === doc.id &&
+          slots[i].dateStr === slot.dateStr && slots[i].shiftType === slot.shiftType
+        );
+        if (alreadyOnSlot) continue;
+
+        // Build full timeline: baseline + earlier repair assignments for this doctor
+        const repairShifts: Shift[] = [];
+        for (let i = 0; i < idx; i++) {
+          if (assignments[i] === doc.id) {
+            repairShifts.push({
+              id: `repair-${i}`,
+              doctor_id: doc.id,
+              shift_date: slots[i].dateStr,
+              shift_type: slots[i].shiftType,
+            });
+          }
+        }
+        const fullTimeline = [...baseTimelines.get(doc.id)!, ...repairShifts];
+
+        if (this.canDoctorWorkWithTimeline(doc.id, date, slot.shiftType, fullTimeline)) {
+          assignments[idx] = doc.id;
+          if (solve(idx + 1)) return true;
+          assignments[idx] = null;
+        }
+      }
+
+      return false;
+    };
+
+    if (solve(0)) {
+      // Apply the solution
+      for (let i = 0; i < slots.length; i++) {
+        shifts.push({
+          id: crypto.randomUUID(),
+          doctor_id: assignments[i]!,
+          shift_date: slots[i].dateStr,
+          shift_type: slots[i].shiftType,
+          start_time: slots[i].shiftType === 'day' ? '08:00' : '20:00',
+          end_time: slots[i].shiftType === 'day' ? '20:00' : '08:00',
+        });
+      }
+      return true;
+    } else {
+      // No valid assignment found — restore originals
+      shifts.push(...removedShifts);
+      return false;
+    }
+  }
+
+  /**
+   * Rebuild doctorShiftCount and doctorHours from the final shifts array
+   * (the greedy-pass counters become stale after the repair phase).
+   */
+  private rebuildCounters(shifts: Shift[]): void {
+    this.doctors.forEach(d => {
+      this.doctorShiftCount.set(d.id, 0);
+      this.doctorHours.set(d.id, 0);
+    });
+
+    const allShifts = [...this.fixedShifts, ...shifts];
+    for (const s of allShifts) {
+      if (s.shift_type !== 'day' && s.shift_type !== 'night') continue;
+      this.doctorShiftCount.set(s.doctor_id, (this.doctorShiftCount.get(s.doctor_id) || 0) + 1);
+      this.doctorHours.set(s.doctor_id, (this.doctorHours.get(s.doctor_id) || 0) + SCHEDULING_CONSTANTS.SHIFT_DURATION);
+    }
   }
 
   private checkDoctorNorms(): string[] {
