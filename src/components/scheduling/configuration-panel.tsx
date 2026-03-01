@@ -25,8 +25,8 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
   const [newTeamColor, setNewTeamColor] = useState('#3b82f6');
   const [newDoctorName, setNewDoctorName] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState<string>(teams[0]?.id ?? '');
-  const [localShiftsPerDay, setLocalShiftsPerDay] = useState(shiftsPerDay);
-  const [localShiftsPerNight, setLocalShiftsPerNight] = useState(shiftsPerNight);
+  const [localShiftsPerDay, setLocalShiftsPerDay] = useState(String(shiftsPerDay));
+  const [localShiftsPerNight, setLocalShiftsPerNight] = useState(String(shiftsPerNight));
   const [addingTeam, setAddingTeam] = useState(false);
   const [addingDoctor, setAddingDoctor] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -232,8 +232,8 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
 
       const newConfigData = {
         ...(existing?.config_data as Record<string, unknown> || {}),
-        shiftsPerDay: localShiftsPerDay,
-        shiftsPerNight: localShiftsPerNight,
+        shiftsPerDay: Math.max(1, parseInt(localShiftsPerDay) || 1),
+        shiftsPerNight: Math.max(1, parseInt(localShiftsPerNight) || 1),
       };
 
       if (existing) {
@@ -554,7 +554,7 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
                 max="10"
                 className="w-24"
                 value={localShiftsPerDay}
-                onChange={(e) => setLocalShiftsPerDay(parseInt(e.target.value) || 1)}
+                onChange={(e) => setLocalShiftsPerDay(e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -566,7 +566,7 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
                 max="10"
                 className="w-24"
                 value={localShiftsPerNight}
-                onChange={(e) => setLocalShiftsPerNight(parseInt(e.target.value) || 1)}
+                onChange={(e) => setLocalShiftsPerNight(e.target.value)}
               />
             </div>
             <Button onClick={handleSaveShiftSettings} disabled={savingSettings}>
