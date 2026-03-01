@@ -1272,15 +1272,6 @@ describe('SchedulingEngine', () => {
 
       const result = engine.generateSchedule();
 
-      // Debug: show first 6 days
-      for (let d = 1; d <= 6; d++) {
-        const dateStr = formatDate(YEAR, MARCH, d);
-        const dayDocs = result.shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'day').map(s => s.doctor_id);
-        const nightDocs = result.shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'night').map(s => s.doctor_id);
-        console.log(`March ${d}: day=[${dayDocs}] night=[${nightDocs}]`);
-      }
-      console.log('warnings:', result.warnings);
-
       // No understaffed warnings
       const understaffedWarnings = result.warnings.filter(
         w => w.includes('understaffed') || w.includes('Day shift') || w.includes('Night shift')

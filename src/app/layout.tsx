@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Script from "next/script";
+import { Analytics } from "@vercel/analytics/react";
 import { TempoInit } from "@/components/tempo-init";
 import { ThemeProvider } from "@/components/theme-provider";
 import { I18nProvider } from "@/lib/i18n";
@@ -32,6 +33,7 @@ export default function RootLayout({
             {children}
           </I18nProvider>
         </ThemeProvider>
+        <Analytics />
         {/* <TempoInit /> */}
       </body>
     </html>

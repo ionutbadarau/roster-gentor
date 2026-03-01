@@ -762,13 +762,11 @@ export class SchedulingEngine {
   }
 
   /**
-   * Re-solve days [max(1, unfilledDay-2) .. min(daysInMonth, unfilledDay+2)]
-   * using backtracking. The window extends both backward (to undo greedy
-   * choices that caused the gap) and forward (because post-window shifts
-   * constrain doctors via rest rules — widening the window lets the solver
-   * rearrange those too).
-   * Modifies `shifts` in place: removes generated shifts in the window and
-   * replaces them with a valid assignment (if one exists).
+   * Re-solve days [max(1, D-radius) .. min(daysInMonth, D+radius)] using
+   * backtracking. The window extends both backward (to undo greedy choices
+   * that caused the gap) and forward (post-window shifts constrain doctors
+   * via rest rules — widening the window lets the solver rearrange those
+   * too). The caller increases radius on failure (2 → 3 → 4 → 5).
    */
   private tryRepairWindow(
     shifts: Shift[],
