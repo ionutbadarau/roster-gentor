@@ -81,8 +81,8 @@ export function useScheduleConfig() {
       if (error) throw error;
       const cfg = data?.config_data as Record<string, number> | undefined;
       return {
-        shiftsPerDay: cfg?.shiftsPerDay ?? 3,
-        shiftsPerNight: cfg?.shiftsPerNight ?? 3,
+        shiftsPerDay: cfg?.shiftsPerDay ?? 1,
+        shiftsPerNight: cfg?.shiftsPerNight ?? 1,
       };
     },
   });

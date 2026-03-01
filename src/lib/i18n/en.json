@@ -109,7 +109,11 @@
       "shiftSettingsSaved": "Shift settings saved successfully",
       "shiftSettingsSaveError": "Could not save shift settings",
       "teamChangedSuccess": "Doctor team updated successfully",
-      "changeTeamError": "Could not update doctor team"
+      "changeTeamError": "Could not update doctor team",
+      "doctorRenamedSuccess": "Doctor renamed successfully",
+      "doctorRenameError": "Could not rename doctor",
+      "teamRenamedSuccess": "Team renamed successfully",
+      "teamRenameError": "Could not rename team"
     },
     "doctorView": {
       "title": "Doctors",

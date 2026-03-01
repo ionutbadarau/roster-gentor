@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Doctor, Team } from '@/types/scheduling';
 import { createClient } from '../../../supabase/client';
-import { Plus, Trash2, Users, Save, Settings, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Users, Save, Settings, Loader2, Pencil, Check, X } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useTranslation } from '@/lib/i18n';
 
@@ -31,6 +31,8 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
   const [addingDoctor, setAddingDoctor] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
 
   const supabase = createClient();
   const { toast } = useToast();
@@ -166,6 +168,33 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
     }
   };
 
+  const handleRenameDoctorOrTeam = async (id: string, type: 'doctor' | 'team') => {
+    const trimmed = editingName.trim();
+    if (!trimmed) {
+      setEditingId(null);
+      return;
+    }
+    try {
+      const table = type === 'doctor' ? 'doctors' : 'teams';
+      const { error } = await supabase.from(table).update({ name: trimmed }).eq('id', id);
+      if (error) throw error;
+      toast({
+        title: t('common.success'),
+        description: t(type === 'doctor' ? 'scheduling.config.doctorRenamedSuccess' : 'scheduling.config.teamRenamedSuccess'),
+      });
+      await onUpdate();
+    } catch (error) {
+      console.error(`Error renaming ${type}:`, error);
+      toast({
+        title: t('common.error'),
+        description: t(type === 'doctor' ? 'scheduling.config.doctorRenameError' : 'scheduling.config.teamRenameError'),
+        variant: 'destructive',
+      });
+    } finally {
+      setEditingId(null);
+    }
+  };
+
   const handleDeleteDoctor = async (doctorId: string) => {
     setDeletingId(doctorId);
     try {
@@ -243,50 +272,6 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            {t('scheduling.config.shiftSettingsTitle')}
-          </CardTitle>
-          <CardDescription>
-            {t('scheduling.config.shiftSettingsDesc')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-end gap-6 flex-wrap">
-            <div className="space-y-2">
-              <Label htmlFor="shifts-per-day">{t('scheduling.config.doctorsPerDayShift')}</Label>
-              <Input
-                id="shifts-per-day"
-                type="number"
-                min="1"
-                max="10"
-                className="w-24"
-                value={localShiftsPerDay}
-                onChange={(e) => setLocalShiftsPerDay(parseInt(e.target.value) || 1)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="shifts-per-night">{t('scheduling.config.doctorsPerNightShift')}</Label>
-              <Input
-                id="shifts-per-night"
-                type="number"
-                min="1"
-                max="10"
-                className="w-24"
-                value={localShiftsPerNight}
-                onChange={(e) => setLocalShiftsPerNight(parseInt(e.target.value) || 1)}
-              />
-            </div>
-            <Button onClick={handleSaveShiftSettings} disabled={savingSettings}>
-              {savingSettings ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-              {t('scheduling.config.saveShiftSettings')}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
       <div className="grid gap-6 md:grid-cols-2">
       <Card>
         <CardHeader>
@@ -340,23 +325,52 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
                   key={team.id}
                   className="flex items-center justify-between p-3 rounded-lg border bg-card"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div
-                      className="w-4 h-4 rounded-full"
+                      className="w-4 h-4 rounded-full shrink-0"
                       style={{ backgroundColor: team.color }}
                     />
-                    <div>
-                      <p className="font-medium">{team.name}</p>
-                    </div>
+                    {editingId === team.id ? (
+                      <Input
+                        className="h-7 text-sm"
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleRenameDoctorOrTeam(team.id, 'team');
+                          if (e.key === 'Escape') setEditingId(null);
+                        }}
+                        autoFocus
+                      />
+                    ) : (
+                      <p className="font-medium truncate">{team.name}</p>
+                    )}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteTeam(team.id)}
-                    disabled={deletingId === team.id}
-                  >
-                    {deletingId === team.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
-                  </Button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {editingId === team.id ? (
+                      <>
+                        <Button variant="ghost" size="sm" onClick={() => handleRenameDoctorOrTeam(team.id, 'team')}>
+                          <Check className="h-4 w-4 text-green-600" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setEditingId(null)}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button variant="ghost" size="sm" onClick={() => { setEditingId(team.id); setEditingName(team.name); }}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteTeam(team.id)}
+                          disabled={deletingId === team.id}
+                        >
+                          {deletingId === team.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
               ))}
               {teams.length === 0 && (
@@ -452,7 +466,20 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
                           style={{ backgroundColor: team.color }}
                         />
                       )}
-                      <p className="font-medium truncate">{doctor.name}</p>
+                      {editingId === doctor.id ? (
+                        <Input
+                          className="h-7 text-sm"
+                          value={editingName}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleRenameDoctorOrTeam(doctor.id, 'doctor');
+                            if (e.key === 'Escape') setEditingId(null);
+                          }}
+                          autoFocus
+                        />
+                      ) : (
+                        <p className="font-medium truncate">{doctor.name}</p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <select
@@ -467,14 +494,30 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
                           </option>
                         ))}
                       </select>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteDoctor(doctor.id)}
-                      disabled={deletingId === doctor.id}
-                    >
-                      {deletingId === doctor.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
-                    </Button>
+                      {editingId === doctor.id ? (
+                        <>
+                          <Button variant="ghost" size="sm" onClick={() => handleRenameDoctorOrTeam(doctor.id, 'doctor')}>
+                            <Check className="h-4 w-4 text-green-600" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => setEditingId(null)}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button variant="ghost" size="sm" onClick={() => { setEditingId(doctor.id); setEditingName(doctor.name); }}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteDoctor(doctor.id)}
+                            disabled={deletingId === doctor.id}
+                          >
+                            {deletingId === doctor.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 );
@@ -489,6 +532,50 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
         </CardContent>
       </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            {t('scheduling.config.shiftSettingsTitle')}
+          </CardTitle>
+          <CardDescription>
+            {t('scheduling.config.shiftSettingsDesc')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-end gap-6 flex-wrap">
+            <div className="space-y-2">
+              <Label htmlFor="shifts-per-day">{t('scheduling.config.doctorsPerDayShift')}</Label>
+              <Input
+                id="shifts-per-day"
+                type="number"
+                min="1"
+                max="10"
+                className="w-24"
+                value={localShiftsPerDay}
+                onChange={(e) => setLocalShiftsPerDay(parseInt(e.target.value) || 1)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="shifts-per-night">{t('scheduling.config.doctorsPerNightShift')}</Label>
+              <Input
+                id="shifts-per-night"
+                type="number"
+                min="1"
+                max="10"
+                className="w-24"
+                value={localShiftsPerNight}
+                onChange={(e) => setLocalShiftsPerNight(parseInt(e.target.value) || 1)}
+              />
+            </div>
+            <Button onClick={handleSaveShiftSettings} disabled={savingSettings}>
+              {savingSettings ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+              {t('scheduling.config.saveShiftSettings')}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

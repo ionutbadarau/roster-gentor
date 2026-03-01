@@ -109,7 +109,11 @@
       "shiftSettingsSaved": "Setările turelor au fost salvate cu succes",
       "shiftSettingsSaveError": "Nu s-au putut salva setările turelor",
       "teamChangedSuccess": "Echipa doctorului a fost actualizată cu succes",
-      "changeTeamError": "Nu s-a putut actualiza echipa doctorului"
+      "changeTeamError": "Nu s-a putut actualiza echipa doctorului",
+      "doctorRenamedSuccess": "Doctorul a fost redenumit cu succes",
+      "doctorRenameError": "Nu s-a putut redenumi doctorul",
+      "teamRenamedSuccess": "Echipa a fost redenumită cu succes",
+      "teamRenameError": "Nu s-a putut redenumi echipa"
     },
     "doctorView": {
       "title": "Doctori",
