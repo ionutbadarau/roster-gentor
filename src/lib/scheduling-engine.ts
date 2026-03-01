@@ -719,8 +719,10 @@ export class SchedulingEngine {
 
     const daysInMonth = this.getDaysInMonth();
 
-    // First pass: count unfilled slots. If many days are unfilled, the issue
-    // is structural (too few doctors overall), not a greedy ordering problem.
+    // First pass: count unfilled slots. If many slots are unfilled relative
+    // to the total, the issue is structural (too few doctors overall), not a
+    // greedy ordering problem — backtracking would be futile and expensive.
+    const totalSlots = daysInMonth * (this.shiftsPerDay + this.shiftsPerNight);
     let unfilledCount = 0;
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = this.formatDate(new Date(this.year, this.month, day));
@@ -734,8 +736,11 @@ export class SchedulingEngine {
         if (fixedCount + generatedCount < required) unfilledCount++;
       }
     }
-    // Only attempt repair for isolated gaps (≤ 3 unfilled slots)
-    if (unfilledCount === 0 || unfilledCount > 3) return;
+    // Only attempt repair for isolated gaps (≤ 10% of total slots).
+    // Rest-constraint cascades with small doctor pools can easily create
+    // several unfilled slots even when the schedule is structurally feasible.
+    const maxRepairable = Math.max(3, Math.ceil(totalSlots * 0.1));
+    if (unfilledCount === 0 || unfilledCount > maxRepairable) return;
 
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = this.formatDate(new Date(this.year, this.month, day));
@@ -754,8 +759,14 @@ export class SchedulingEngine {
         // Start with a small window and expand if the solver fails, because
         // post-window shifts constrain the solver via rest rules.
         let repaired = false;
-        for (let radius = 2; radius <= 5 && !repaired; radius++) {
+        const maxRadius = Math.min(daysInMonth, 10);
+        for (let radius = 2; radius <= maxRadius && !repaired; radius++) {
           repaired = this.tryRepairWindow(shifts, day, fixedShiftsByDateType, radius);
+        }
+        // If windowed repair failed, try full-month reshuffle as last resort.
+        // This removes boundary constraints from post-window shifts.
+        if (!repaired) {
+          repaired = this.tryRepairWindow(shifts, day, fixedShiftsByDateType, daysInMonth);
         }
       }
     }

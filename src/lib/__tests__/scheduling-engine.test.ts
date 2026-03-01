@@ -1238,6 +1238,63 @@ describe('SchedulingEngine', () => {
       expect(doc1NightOn2).toBeUndefined();
     });
 
+    it('March 2026 — 4 floating doctors, leave on March 12-13, no understaffed night on March 12', () => {
+      // Reproduces bug: 4 floating doctors, 1 shift/day, 1 shift/night.
+      // Doctor 2 has leave on March 12 (Thu) and 13 (Fri).
+      // The greedy algorithm assigns day+night patterns that leave all 4
+      // doctors unavailable for the March 12 night shift:
+      //   - Doctor 1: worked night March 11 → 48h rest blocks March 12
+      //   - Doctor 2: on leave March 12
+      //   - Doctor 3: worked day March 12 → 0h gap to night March 12
+      //   - Doctor 4: worked night March 11 → 48h rest blocks March 12
+      // The repair phase should reshuffle to fill the gap.
+      const MARCH = 2; // 0-indexed
+      const YEAR = 2026;
+      const doctors = [
+        makeDoctor('d1', 'Doctor 1', undefined, true),
+        makeDoctor('d2', 'Doctor 2', undefined, true),
+        makeDoctor('d3', 'Doctor 3', undefined, true),
+        makeDoctor('d4', 'Doctor 4', undefined, true),
+      ];
+
+      const leaveDays: LeaveDay[] = [
+        makeLeaveDay('d2', formatDate(YEAR, MARCH, 12)),
+        makeLeaveDay('d2', formatDate(YEAR, MARCH, 13)),
+      ];
+
+      const engine = new SchedulingEngine({
+        month: MARCH,
+        year: YEAR,
+        doctors,
+        teams: [],
+        shiftsPerDay: 1,
+        shiftsPerNight: 1,
+        leaveDays,
+        nationalHolidays: [],
+      });
+
+      const result = engine.generateSchedule();
+
+      // Every day should have exactly 1 day + 1 night shift
+      for (let d = 1; d <= 31; d++) {
+        const dateStr = formatDate(YEAR, MARCH, d);
+        const dayCount = result.shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'day').length;
+        const nightCount = result.shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'night').length;
+        expect(dayCount).toBe(1);
+        expect(nightCount).toBe(1);
+      }
+
+      // No rest violations
+      const restViolations = result.conflicts.filter(c => c.type === 'rest_violation');
+      expect(restViolations).toHaveLength(0);
+
+      // Leave days respected
+      const d2OnLeave12 = result.shifts.filter(s => s.doctor_id === 'd2' && s.shift_date === formatDate(YEAR, MARCH, 12));
+      expect(d2OnLeave12).toHaveLength(0);
+      const d2OnLeave13 = result.shifts.filter(s => s.doctor_id === 'd2' && s.shift_date === formatDate(YEAR, MARCH, 13));
+      expect(d2OnLeave13).toHaveLength(0);
+    });
+
     it('March 2026 — 4 doctors with 2 leave days on consecutive days — no understaffed slots', () => {
       // Reproduces: 4 doctors (1 team + 3 floating), 1 shift/day, 1 shift/night.
       // dr t has leave on March 5 (Thu), dr 123 has leave on March 4 (Wed).
