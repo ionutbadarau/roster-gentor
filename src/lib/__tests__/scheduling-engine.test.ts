@@ -10,7 +10,7 @@ function uid(): string {
 }
 
 function makeTeam(id: string, name: string, order: number, color = '#000'): Team {
-  return { id, name, color, max_members: 20, order };
+  return { id, name, color, order };
 }
 
 function makeDoctor(

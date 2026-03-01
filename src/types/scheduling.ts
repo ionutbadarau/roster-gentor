@@ -37,7 +37,6 @@ export interface Team {
   id: string;
   name: string;
   color: string;
-  max_members: number;
   order: number;
   created_at?: string;
   updated_at?: string;

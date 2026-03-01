@@ -65,6 +65,11 @@ The two most important files in the codebase:
 - Auth group layout: `src/app/(auth)/` (sign-in, sign-up, forgot-password)
 - OAuth callback: `src/app/auth/callback/`
 
+### Internationalization
+
+Translation files: `src/lib/i18n/en.json` (English) and `src/lib/i18n/ro.json` (Romanian).
+Keys are nested by feature area (e.g. `scheduling.config.teamName`). Always update both files when adding/removing keys.
+
 ### UI Stack
 
 - **shadcn/ui** components live in `src/components/ui/` — do not modify these directly; regenerate via `npx shadcn-ui add <component>`

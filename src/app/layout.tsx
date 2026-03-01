@@ -6,6 +6,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { TempoInit } from "@/components/tempo-init";
 import { ThemeProvider } from "@/components/theme-provider";
 import { I18nProvider } from "@/lib/i18n";
+import QueryProvider from "@/components/query-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -29,9 +30,11 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <I18nProvider>
-            {children}
-          </I18nProvider>
+          <QueryProvider>
+            <I18nProvider>
+              {children}
+            </I18nProvider>
+          </QueryProvider>
         </ThemeProvider>
         <Analytics />
         {/* <TempoInit /> */}

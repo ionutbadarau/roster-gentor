@@ -13,6 +13,7 @@ import { Button } from './ui/button'
 import { UserCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useTranslation } from '@/lib/i18n'
+import { ThemeSwitcher } from './theme-switcher'
 
 export default function DashboardNavbar() {
   const supabase = createClient()
@@ -27,7 +28,7 @@ export default function DashboardNavbar() {
   }, [])
 
   return (
-    <nav className="w-full border-b border-gray-200 bg-white py-4">
+    <nav className="w-full border-b border-border bg-background py-4">
       <div className="container mx-auto px-4 flex justify-between items-center">
         <div className="flex items-center gap-4">
           <Link href="/" prefetch className="text-xl font-bold">
@@ -35,6 +36,7 @@ export default function DashboardNavbar() {
           </Link>
         </div>
         <div className="flex gap-4 items-center">
+          <ThemeSwitcher />
           <Button
             variant="ghost"
             size="sm"

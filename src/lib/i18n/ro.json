@@ -69,15 +69,13 @@
     },
     "config": {
       "teamsTitle": "Configurare Echipe",
-      "teamsDesc": "Define\u0219te echipele \u0219i capacitatea maxim\u0103",
+      "teamsDesc": "Definește echipele pentru planificare",
       "teamName": "Nume Echip\u0103",
       "teamNamePlaceholder": "ex. Echipa Alpha",
       "teamColor": "Culoare Echip\u0103",
-      "maxMembers": "Membri Maximi",
       "addTeam": "Adaug\u0103 Echip\u0103",
       "existingTeams": "Echipe Existente",
       "noTeams": "Nicio echip\u0103 configurat\u0103 \u00eenc\u0103",
-      "maxMembersLabel": "Max {{count}} membri",
       "teamNameRequired": "Numele echipei este obligatoriu",
       "teamAddedSuccess": "Echipa a fost ad\u0103ugat\u0103 cu succes",
       "teamAddError": "Nu s-a putut ad\u0103uga echipa",
@@ -109,7 +107,9 @@
       "doctorsPerNightShift": "Doctori per tură de noapte",
       "saveShiftSettings": "Salvează Setările",
       "shiftSettingsSaved": "Setările turelor au fost salvate cu succes",
-      "shiftSettingsSaveError": "Nu s-au putut salva setările turelor"
+      "shiftSettingsSaveError": "Nu s-au putut salva setările turelor",
+      "teamChangedSuccess": "Echipa doctorului a fost actualizată cu succes",
+      "changeTeamError": "Nu s-a putut actualiza echipa doctorului"
     },
     "doctorView": {
       "title": "Doctori",

@@ -4,12 +4,14 @@ import Link from 'next/link'
 import { Button } from './ui/button'
 import { useTranslation } from '@/lib/i18n'
 import UserProfile from './user-profile'
+import { ThemeSwitcher } from './theme-switcher'
 
 export function NavbarLinks({ isLoggedIn }: { isLoggedIn: boolean }) {
   const { t, language, setLanguage } = useTranslation()
 
   return (
     <div className="flex gap-4 items-center">
+      <ThemeSwitcher />
       <Button
         variant="ghost"
         size="sm"

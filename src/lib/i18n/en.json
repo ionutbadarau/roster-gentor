@@ -69,15 +69,13 @@
     },
     "config": {
       "teamsTitle": "Team Configuration",
-      "teamsDesc": "Define teams and maximum capacity",
+      "teamsDesc": "Define teams for scheduling",
       "teamName": "Team Name",
       "teamNamePlaceholder": "e.g. Team Alpha",
       "teamColor": "Team Color",
-      "maxMembers": "Max Members",
       "addTeam": "Add Team",
       "existingTeams": "Existing Teams",
       "noTeams": "No teams configured yet",
-      "maxMembersLabel": "Max {{count}} members",
       "teamNameRequired": "Team name is required",
       "teamAddedSuccess": "Team added successfully",
       "teamAddError": "Could not add team",
@@ -109,7 +107,9 @@
       "doctorsPerNightShift": "Doctors per Night Shift",
       "saveShiftSettings": "Save Settings",
       "shiftSettingsSaved": "Shift settings saved successfully",
-      "shiftSettingsSaveError": "Could not save shift settings"
+      "shiftSettingsSaveError": "Could not save shift settings",
+      "teamChangedSuccess": "Doctor team updated successfully",
+      "changeTeamError": "Could not update doctor team"
     },
     "doctorView": {
       "title": "Doctors",

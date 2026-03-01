@@ -23,9 +23,8 @@ interface ConfigurationPanelProps {
 export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shiftsPerNight, userId, onUpdate }: ConfigurationPanelProps) {
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamColor, setNewTeamColor] = useState('#3b82f6');
-  const [newTeamMaxMembers, setNewTeamMaxMembers] = useState(3);
   const [newDoctorName, setNewDoctorName] = useState('');
-  const [selectedTeamId, setSelectedTeamId] = useState<string>('');
+  const [selectedTeamId, setSelectedTeamId] = useState<string>(teams[0]?.id ?? '');
   const [localShiftsPerDay, setLocalShiftsPerDay] = useState(shiftsPerDay);
   const [localShiftsPerNight, setLocalShiftsPerNight] = useState(shiftsPerNight);
   const [addingTeam, setAddingTeam] = useState(false);
@@ -52,7 +51,6 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
       const { error } = await supabase.from('teams').insert({
         name: newTeamName,
         color: newTeamColor,
-        max_members: newTeamMaxMembers,
         user_id: userId,
       });
 
@@ -65,7 +63,6 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
 
       setNewTeamName('');
       setNewTeamColor('#3b82f6');
-      setNewTeamMaxMembers(3);
       await onUpdate();
     } catch (error) {
       console.error('Error adding team:', error);
@@ -132,7 +129,6 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
       });
 
       setNewDoctorName('');
-      setSelectedTeamId('');
       await onUpdate();
     } catch (error) {
       console.error('Error adding doctor:', error);
@@ -143,6 +139,30 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
       });
     } finally {
       setAddingDoctor(false);
+    }
+  };
+
+  const handleChangeTeam = async (doctorId: string, newTeamId: string) => {
+    try {
+      const { error } = await supabase
+        .from('doctors')
+        .update({ team_id: newTeamId || null, is_floating: !newTeamId })
+        .eq('id', doctorId);
+
+      if (error) throw error;
+
+      toast({
+        title: t('common.success'),
+        description: t('scheduling.config.teamChangedSuccess'),
+      });
+      await onUpdate();
+    } catch (error) {
+      console.error('Error changing team:', error);
+      toast({
+        title: t('common.error'),
+        description: t('scheduling.config.changeTeamError'),
+        variant: 'destructive',
+      });
     }
   };
 
@@ -179,7 +199,7 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
         .from('schedule_config')
         .select('id, config_data')
         .limit(1)
-        .single();
+        .maybeSingle();
 
       const newConfigData = {
         ...(existing?.config_data as Record<string, unknown> || {}),
@@ -306,18 +326,6 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="max-members">{t('scheduling.config.maxMembers')}</Label>
-              <Input
-                id="max-members"
-                type="number"
-                min="1"
-                max="10"
-                value={newTeamMaxMembers}
-                onChange={(e) => setNewTeamMaxMembers(parseInt(e.target.value) || 3)}
-              />
-            </div>
-
             <Button onClick={handleAddTeam} disabled={addingTeam} className="w-full">
               {addingTeam ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
               {t('scheduling.config.addTeam')}
@@ -339,9 +347,6 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
                     />
                     <div>
                       <p className="font-medium">{team.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {t('scheduling.config.maxMembersLabel', { count: team.max_members })}
-                      </p>
                     </div>
                   </div>
                   <Button
@@ -387,20 +392,41 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="team-select">{t('scheduling.config.assignTeam')}</Label>
-              <select
-                id="team-select"
-                className="w-full px-3 py-2 rounded-md border border-input bg-background"
-                value={selectedTeamId}
-                onChange={(e) => setSelectedTeamId(e.target.value)}
-              >
-                <option value="">{t('scheduling.config.noTeamOption')}</option>
+              <Label>{t('scheduling.config.assignTeam')}</Label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium border transition-all ${
+                    selectedTeamId === ''
+                      ? 'border-primary bg-primary/10 ring-1 ring-primary'
+                      : 'border-input bg-background hover:bg-muted'
+                  }`}
+                  onClick={() => setSelectedTeamId('')}
+                >
+                  {t('scheduling.config.noTeamOption')}
+                </button>
                 {teams.map((team) => (
-                  <option key={team.id} value={team.id}>
+                  <button
+                    key={team.id}
+                    type="button"
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium border transition-all ${
+                      selectedTeamId === team.id
+                        ? 'border-primary ring-1 ring-primary'
+                        : 'border-input bg-background hover:bg-muted'
+                    }`}
+                    style={{
+                      backgroundColor: selectedTeamId === team.id ? `${team.color}20` : undefined,
+                    }}
+                    onClick={() => setSelectedTeamId(team.id)}
+                  >
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: team.color }}
+                    />
                     {team.name}
-                  </option>
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
 
             <Button onClick={handleAddDoctor} disabled={addingDoctor} className="w-full">
@@ -419,24 +445,28 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
                     key={doctor.id}
                     className="flex items-center justify-between p-3 rounded-lg border bg-card"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       {team && (
                         <div
-                          className="w-3 h-3 rounded-full"
+                          className="w-3 h-3 rounded-full shrink-0"
                           style={{ backgroundColor: team.color }}
                         />
                       )}
-                      <div>
-                        <p className="font-medium">{doctor.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {doctor.is_floating
-                            ? t('scheduling.config.floatingLabel')
-                            : team
-                            ? team.name
-                            : t('scheduling.config.noTeamLabel')}
-                        </p>
-                      </div>
+                      <p className="font-medium truncate">{doctor.name}</p>
                     </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <select
+                        className="text-xs px-2 py-1 rounded-md border border-input bg-background"
+                        value={doctor.team_id || ''}
+                        onChange={(e) => handleChangeTeam(doctor.id, e.target.value)}
+                      >
+                        <option value="">{t('scheduling.config.noTeamOption')}</option>
+                        {teams.map((tm) => (
+                          <option key={tm.id} value={tm.id}>
+                            {tm.name}
+                          </option>
+                        ))}
+                      </select>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -445,6 +475,7 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
                     >
                       {deletingId === doctor.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
                     </Button>
+                    </div>
                   </div>
                 );
               })}

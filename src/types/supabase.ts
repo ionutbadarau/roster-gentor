@@ -128,7 +128,6 @@ export type Database = {
           color: string | null
           created_at: string | null
           id: string
-          max_members: number | null
           name: string
           updated_at: string | null
         }
@@ -136,7 +135,6 @@ export type Database = {
           color?: string | null
           created_at?: string | null
           id?: string
-          max_members?: number | null
           name: string
           updated_at?: string | null
         }
@@ -144,7 +142,6 @@ export type Database = {
           color?: string | null
           created_at?: string | null
           id?: string
-          max_members?: number | null
           name?: string
           updated_at?: string | null
         }
