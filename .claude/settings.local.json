@@ -8,7 +8,10 @@
       "Bash(npx vitest run -t \"March 2026 — 4 doctors\")",
       "Bash(node -e \":*)",
       "Bash(npx vitest run src/lib/__tests__/scheduling-engine.test.ts -t \"March 2026 — 4 floating doctors\")",
-      "Bash(npx vitest run src/lib/__tests__/scheduling-engine.test.ts)"
+      "Bash(npx vitest run src/lib/__tests__/scheduling-engine.test.ts)",
+      "Bash(npx vitest run src/lib/__tests__/scheduling-engine.test.ts -t \"leave on March 11\")",
+      "Bash(npx vitest run src/lib/__tests__/scheduling-engine.test.ts --reporter=verbose)",
+      "Bash(npx vitest run src/lib/__tests__/scheduling-engine.test.ts -t \"heavy leave\")"
     ]
   }
 }

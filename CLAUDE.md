@@ -10,7 +10,7 @@ npm run build    # Production build
 npm start        # Start production server
 ```
 
-There are no configured lint or test scripts. Use `npx tsc --noEmit` to type-check without building.
+Unit tests use **Vitest**: run with `npx vitest` (watch mode) or `npx vitest run` (single run). Use `npx tsc --noEmit` to type-check without building.
 
 TypeScript path alias: `@/*` → `./src/*`
 
@@ -26,17 +26,31 @@ This is a **doctor shift scheduling SaaS** built with Next.js 14 App Router + Su
 
 ### Scheduling System (Core Domain)
 
-The two most important files in the codebase:
+The scheduling engine lives in **`src/lib/scheduling/`** (re-exported from `src/lib/scheduling-engine.ts` for backward compatibility). See [`src/lib/scheduling/ALGORITHM.md`](src/lib/scheduling/ALGORITHM.md) for the full algorithm description, data flow, and tuning parameters.
 
-**`src/lib/scheduling-engine.ts`** — Pure algorithmic engine. Generates a full monthly schedule given doctors, teams, and leave days. Key constants and rules:
+**Module structure:**
+
+| File | Responsibility |
+|------|---------------|
+| `scheduling-engine.ts` | Thin orchestrator: constructor, `generateSchedule()`, static method delegates |
+| `constants.ts` | `SCHEDULING_CONSTANTS`, `ScheduleGenerationOptions`, `EngineContext` interface |
+| `calendar-utils.ts` | Pure date/time helpers: `formatDate`, `utcMs`, `getDaysInMonth`, etc. |
+| `bridge-days.ts` | Bridge day computation (weekends/holidays between leave periods) |
+| `constraints.ts` | `canDoctorWork`, `canDoctorWorkWithTimeline` — all constraint checking |
+| `doctor-selection.ts` | Pace-aware team-preferring greedy selection + lookahead penalty |
+| `repair.ts` | Backtracking solver for unfilled slots after greedy pass |
+| `stats.ts` | Shift recording, counter management, per-doctor statistics |
+| `validation.ts` | Static utilities: `detectConflicts`, `validateLeaveDays`, `computeUnderstaffedDays` |
+
+**Key rules:**
 
 - 12-hour shifts: day (08:00–20:00), night (20:00–08:00)
 - 24h mandatory rest after day shifts, 48h after night shifts
 - Max 48h/week per doctor
 - The min nr of working hours each doctor needs to have each month is 7h \* nr of working days for that month
 - Teams rotate by their `order` field; floating doctors fill gaps
-- Within a team, doctors with fewer shifts are prioritized (equalization)
-- Returns `{ shifts, conflicts, stats }` — never writes to DB directly
+- Pace-aware equalization: doctors behind schedule get priority, with lookahead to avoid rest cascades
+- Returns `{ shifts, conflicts, warnings, doctorStats }` — never writes to DB directly
 
 **`src/components/scheduling/shift-grid-calendar.tsx`** — Grid calendar where rows = doctors, columns = days. Calls `SchedulingEngine`, displays results, and allows manual edits. Tracks remaining leave days with validation.
 

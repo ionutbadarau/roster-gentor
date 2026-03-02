@@ -1360,5 +1360,97 @@ describe('SchedulingEngine', () => {
       );
       expect(d3OnLeave).toHaveLength(0);
     });
+
+  });
+
+  // ── March 2026 infinite-loop regression ─────────────────────────────────────
+  // Reproduces the exact scenario from the UI: 13 doctors across 4 teams + 1
+  // floating, with heavy leave in March 2026.  Before the fix, the backtracking
+  // repair solver would hang indefinitely on a full-month window.
+  describe('March 2026 — heavy leave should not hang', () => {
+    const MARCH = 2; // 0-indexed
+    const YEAR = 2026;
+
+    const teamBlue  = makeTeam('tb', 'Blue',  1, '#00f');
+    const teamRed   = makeTeam('tr', 'Red',   2, '#f00');
+    const teamGreen = makeTeam('tg', 'Green', 3, '#0f0');
+    const teamYellow = makeTeam('ty', 'Yellow', 4, '#ff0');
+
+    const allTeams = [teamBlue, teamRed, teamGreen, teamYellow];
+
+    const doctors: DoctorWithTeam[] = [
+      makeDoctor('d1',  'doctor 1',        'tb', false, teamBlue),
+      makeDoctor('d2',  'doctor 2',        'tb', false, teamBlue),
+      makeDoctor('d3',  'doctor 3',        'tb', false, teamBlue),
+      makeDoctor('d4',  'doctor 4',        'tr', false, teamRed),
+      makeDoctor('d5',  'doctor 5',        'tr', false, teamRed),
+      makeDoctor('d6',  'dr 6',            'tr', false, teamRed),
+      makeDoctor('d7',  'dr 7',            'tg', false, teamGreen),
+      makeDoctor('d8',  'dr 8',            'tg', false, teamGreen),
+      makeDoctor('d9',  'dr 9',            'tg', false, teamGreen),
+      makeDoctor('d10', 'dr 10',           'ty', false, teamYellow),
+      makeDoctor('d11', 'dr 11',           'ty', false, teamYellow),
+      makeDoctor('d12', 'dr 12',           'ty', false, teamYellow),
+      makeDoctor('df',  'dr gigel flotant', undefined, true),
+    ];
+
+    // Leave days matching the screenshot
+    const leaveDays: LeaveDay[] = [
+      // doctor 2: Mar 2–6
+      ...([2,3,4,5,6] as number[]).map(d => makeLeaveDay('d2', formatDate(YEAR, MARCH, d))),
+      // doctor 3: Mar 6, 7–8 (bridge), 9
+      ...[6,9].map(d => makeLeaveDay('d3', formatDate(YEAR, MARCH, d))),
+      // doctor 5: Mar 12–13, 14-15 (bridge), 16–20
+      ...([12,13,16,17,18,19,20] as number[]).map(d => makeLeaveDay('d5', formatDate(YEAR, MARCH, d))),
+      // dr 6: Mar 9–13
+      ...([9,10,11,12,13] as number[]).map(d => makeLeaveDay('d6', formatDate(YEAR, MARCH, d))),
+      // dr 8: Mar 5–6, 12–13
+      ...([5,6,12,13] as number[]).map(d => makeLeaveDay('d8', formatDate(YEAR, MARCH, d))),
+      // dr 10: Mar 3–6, 7-8 (bridge), 9
+      ...([3,4,5,6,9] as number[]).map(d => makeLeaveDay('d10', formatDate(YEAR, MARCH, d))),
+      // dr 11: Mar 23–27
+      ...([23,24,25,26,27] as number[]).map(d => makeLeaveDay('d11', formatDate(YEAR, MARCH, d))),
+      // dr gigel flotant: Mar 3, 12, 18
+      ...([3,12,18] as number[]).map(d => makeLeaveDay('df', formatDate(YEAR, MARCH, d))),
+    ];
+
+    it('completes within a reasonable time', { timeout: 15_000 }, () => {
+      const engine = new SchedulingEngine({
+        month: MARCH,
+        year: YEAR,
+        doctors,
+        teams: allTeams,
+        shiftsPerDay: 3,
+        shiftsPerNight: 3,
+        leaveDays,
+      });
+
+      const start = performance.now();
+      const result = engine.generateSchedule();
+      const elapsed = performance.now() - start;
+
+      // Must finish in under 10 seconds (previously hung forever)
+      expect(elapsed).toBeLessThan(10_000);
+      expect(result.shifts.length).toBeGreaterThan(0);
+
+      // No understaffed warnings
+      const understaffedWarnings = result.warnings.filter(
+        w => w.includes('understaffed') || w.includes('Day shift') || w.includes('Night shift')
+           || w.includes('Tura de zi') || w.includes('Tura de noapte')
+      );
+      expect(understaffedWarnings).toHaveLength(0);
+      // No rest violations
+      const restViolations = result.conflicts.filter(c => c.type === 'rest_violation');
+      expect(restViolations).toHaveLength(0);
+
+      // Every day in March 2026 (31 days) should have exactly 3 day + 3 night shifts
+      for (let d = 1; d <= 31; d++) {
+        const dateStr = formatDate(YEAR, MARCH, d);
+        const dayCount = result.shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'day').length;
+        const nightCount = result.shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'night').length;
+        expect(dayCount).toBe(3);
+        expect(nightCount).toBe(3);
+      }
+    });
   });
 });
