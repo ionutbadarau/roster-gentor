@@ -229,7 +229,7 @@ describe('SchedulingEngine', () => {
       const targetStat = result.doctorStats.find(
         s => s.doctorId === targetDoctor.id,
       )!;
-      const expectedNorm = BASE_NORM - SCHEDULING_CONSTANTS.SHIFT_DURATION; // 154 - 12 = 142
+      const expectedNorm = BASE_NORM - SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY; // 154 - 7 = 147
       expect(targetStat.baseNorm).toBe(expectedNorm);
       // Doctor with leave needs 12 shifts (ceil(142/12)=12, 144h ≥ 142h)
       expect(targetStat.totalHours).toBeGreaterThanOrEqual(expectedNorm);
@@ -255,7 +255,7 @@ describe('SchedulingEngine', () => {
       const targetStat = result.doctorStats.find(
         s => s.doctorId === targetDoctor.id,
       )!;
-      const expectedNorm = BASE_NORM - SCHEDULING_CONSTANTS.SHIFT_DURATION * 3; // 154 - 36 = 118
+      const expectedNorm = BASE_NORM - SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * 3; // 154 - 21 = 133
       expect(targetStat.baseNorm).toBe(expectedNorm);
       expect(targetStat.totalHours).toBeGreaterThanOrEqual(expectedNorm);
 
@@ -285,7 +285,7 @@ describe('SchedulingEngine', () => {
       const doctorsWithLeave = [doctors[0].id, doctors[5].id, doctors[10].id];
       for (const stat of result.doctorStats) {
         if (doctorsWithLeave.includes(stat.doctorId)) {
-          const expectedNorm = BASE_NORM - SCHEDULING_CONSTANTS.SHIFT_DURATION * 2;
+          const expectedNorm = BASE_NORM - SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * 2;
           expect(stat.baseNorm).toBe(expectedNorm);
           expect(stat.totalHours).toBeGreaterThanOrEqual(expectedNorm);
         }
@@ -328,10 +328,21 @@ describe('SchedulingEngine', () => {
 
       const result = generate(teams, doctors, leaveDays);
 
-      expect(result.warnings).toHaveLength(0);
+      // With the corrected norm formula (7h per leave day instead of 12h),
+      // 11 leave days don't free enough slots for all 15 doctors to meet norm.
+      // Each 2-leave doctor saves 1 shift (target 12 vs 13), total saving ~5 shifts.
+      // Demand 190 > 186 slots → some warnings expected.
+      const normWarnings = result.warnings.filter(w =>
+        w.includes('scheduling.engine.normWarning'),
+      );
+      expect(normWarnings.length).toBeLessThan(9); // fewer than no-leave scenario
 
+      // Doctors with leave should meet their reduced norm
+      const doctorsWithLeaveIds = new Set(leaveDays.map(l => l.doctor_id));
       for (const stat of result.doctorStats) {
-        expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
+        if (doctorsWithLeaveIds.has(stat.doctorId)) {
+          expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
+        }
       }
     });
 
@@ -384,8 +395,9 @@ describe('SchedulingEngine', () => {
       const normWarnings = result.warnings.filter(w =>
         w.includes('scheduling.engine.normWarning'),
       );
-      // Should have fewer warnings than the 9 we get with no leave
-      expect(normWarnings.length).toBeLessThan(9);
+      // With corrected norm (7h/leave day), 1 leave day doesn't reduce target shifts
+      // (ceil(147/12) = 13, same as ceil(154/12) = 13), so warnings stay similar
+      expect(normWarnings.length).toBeLessThanOrEqual(9);
       expect(normWarnings.length).toBeGreaterThan(0);
     });
 
@@ -532,7 +544,7 @@ describe('SchedulingEngine', () => {
       expect(result.warnings).toHaveLength(0);
 
       // Verify leave doctors have correctly reduced norms
-      const expectedLeaveNorm = APRIL_BASE_NORM - SCHEDULING_CONSTANTS.SHIFT_DURATION * 7; // 154 - 84 = 70
+      const expectedLeaveNorm = APRIL_BASE_NORM - SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * 7; // 154 - 49 = 105
       for (const docId of [doc2.id, doc3.id]) {
         const stat = result.doctorStats.find(s => s.doctorId === docId)!;
         expect(stat.baseNorm).toBe(expectedLeaveNorm);
@@ -992,7 +1004,7 @@ describe('SchedulingEngine', () => {
 
       const stat = result.doctorStats.find(s => s.doctorId === doc.id)!;
       // Norm reduced by 2 leave days only (not 4 including bridge days)
-      const expectedNorm = BASE_NORM - SCHEDULING_CONSTANTS.SHIFT_DURATION * 2; // 154 - 24 = 130
+      const expectedNorm = BASE_NORM - SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * 2; // 154 - 14 = 140
       expect(stat.baseNorm).toBe(expectedNorm);
       expect(stat.leaveDays).toBe(2);
 
@@ -1440,6 +1452,70 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+    });
+
+    it('March 2026 — 4 floating doctors, leave on March 11 & 13 (non-consecutive), no understaffed slots', () => {
+      // Reproduces bug: 4 floating doctors, 1 shift/day, 1 shift/night.
+      // Doctor 2 has leave on March 11 (Wed) and March 13 (Fri) — non-consecutive.
+      // The greedy algorithm fails to fill:
+      //   - March 11 day shift (0/1)
+      //   - March 13 night shift (0/1)
+      // because rest constraints block all available doctors for those slots.
+      const MARCH = 2; // 0-indexed
+      const YEAR = 2026;
+      const doctors = [
+        makeDoctor('d1', 'Doctor 1', undefined, true),
+        makeDoctor('d2', 'Doctor 2', undefined, true),
+        makeDoctor('d3', 'Doctor 3', undefined, true),
+        makeDoctor('d4', 'Doctor 4', undefined, true),
+      ];
+
+      const leaveDays: LeaveDay[] = [
+        makeLeaveDay('d2', formatDate(YEAR, MARCH, 11)),
+        makeLeaveDay('d2', formatDate(YEAR, MARCH, 13)),
+      ];
+
+      const engine = new SchedulingEngine({
+        month: MARCH,
+        year: YEAR,
+        doctors,
+        teams: [],
+        shiftsPerDay: 1,
+        shiftsPerNight: 1,
+        leaveDays,
+        nationalHolidays: [],
+      });
+
+      const result = engine.generateSchedule();
+
+      // Debug: print schedule for days 1-14
+      for (let d = 1; d <= 14; d++) {
+        const dateStr = formatDate(YEAR, MARCH, d);
+        const dayShifts = result.shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'day');
+        const nightShifts = result.shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'night');
+        console.log(`Day ${d}: DAY=[${dayShifts.map(s => s.doctor_id).join(',')}] NIGHT=[${nightShifts.map(s => s.doctor_id).join(',')}]`);
+      }
+      const understaffed = result.conflicts.filter(c => c.type === 'understaffed');
+      console.log('Understaffed:', understaffed.map(c => c.message));
+
+      // Every day should have exactly 1 day + 1 night shift
+      for (let d = 1; d <= 31; d++) {
+        const dateStr = formatDate(YEAR, MARCH, d);
+        const dayCount = result.shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'day').length;
+        const nightCount = result.shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'night').length;
+        expect(dayCount).toBe(1);
+        expect(nightCount).toBe(1);
+      }
+
+      // No rest violations
+      const restViolations = result.conflicts.filter(c => c.type === 'rest_violation');
+      expect(restViolations).toHaveLength(0);
+
+      // Leave days respected
+      const d2OnLeave11 = result.shifts.filter(s => s.doctor_id === 'd2' && s.shift_date === formatDate(YEAR, MARCH, 11));
+      expect(d2OnLeave11).toHaveLength(0);
+      const d2OnLeave13 = result.shifts.filter(s => s.doctor_id === 'd2' && s.shift_date === formatDate(YEAR, MARCH, 13));
+      expect(d2OnLeave13).toHaveLength(0);
     });
 
   });

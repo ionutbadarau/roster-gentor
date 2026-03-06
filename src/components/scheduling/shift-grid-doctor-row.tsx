@@ -29,6 +29,7 @@ interface ShiftGridDoctorRowProps {
   isWeekend: (day: number) => boolean;
   onCellMouseDown: (day: number, e: React.MouseEvent) => void;
   onCellMouseEnter: (day: number) => void;
+  hasGenerated: boolean;
 }
 
 function getCellClassName(
@@ -88,12 +89,13 @@ function ShiftGridDoctorRow({
   isWeekend,
   onCellMouseDown,
   onCellMouseEnter,
+  hasGenerated,
 }: ShiftGridDoctorRowProps) {
   const { t } = useTranslation();
 
   return (
     <div className={`flex border-b ${
-      stats.totalHours < stats.baseNorm
+      hasGenerated && stats.totalHours < stats.baseNorm
         ? 'bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40'
         : 'hover:bg-accent/30'
     }`}>
@@ -108,7 +110,7 @@ function ShiftGridDoctorRow({
         )}
       </div>
       <div className="w-20 min-w-20 p-2 border-r text-center text-xs">
-        <div className={stats.totalHours >= stats.baseNorm ? 'text-green-600' : 'text-red-600'}>
+        <div className={!hasGenerated ? '' : stats.totalHours >= stats.baseNorm ? 'text-green-600' : 'text-red-600'}>
           {stats.totalHours}h
         </div>
         <div className="text-muted-foreground">/{stats.baseNorm}h</div>

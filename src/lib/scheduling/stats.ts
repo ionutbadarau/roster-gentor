@@ -11,9 +11,9 @@ export function calculateBaseNorm(ctx: EngineContext, doctorId: string): number 
   const workingDays = getWorkingDaysInMonth(ctx.year, ctx.month, ctx.holidayDateSet);
   const monthPrefix = getMonthPrefix(ctx.year, ctx.month);
   const doctorLeaveDays = ctx.leaveDays.filter(
-    l => l.doctor_id === doctorId && l.leave_date.startsWith(monthPrefix)
+    l => l.doctor_id === doctorId && l.leave_date.startsWith(monthPrefix) && l.leave_type !== 'bridge'
   ).length;
-  return SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * workingDays - SCHEDULING_CONSTANTS.SHIFT_DURATION * doctorLeaveDays;
+  return SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * (workingDays - doctorLeaveDays);
 }
 
 export function recordShift(ctx: EngineContext, doctor: DoctorWithTeam, date: Date, shiftType: 'day' | 'night'): void {
@@ -94,7 +94,7 @@ export function calculateDoctorStats(ctx: EngineContext, shifts: Shift[]): Docto
     const baseNorm = calculateBaseNorm(ctx, doctor.id);
     const totalHours = ctx.doctorHours.get(doctor.id) || 0;
     const leaveDays = ctx.leaveDays.filter(
-      l => l.doctor_id === doctor.id && l.leave_date.startsWith(monthPrefix)
+      l => l.doctor_id === doctor.id && l.leave_date.startsWith(monthPrefix) && l.leave_type !== 'bridge'
     ).length;
 
     const doctorShifts = allShifts.filter(s => s.doctor_id === doctor.id);

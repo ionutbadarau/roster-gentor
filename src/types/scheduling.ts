@@ -14,6 +14,7 @@ export interface LeaveDay {
   id: string;
   doctor_id: string;
   leave_date: string;
+  leave_type?: 'regular' | 'bridge';
   created_at?: string;
 }
 

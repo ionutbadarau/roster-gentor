@@ -12,16 +12,20 @@ interface SelectionPopupData {
 interface ShiftSelectionPopupProps {
   popup: SelectionPopupData;
   hasAssignments: boolean;
-  onBatchAction: (action: 'day' | 'night' | 'leave') => void;
+  hasBridgeCandidates: boolean;
+  onBatchAction: (action: 'day' | 'night' | 'leave' | 'bridge') => void;
   onBatchClear: () => void;
 }
 
 const ShiftSelectionPopup = forwardRef<HTMLDivElement, ShiftSelectionPopupProps>(
-  ({ popup, hasAssignments, onBatchAction, onBatchClear }, ref) => {
+  ({ popup, hasAssignments, hasBridgeCandidates, onBatchAction, onBatchClear }, ref) => {
     const { t } = useTranslation();
 
     const POPUP_W = 190;
-    const POPUP_H = hasAssignments ? 200 : 160;
+    let baseH = 160;
+    if (hasBridgeCandidates) baseH += 36;
+    if (hasAssignments) baseH += 40;
+    const POPUP_H = baseH;
     const finalLeft = popup.x + POPUP_W > window.innerWidth ? popup.x - POPUP_W : popup.x;
     const finalTop = popup.y + 8 + POPUP_H > window.innerHeight ? popup.y - POPUP_H : popup.y + 8;
 
@@ -55,6 +59,15 @@ const ShiftSelectionPopup = forwardRef<HTMLDivElement, ShiftSelectionPopupProps>
           <span className="w-4 h-4 rounded bg-orange-500 flex-shrink-0" />
           {t('scheduling.grid.leaveLabel')}
         </button>
+        {hasBridgeCandidates && (
+          <button
+            className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
+            onClick={() => onBatchAction('bridge')}
+          >
+            <span className="w-4 h-4 rounded bg-amber-500 flex-shrink-0" />
+            {t('scheduling.grid.bridgeDayLabel')}
+          </button>
+        )}
         {hasAssignments && (
           <>
             <div className="border-t my-1" />

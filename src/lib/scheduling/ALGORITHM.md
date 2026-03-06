@@ -7,9 +7,12 @@ Generate a monthly schedule assigning doctors to 12-hour shifts (day 08:00–20:
 ### Hard Constraints
 - **Rest periods**: 24h after day shifts, 48h after night shifts, 72h after 24h shifts
 - **Weekly limit**: max 48h per doctor per week
-- **Leave/bridge days**: no shifts on leave days or bridge days (weekends/holidays between leave periods)
+- **Leave/bridge days**: no shifts on leave days or bridge days. Leave days on weekends/holidays are allowed and count toward the doctor's leave allocation like any other leave day. Bridge days come from two sources:
+  - **Auto-computed**: weekends/holidays sitting between two leave periods (computed by `bridge-days.ts`)
+  - **Manual**: leave days with `leave_type === 'bridge'`, added by the user on weekends/holidays via the grid UI. The UI offers this option when a weekend/holiday is adjacent to leave on at least one side (before or after).
+  - Both types block scheduling but do **not** reduce the doctor's base norm
 - **Slot coverage**: each day must have `shiftsPerDay` day-shift doctors and `shiftsPerNight` night-shift doctors
-- **Base norm** (when feasible): each doctor must work ≥ 7h × working days − 12h × leave days. Enforced via norm-equalization repair after the greedy + slot-repair passes. If total required shifts across all doctors exceeds total available slots (structurally infeasible), this constraint is relaxed to best-effort with warnings.
+- **Base norm** (when feasible): each doctor must work ≥ 7h × (working days − leave days) where only `leave_type !== 'bridge'` leave days count. Enforced via norm-equalization repair after the greedy + slot-repair passes. If total required shifts across all doctors exceeds total available slots (structurally infeasible), this constraint is relaxed to best-effort with warnings.
 
 ### Soft Goals
 - **Equalization**: distribute shifts evenly across doctors

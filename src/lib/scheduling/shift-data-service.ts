@@ -35,10 +35,11 @@ export async function createLeaveDay(
   supabase: SupabaseClient,
   doctorId: string,
   dateStr: string,
+  leaveType: 'regular' | 'bridge' = 'regular',
 ): Promise<LeaveDay> {
   const { data, error } = await supabase
     .from('leave_days')
-    .insert({ doctor_id: doctorId, leave_date: dateStr })
+    .insert({ doctor_id: doctorId, leave_date: dateStr, leave_type: leaveType })
     .select()
     .single();
   if (error) throw error;

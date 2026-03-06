@@ -27,6 +27,7 @@
       "dayShiftLabel": "Day Shift (D)",
       "nightShiftLabel": "Night Shift (N)",
       "leaveLabel": "Leave (L)",
+      "bridgeDayLabel": "Bridge Day",
       "clearSelection": "Clear selection",
       "dayShiftLegend": "Day Shift (08:00-20:00)",
       "nightShiftLegend": "Night Shift (20:00-08:00)",
