@@ -7,6 +7,7 @@ import { Doctor, Team, Shift } from '@/types/scheduling';
 import { User, Clock, Calendar } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useTranslation } from '@/lib/i18n';
+import { SCHEDULING_CONSTANTS } from '@/lib/scheduling-engine';
 
 interface DoctorViewProps {
   doctors: Doctor[];
@@ -38,7 +39,7 @@ export default function DoctorView({
   const calculateStats = (doctorShifts: Shift[]) => {
     const dayShifts = doctorShifts.filter((s) => s.shift_type === 'day').length;
     const nightShifts = doctorShifts.filter((s) => s.shift_type === 'night').length;
-    const totalHours = dayShifts * 12 + nightShifts * 12;
+    const totalHours = (dayShifts + nightShifts) * SCHEDULING_CONSTANTS.SHIFT_DURATION;
 
     return {
       totalShifts: dayShifts + nightShifts,

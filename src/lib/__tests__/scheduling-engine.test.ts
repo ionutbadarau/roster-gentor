@@ -218,7 +218,7 @@ describe('SchedulingEngine', () => {
 
   describe('With leave days', () => {
     it('one doctor has 1 leave day — that doctor meets reduced norm', () => {
-      const { teams, doctors } = createTeamsAndDoctors([5, 5, 5], 0);
+      const { teams, doctors } = createTeamsAndDoctors([5, 5, 4], 0);
       const workingDates = getWorkingDates();
       const targetDoctor = doctors[0];
 
@@ -233,10 +233,15 @@ describe('SchedulingEngine', () => {
       expect(targetStat.baseNorm).toBe(expectedNorm);
       // Doctor with leave needs 12 shifts (ceil(142/12)=12, 144h ≥ 142h)
       expect(targetStat.totalHours).toBeGreaterThanOrEqual(expectedNorm);
+
+      // All doctors must meet their base norm (hard constraint)
+      for (const stat of result.doctorStats) {
+        expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
+      }
     });
 
     it('one doctor has 3 leave days — that doctor meets reduced norm', () => {
-      const { teams, doctors } = createTeamsAndDoctors([5, 5, 5], 0);
+      const { teams, doctors } = createTeamsAndDoctors([5, 5, 4], 0);
       const workingDates = getWorkingDates();
       const targetDoctor = doctors[0];
 
@@ -253,10 +258,15 @@ describe('SchedulingEngine', () => {
       const expectedNorm = BASE_NORM - SCHEDULING_CONSTANTS.SHIFT_DURATION * 3; // 154 - 36 = 118
       expect(targetStat.baseNorm).toBe(expectedNorm);
       expect(targetStat.totalHours).toBeGreaterThanOrEqual(expectedNorm);
+
+      // All doctors must meet their base norm (hard constraint)
+      for (const stat of result.doctorStats) {
+        expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
+      }
     });
 
     it('multiple doctors have leave days — each meets their reduced norm', () => {
-      const { teams, doctors } = createTeamsAndDoctors([5, 5, 5], 0);
+      const { teams, doctors } = createTeamsAndDoctors([5, 5, 4], 0);
       const workingDates = getWorkingDates();
 
       // 3 different doctors, each with 2 leave days = 6 total
@@ -279,6 +289,11 @@ describe('SchedulingEngine', () => {
           expect(stat.baseNorm).toBe(expectedNorm);
           expect(stat.totalHours).toBeGreaterThanOrEqual(expectedNorm);
         }
+      }
+
+      // All doctors must meet their base norm (hard constraint)
+      for (const stat of result.doctorStats) {
+        expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
     });
 
@@ -561,6 +576,11 @@ describe('SchedulingEngine', () => {
         c => c.type === 'rest_violation',
       );
       expect(restViolations).toHaveLength(0);
+
+      // All doctors must meet their base norm (hard constraint)
+      for (const stat of result.doctorStats) {
+        expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
+      }
     });
 
     it('understaffed detection when too few doctors', () => {
@@ -573,6 +593,12 @@ describe('SchedulingEngine', () => {
         c => c.type === 'understaffed',
       );
       expect(understaffed.length).toBeGreaterThan(0);
+
+      // Even with understaffing, each individual doctor should still meet their norm
+      // (6 doctors × 13 shifts = 78 needed ≤ 186 slots — feasible per doctor)
+      for (const stat of result.doctorStats) {
+        expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
+      }
     });
   });
 
@@ -619,6 +645,11 @@ describe('SchedulingEngine', () => {
       // With 14 doctors and 3 slots per shift type, the pattern should be very common.
       const continuationRate = continuations / nightShiftsTotal;
       expect(continuationRate).toBeGreaterThanOrEqual(0.6);
+
+      // All doctors must meet their base norm (hard constraint)
+      for (const stat of result.doctorStats) {
+        expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
+      }
     });
 
     it('day→night continuation works with leave days present', () => {
@@ -666,6 +697,11 @@ describe('SchedulingEngine', () => {
       // Still expect a majority following the pattern, even with some leave.
       const continuationRate = continuations / nightShiftsTotal;
       expect(continuationRate).toBeGreaterThanOrEqual(0.5);
+
+      // All doctors must meet their base norm (hard constraint)
+      for (const stat of result.doctorStats) {
+        expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
+      }
     });
   });
 
@@ -703,6 +739,7 @@ describe('SchedulingEngine', () => {
       const expectedNorm = SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * 20;
       for (const stat of result.doctorStats) {
         expect(stat.baseNorm).toBe(expectedNorm);
+        expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
     });
 
@@ -740,6 +777,11 @@ describe('SchedulingEngine', () => {
         s => s.shift_date === formatDate(TEST_YEAR, TEST_MONTH, 7),
       );
       expect(holidayShifts.length).toBeGreaterThan(0);
+
+      // All doctors must meet their base norm (hard constraint)
+      for (const stat of result.doctorStats) {
+        expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
+      }
     });
 
     it('calculatePossibleLeaveDays accounts for holidays', () => {
@@ -920,6 +962,11 @@ describe('SchedulingEngine', () => {
            s.shift_date === formatDate(TEST_YEAR, TEST_MONTH, 11)),
       );
       expect(othersOnBridge.length).toBeGreaterThan(0);
+
+      // All doctors must meet their base norm (hard constraint)
+      for (const stat of result.doctorStats) {
+        expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
+      }
     });
 
     it('bridge days do NOT reduce base norm (only explicit leave days do)', () => {
@@ -948,6 +995,11 @@ describe('SchedulingEngine', () => {
       const expectedNorm = BASE_NORM - SCHEDULING_CONSTANTS.SHIFT_DURATION * 2; // 154 - 24 = 130
       expect(stat.baseNorm).toBe(expectedNorm);
       expect(stat.leaveDays).toBe(2);
+
+      // All doctors must meet their base norm (hard constraint)
+      for (const s of result.doctorStats) {
+        expect(s.totalHours).toBeGreaterThanOrEqual(s.baseNorm);
+      }
     });
 
     it('March 2026 — 4×3 + 2 floating, holidays on 5th & 11th, leave for doc5 (9–13) and doc14 (16–20) — no understaffed days', () => {
@@ -1037,6 +1089,11 @@ describe('SchedulingEngine', () => {
         expect(dayShifts.length).toBeGreaterThanOrEqual(SHIFTS_PER_DAY);
         expect(nightShifts.length).toBeGreaterThanOrEqual(SHIFTS_PER_NIGHT);
       }
+
+      // All doctors must meet their base norm (hard constraint)
+      for (const stat of result.doctorStats) {
+        expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
+      }
     });
 
     it('extended bridge: leave Fri + holiday Mon + leave Tue → Mon is bridge', () => {
@@ -1075,7 +1132,6 @@ describe('SchedulingEngine', () => {
         makeDoctor('d2', 'Doctor 2', 't1', false, team1),
         makeDoctor('d3', 'Doctor 3', 't1', false, team1),
         makeDoctor('d4', 'Doctor 4', undefined, true),
-        makeDoctor('d5', 'Doctor 5', undefined, true),
       ];
 
       // Fixed night shift for doctor 1 on the 3rd
@@ -1116,6 +1172,11 @@ describe('SchedulingEngine', () => {
       // No understaffed warnings for the 3rd
       const understaffedOn3rd = result.warnings.filter(w => w.includes(formatDate(TEST_YEAR, TEST_MONTH, 3)));
       expect(understaffedOn3rd.length).toBe(0);
+
+      // All doctors must meet their base norm (hard constraint)
+      for (const stat of result.doctorStats) {
+        expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
+      }
     });
 
     it('should not assign a shift that would violate rest before an upcoming fixed shift', () => {
@@ -1166,6 +1227,11 @@ describe('SchedulingEngine', () => {
       // Doctor 1 CAN have a day shift on day 2 (ends 8pm, fixed night on 3 starts 8pm = 24h gap, OK for day rest)
       // Not guaranteed to be assigned (depends on algorithm), but should be allowed
       // The key assertion is that no rest violations exist
+
+      // All doctors must meet their base norm (hard constraint)
+      for (const stat of result.doctorStats) {
+        expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
+      }
     });
 
     it('Feb 2026 — 1 team doctor + 3 floating, manual night on 3rd for team doctor — no errors', () => {
@@ -1236,6 +1302,11 @@ describe('SchedulingEngine', () => {
         s => s.doctor_id === 'd1' && s.shift_date === '2026-02-02' && s.shift_type === 'night'
       );
       expect(doc1NightOn2).toBeUndefined();
+
+      // All doctors must meet their base norm (hard constraint)
+      for (const stat of result.doctorStats) {
+        expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
+      }
     });
 
     it('March 2026 — 4 floating doctors, leave on March 12-13, no understaffed night on March 12', () => {
@@ -1293,6 +1364,11 @@ describe('SchedulingEngine', () => {
       expect(d2OnLeave12).toHaveLength(0);
       const d2OnLeave13 = result.shifts.filter(s => s.doctor_id === 'd2' && s.shift_date === formatDate(YEAR, MARCH, 13));
       expect(d2OnLeave13).toHaveLength(0);
+
+      // All doctors must meet their base norm (hard constraint)
+      for (const stat of result.doctorStats) {
+        expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
+      }
     });
 
     it('March 2026 — 4 doctors with 2 leave days on consecutive days — no understaffed slots', () => {
@@ -1359,6 +1435,108 @@ describe('SchedulingEngine', () => {
         s => s.doctor_id === 'd3' && s.shift_date === formatDate(YEAR, MARCH, 4)
       );
       expect(d3OnLeave).toHaveLength(0);
+
+      // All doctors must meet their base norm (hard constraint)
+      for (const stat of result.doctorStats) {
+        expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
+      }
+    });
+
+  });
+
+  // ── March 2026 infinite-loop regression ─────────────────────────────────────
+  // Reproduces the exact scenario from the UI: 13 doctors across 4 teams + 1
+  // floating, with heavy leave in March 2026.  Before the fix, the backtracking
+  // repair solver would hang indefinitely on a full-month window.
+  describe('March 2026 — heavy leave should not hang', () => {
+    const MARCH = 2; // 0-indexed
+    const YEAR = 2026;
+
+    const teamBlue  = makeTeam('tb', 'Blue',  1, '#00f');
+    const teamRed   = makeTeam('tr', 'Red',   2, '#f00');
+    const teamGreen = makeTeam('tg', 'Green', 3, '#0f0');
+    const teamYellow = makeTeam('ty', 'Yellow', 4, '#ff0');
+
+    const allTeams = [teamBlue, teamRed, teamGreen, teamYellow];
+
+    const doctors: DoctorWithTeam[] = [
+      makeDoctor('d1',  'doctor 1',        'tb', false, teamBlue),
+      makeDoctor('d2',  'doctor 2',        'tb', false, teamBlue),
+      makeDoctor('d3',  'doctor 3',        'tb', false, teamBlue),
+      makeDoctor('d4',  'doctor 4',        'tr', false, teamRed),
+      makeDoctor('d5',  'doctor 5',        'tr', false, teamRed),
+      makeDoctor('d6',  'dr 6',            'tr', false, teamRed),
+      makeDoctor('d7',  'dr 7',            'tg', false, teamGreen),
+      makeDoctor('d8',  'dr 8',            'tg', false, teamGreen),
+      makeDoctor('d9',  'dr 9',            'tg', false, teamGreen),
+      makeDoctor('d10', 'dr 10',           'ty', false, teamYellow),
+      makeDoctor('d11', 'dr 11',           'ty', false, teamYellow),
+      makeDoctor('d12', 'dr 12',           'ty', false, teamYellow),
+      makeDoctor('df',  'dr gigel flotant', undefined, true),
+    ];
+
+    // Leave days matching the screenshot
+    const leaveDays: LeaveDay[] = [
+      // doctor 2: Mar 2–6
+      ...([2,3,4,5,6] as number[]).map(d => makeLeaveDay('d2', formatDate(YEAR, MARCH, d))),
+      // doctor 3: Mar 6, 7–8 (bridge), 9
+      ...[6,9].map(d => makeLeaveDay('d3', formatDate(YEAR, MARCH, d))),
+      // doctor 5: Mar 12–13, 14-15 (bridge), 16–20
+      ...([12,13,16,17,18,19,20] as number[]).map(d => makeLeaveDay('d5', formatDate(YEAR, MARCH, d))),
+      // dr 6: Mar 9–13
+      ...([9,10,11,12,13] as number[]).map(d => makeLeaveDay('d6', formatDate(YEAR, MARCH, d))),
+      // dr 8: Mar 5–6, 12–13
+      ...([5,6,12,13] as number[]).map(d => makeLeaveDay('d8', formatDate(YEAR, MARCH, d))),
+      // dr 10: Mar 3–6, 7-8 (bridge), 9
+      ...([3,4,5,6,9] as number[]).map(d => makeLeaveDay('d10', formatDate(YEAR, MARCH, d))),
+      // dr 11: Mar 23–27
+      ...([23,24,25,26,27] as number[]).map(d => makeLeaveDay('d11', formatDate(YEAR, MARCH, d))),
+      // dr gigel flotant: Mar 3, 12, 18
+      ...([3,12,18] as number[]).map(d => makeLeaveDay('df', formatDate(YEAR, MARCH, d))),
+    ];
+
+    it('completes within a reasonable time', { timeout: 15_000 }, () => {
+      const engine = new SchedulingEngine({
+        month: MARCH,
+        year: YEAR,
+        doctors,
+        teams: allTeams,
+        shiftsPerDay: 3,
+        shiftsPerNight: 3,
+        leaveDays,
+      });
+
+      const start = performance.now();
+      const result = engine.generateSchedule();
+      const elapsed = performance.now() - start;
+
+      // Must finish in under 10 seconds (previously hung forever)
+      expect(elapsed).toBeLessThan(10_000);
+      expect(result.shifts.length).toBeGreaterThan(0);
+
+      // No understaffed warnings
+      const understaffedWarnings = result.warnings.filter(
+        w => w.includes('understaffed') || w.includes('Day shift') || w.includes('Night shift')
+           || w.includes('Tura de zi') || w.includes('Tura de noapte')
+      );
+      expect(understaffedWarnings).toHaveLength(0);
+      // No rest violations
+      const restViolations = result.conflicts.filter(c => c.type === 'rest_violation');
+      expect(restViolations).toHaveLength(0);
+
+      // Every day in March 2026 (31 days) should have exactly 3 day + 3 night shifts
+      for (let d = 1; d <= 31; d++) {
+        const dateStr = formatDate(YEAR, MARCH, d);
+        const dayCount = result.shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'day').length;
+        const nightCount = result.shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'night').length;
+        expect(dayCount).toBe(3);
+        expect(nightCount).toBe(3);
+      }
+
+      // All doctors must meet their base norm (hard constraint)
+      for (const stat of result.doctorStats) {
+        expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
+      }
     });
   });
 });
