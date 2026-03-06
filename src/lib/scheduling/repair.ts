@@ -15,6 +15,7 @@ import type { EngineContext } from './constants';
 import { SCHEDULING_CONSTANTS } from './constants';
 import { getDaysInMonth, formatDate } from './calendar-utils';
 import { isDoctorOnLeave, isDoctorOnBridgeDay, canDoctorWorkWithTimeline } from './constraints';
+import { calculateBaseNorm } from './stats';
 
 /** Phase 1: small-window backtracking limits. */
 const BACKTRACK_MAX_RADIUS = 3;
@@ -887,4 +888,110 @@ function applyMRVOrdering(
     return slots[a].shiftType === 'day' ? -1 : 1;
   });
   return { slotOrder };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Phase 4: Norm equalization — swap shifts from surplus to deficit doctors
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * After the greedy + repair passes, some doctors may be below their base norm
+ * even though the total math is feasible. This function swaps shifts from
+ * surplus doctors (above norm) to deficit doctors (below norm), maintaining
+ * all hard constraints (rest, leave, bridge, coverage).
+ */
+export function repairNormDeficits(ctx: EngineContext, shifts: Shift[]): void {
+  const MAX_ITERATIONS = 200;
+  const SHIFT_HOURS = SCHEDULING_CONSTANTS.SHIFT_DURATION;
+
+  for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
+    // Compute current hours per doctor (including fixed shifts)
+    const hours = new Map<string, number>();
+    for (const doc of ctx.doctors) hours.set(doc.id, 0);
+
+    for (const s of ctx.fixedShifts) {
+      if (s.shift_type === 'day' || s.shift_type === 'night') {
+        hours.set(s.doctor_id, (hours.get(s.doctor_id) || 0) + SHIFT_HOURS);
+      }
+    }
+    for (const s of shifts) {
+      if (s.shift_type === 'day' || s.shift_type === 'night') {
+        hours.set(s.doctor_id, (hours.get(s.doctor_id) || 0) + SHIFT_HOURS);
+      }
+    }
+
+    // Identify deficit and surplus doctors
+    const deficits: { id: string; gap: number }[] = [];
+    const surplusIds: string[] = [];
+
+    for (const doc of ctx.doctors) {
+      const norm = calculateBaseNorm(ctx, doc.id);
+      const h = hours.get(doc.id) || 0;
+      if (h < norm) {
+        deficits.push({ id: doc.id, gap: norm - h });
+      } else if (h > norm) {
+        surplusIds.push(doc.id);
+      }
+    }
+
+    if (deficits.length === 0) return; // All doctors meet norm
+    if (surplusIds.length === 0) return; // No surplus to redistribute
+
+    // Sort deficit by largest gap first
+    deficits.sort((a, b) => b.gap - a.gap);
+
+    let swapped = false;
+
+    for (const deficit of deficits) {
+      for (const surplusId of surplusIds) {
+        const surplusNorm = calculateBaseNorm(ctx, surplusId);
+        const surplusHours = hours.get(surplusId) || 0;
+        // Surplus doctor must still meet their own norm after losing a shift
+        if (surplusHours - SHIFT_HOURS < surplusNorm) continue;
+
+        // Build deficit doctor's timeline for constraint checking
+        const deficitTimeline: Shift[] = [
+          ...ctx.previousMonthShifts.filter(s => s.doctor_id === deficit.id),
+          ...ctx.fixedShifts.filter(s => s.doctor_id === deficit.id),
+          ...shifts.filter(s => s.doctor_id === deficit.id),
+        ];
+
+        // Try each of the surplus doctor's generated shifts
+        for (let si = 0; si < shifts.length; si++) {
+          const shift = shifts[si];
+          if (shift.doctor_id !== surplusId) continue;
+          if (shift.shift_type !== 'day' && shift.shift_type !== 'night') continue;
+
+          const parts = shift.shift_date.split('-').map(Number);
+          const date = new Date(parts[0], parts[1] - 1, parts[2]);
+
+          // Skip if deficit doctor can't work this day
+          if (isDoctorOnLeave(ctx, deficit.id, date)) continue;
+          if (isDoctorOnBridgeDay(ctx, deficit.id, date)) continue;
+
+          // Skip if deficit doctor already has a shift of same type on this day
+          const alreadyOnSlot = shifts.some(
+            s => s.doctor_id === deficit.id &&
+              s.shift_date === shift.shift_date &&
+              s.shift_type === shift.shift_type
+          );
+          if (alreadyOnSlot) continue;
+
+          // Check rest constraints for the deficit doctor
+          if (canDoctorWorkWithTimeline(ctx, deficit.id, date, shift.shift_type as 'day' | 'night', deficitTimeline)) {
+            // Execute swap: reassign shift from surplus to deficit
+            shifts[si].doctor_id = deficit.id;
+            swapped = true;
+            break;
+          }
+        }
+
+        if (swapped) break;
+      }
+
+      if (swapped) break;
+    }
+
+    if (!swapped) return; // No more beneficial swaps possible
+  }
 }

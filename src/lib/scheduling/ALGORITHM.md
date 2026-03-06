@@ -9,9 +9,9 @@ Generate a monthly schedule assigning doctors to 12-hour shifts (day 08:00–20:
 - **Weekly limit**: max 48h per doctor per week
 - **Leave/bridge days**: no shifts on leave days or bridge days (weekends/holidays between leave periods)
 - **Slot coverage**: each day must have `shiftsPerDay` day-shift doctors and `shiftsPerNight` night-shift doctors
+- **Base norm** (when feasible): each doctor must work ≥ 7h × working days − 12h × leave days. Enforced via norm-equalization repair after the greedy + slot-repair passes. If total required shifts across all doctors exceeds total available slots (structurally infeasible), this constraint is relaxed to best-effort with warnings.
 
 ### Soft Goals
-- **Base norm**: each doctor should work ≥ 7h × working days (reduced by 12h per leave day)
 - **Equalization**: distribute shifts evenly across doctors
 - **Team cohesion**: prefer same-team doctors on the same day when possible
 - **Day→night continuation**: prefer assigning night shifts to doctors who worked the preceding day shift
@@ -86,9 +86,23 @@ For any remaining gaps after swap repair:
 4. Candidates pre-filtered by leave/bridge/base-rest; sorted by eligibility (most constrained first)
 5. Limited to 50,000 nodes and 200 slots per window
 
-### Phase 3: Validation & Output
+### Phase 3: Norm Equalization Repair
+
+After slot repair, if any doctor's hours fall below their base norm while the configuration is feasible:
 
 1. Rebuild counters from final shifts
+2. Identify **deficit doctors** (below norm) and **surplus doctors** (above norm)
+3. Sort deficits by largest gap first
+4. For each deficit doctor, try to swap a shift from a surplus doctor:
+   - The surplus doctor must still meet their own norm after losing the shift
+   - The deficit doctor must pass all hard constraints (rest, leave, bridge) for the swapped shift
+   - The deficit doctor must not already have a shift of the same type on that day
+5. Repeat until all doctors meet norm or no more beneficial swaps exist
+6. Limited to 200 iterations to prevent infinite loops
+
+### Phase 4: Validation & Output
+
+1. Rebuild counters from final shifts (post norm repair)
 2. Check base norm attainment per doctor → warnings
 3. Detect conflicts (understaffing, rest violations)
 4. Compute per-doctor statistics
@@ -110,6 +124,7 @@ For any remaining gaps after swap repair:
 | `MAC_WINDOW_MARGIN` | 3 | repair.ts | Days of padding around unfilled clusters in stage 3 |
 | `MAX_REPAIRABLE_RATIO` | 0.15 | repair.ts | Skip repair if >15% slots unfilled |
 | `MIN_REPAIRABLE_SLOTS` | 3 | repair.ts | Minimum unfilled slots to attempt repair |
+| `MAX_ITERATIONS` (norm) | 200 | repair.ts | Max swap iterations for norm equalization |
 
 ## Module Map
 
@@ -120,7 +135,7 @@ scheduling-engine.ts  ← Orchestrator (constructor + generateSchedule + static 
   ├── bridge-days.ts      ← computeDoctorBridgeDays, computeAllBridgeDays
   ├── constraints.ts      ← canDoctorWork, canDoctorWorkWithTimeline
   ├── doctor-selection.ts ← selectDoctorsForShift, getLookaheadPenalty
-  ├── repair.ts           ← repairUnfilledSlots (3-stage: backtrack → swap → MAC)
+  ├── repair.ts           ← repairUnfilledSlots (3-stage: backtrack → swap → MAC), repairNormDeficits
   ├── stats.ts            ← recordShift, rebuildCounters, calculateBaseNorm, calculateDoctorStats
   └── validation.ts       ← detectConflicts, validateLeaveDays, computeUnderstaffedDays
 ```
@@ -148,6 +163,12 @@ ScheduleGenerationOptions
 │  1. small-window DFS     │     swap chains, and
 │  2. swap-based repair    │     cluster MAC solver
 │  3. cluster MAC solver   │
+└────────────┬────────────┘
+             ▼
+┌─────────────────────────┐
+│  Norm Equalization       │  → swaps shifts from surplus
+│  uses: repairNormDeficits│     to deficit doctors
+│        calculateBaseNorm │
 └────────────┬────────────┘
              ▼
 ┌─────────────────────────┐

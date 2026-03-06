@@ -92,7 +92,11 @@ function ShiftGridDoctorRow({
   const { t } = useTranslation();
 
   return (
-    <div className="flex border-b hover:bg-accent/30">
+    <div className={`flex border-b ${
+      stats.totalHours < stats.baseNorm
+        ? 'bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40'
+        : 'hover:bg-accent/30'
+    }`}>
       <div className="w-48 min-w-48 p-2 border-r flex items-center gap-2 sticky left-0 bg-background z-10">
         <div
           className="w-3 h-3 rounded-full flex-shrink-0"

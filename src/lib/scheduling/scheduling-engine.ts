@@ -14,7 +14,7 @@ import { formatDate, utcMs, getDaysInMonth, getWorkingDaysInMonth } from './cale
 import { computeAllBridgeDays, computeDoctorBridgeDays } from './bridge-days';
 import { isDoctorOnLeave, isDoctorOnBridgeDay } from './constraints';
 import { selectDoctorsForShift } from './doctor-selection';
-import { repairUnfilledSlots } from './repair';
+import { repairUnfilledSlots, repairNormDeficits } from './repair';
 import { recordShift, rebuildCounters, checkDoctorNorms, applyShiftRounding, calculateDoctorStats, calculateBaseNorm } from './stats';
 import { detectConflicts, validateLeaveDays, calculatePossibleLeaveDays, getWorkingDaysInMonthStatic, computeUnderstaffedDays } from './validation';
 
@@ -199,6 +199,10 @@ export class SchedulingEngine implements EngineContext {
     repairUnfilledSlots(this, shifts, fixedShiftsByDateType);
 
     // Rebuild counters from final shifts (greedy-pass counters are stale after repair)
+    rebuildCounters(this, shifts);
+
+    // ── Norm equalization repair ──
+    repairNormDeficits(this, shifts);
     rebuildCounters(this, shifts);
 
     const normWarnings = checkDoctorNorms(this);
