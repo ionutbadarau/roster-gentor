@@ -43,6 +43,19 @@ function formatDate(year: number, month: number, day: number): string {
   return `${year}-${pad(month + 1)}-${pad(day)}`;
 }
 
+/**
+ * Assert that extra shifts (beyond base norm) are equalized: max 2-shift gap.
+ */
+function expectExtraShiftsEqualized(result: { doctorStats: { baseNorm: number; totalHours: number }[] }): void {
+  const extraShifts = result.doctorStats.map(stat => {
+    const baseTarget = Math.ceil(stat.baseNorm / SCHEDULING_CONSTANTS.SHIFT_DURATION);
+    return stat.totalHours / SCHEDULING_CONSTANTS.SHIFT_DURATION - baseTarget;
+  });
+  const maxExtra = Math.max(...extraShifts);
+  const minExtra = Math.min(...extraShifts);
+  expect(maxExtra - minExtra).toBeLessThanOrEqual(2);
+}
+
 // ── Test constants for January 2026 ─────────────────────────────────────────
 // January 2026: 31 days, 22 working days (weekdays)
 // Base norm per doctor (no leave) = 7 × 22 = 154 h
@@ -147,6 +160,7 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
 
     it('2 teams of 7 doctors each, no floating, no leave', () => {
@@ -158,6 +172,7 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
 
     it('7 teams of 2 doctors each, no floating, no leave', () => {
@@ -169,6 +184,7 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
   });
 
@@ -195,6 +211,7 @@ describe('SchedulingEngine', () => {
         expect(stat).toBeDefined();
         expect(stat!.totalShifts).toBeGreaterThan(0);
       }
+      expectExtraShiftsEqualized(result);
     });
 
     it('3 teams of 3 + 4 floating doctors, no leave', () => {
@@ -207,6 +224,7 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
   });
 
@@ -238,6 +256,7 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
 
     it('one doctor has 3 leave days — that doctor meets reduced norm', () => {
@@ -263,6 +282,7 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
 
     it('multiple doctors have leave days — each meets their reduced norm', () => {
@@ -295,6 +315,7 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
 
     it('maximum possible leave days — all doctors meet norm, zero warnings', () => {
@@ -344,6 +365,7 @@ describe('SchedulingEngine', () => {
           expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
         }
       }
+      expectExtraShiftsEqualized(result);
     });
 
     it('no leave days with 14 doctors — all meet norm', () => {
@@ -356,6 +378,7 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(BASE_NORM);
       }
+      expectExtraShiftsEqualized(result);
     });
   });
 
@@ -377,6 +400,7 @@ describe('SchedulingEngine', () => {
       ).toBe(true);
       // At least 9 doctors should have warnings (exact count depends on distribution)
       expect(result.warnings.length).toBeGreaterThanOrEqual(9);
+      expectExtraShiftsEqualized(result);
     });
 
     it('15 doctors with few leave days — fewer warnings than without', () => {
@@ -399,6 +423,7 @@ describe('SchedulingEngine', () => {
       // (ceil(147/12) = 13, same as ceil(154/12) = 13), so warnings stay similar
       expect(normWarnings.length).toBeLessThanOrEqual(9);
       expect(normWarnings.length).toBeGreaterThan(0);
+      expectExtraShiftsEqualized(result);
     });
 
     it('20 doctors, no leave — many norm warnings', () => {
@@ -413,6 +438,7 @@ describe('SchedulingEngine', () => {
       expect(
         result.warnings.every(w => w.includes('scheduling.engine.normWarning')),
       ).toBe(true);
+      expectExtraShiftsEqualized(result);
     });
   });
 
@@ -564,6 +590,7 @@ describe('SchedulingEngine', () => {
       // No rest violations
       const restViolations = result.conflicts.filter(c => c.type === 'rest_violation');
       expect(restViolations).toHaveLength(0);
+      expectExtraShiftsEqualized(result);
 
       // Leave doctors should have no shifts during Apr 12–18
       for (const docId of [doc2.id, doc3.id]) {
@@ -593,6 +620,7 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
 
     it('understaffed detection when too few doctors', () => {
@@ -611,6 +639,7 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
   });
 
@@ -662,6 +691,7 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
 
     it('day→night continuation works with leave days present', () => {
@@ -714,6 +744,7 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
   });
 
@@ -753,6 +784,7 @@ describe('SchedulingEngine', () => {
         expect(stat.baseNorm).toBe(expectedNorm);
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
 
     it('holidays on weekends do not reduce working days', () => {
@@ -794,6 +826,7 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
 
     it('calculatePossibleLeaveDays accounts for holidays', () => {
@@ -979,6 +1012,7 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
 
     it('bridge days do NOT reduce base norm (only explicit leave days do)', () => {
@@ -1012,6 +1046,7 @@ describe('SchedulingEngine', () => {
       for (const s of result.doctorStats) {
         expect(s.totalHours).toBeGreaterThanOrEqual(s.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
 
     it('March 2026 — 4×3 + 2 floating, holidays on 5th & 11th, leave for doc5 (9–13) and doc14 (16–20) — no understaffed days', () => {
@@ -1106,6 +1141,7 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
 
     it('extended bridge: leave Fri + holiday Mon + leave Tue → Mon is bridge', () => {
@@ -1189,6 +1225,7 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
 
     it('should not assign a shift that would violate rest before an upcoming fixed shift', () => {
@@ -1244,6 +1281,7 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
 
     it('Feb 2026 — 1 team doctor + 3 floating, manual night on 3rd for team doctor — no errors', () => {
@@ -1319,6 +1357,7 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
 
     it('March 2026 — 4 floating doctors, leave on March 12-13, no understaffed night on March 12', () => {
@@ -1381,6 +1420,7 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
 
     it('March 2026 — 4 doctors with 2 leave days on consecutive days — no understaffed slots', () => {
@@ -1452,6 +1492,7 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+      expectExtraShiftsEqualized(result);
     });
 
     it('March 2026 — 4 floating doctors, leave on March 11 & 13 (non-consecutive), no understaffed slots', () => {
@@ -1516,6 +1557,7 @@ describe('SchedulingEngine', () => {
       expect(d2OnLeave11).toHaveLength(0);
       const d2OnLeave13 = result.shifts.filter(s => s.doctor_id === 'd2' && s.shift_date === formatDate(YEAR, MARCH, 13));
       expect(d2OnLeave13).toHaveLength(0);
+      expectExtraShiftsEqualized(result);
     });
 
   });
@@ -1613,6 +1655,8 @@ describe('SchedulingEngine', () => {
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }
+
+      expectExtraShiftsEqualized(result);
     });
   });
 });

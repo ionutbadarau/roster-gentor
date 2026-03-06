@@ -14,7 +14,7 @@ import { formatDate, utcMs, getDaysInMonth, getWorkingDaysInMonth } from './cale
 import { computeAllBridgeDays, computeDoctorBridgeDays } from './bridge-days';
 import { isDoctorOnLeave, isDoctorOnBridgeDay } from './constraints';
 import { selectDoctorsForShift } from './doctor-selection';
-import { repairUnfilledSlots, repairNormDeficits } from './repair';
+import { repairUnfilledSlots, repairNormDeficits, repairExtraShiftEqualization } from './repair';
 import { recordShift, rebuildCounters, checkDoctorNorms, applyShiftRounding, calculateDoctorStats, calculateBaseNorm } from './stats';
 import { detectConflicts, validateLeaveDays, calculatePossibleLeaveDays, getWorkingDaysInMonthStatic, computeUnderstaffedDays } from './validation';
 
@@ -95,12 +95,27 @@ export class SchedulingEngine implements EngineContext {
       this.doctorWeeklyHours.set(d.id, new Map());
     });
 
-    // Compute each doctor's target number of shifts from their base norm.
-    const doctorTargetShifts = new Map<string, number>();
+    // Compute each doctor's base norm target (minimum shifts).
+    const doctorBaseTargets = new Map<string, number>();
     this.doctors.forEach(d => {
       const baseNorm = calculateBaseNorm(this, d.id);
-      doctorTargetShifts.set(d.id, Math.ceil(baseNorm / SCHEDULING_CONSTANTS.SHIFT_DURATION));
+      doctorBaseTargets.set(d.id, Math.ceil(baseNorm / SCHEDULING_CONSTANTS.SHIFT_DURATION));
     });
+
+    // Equalize: distribute extra shifts (beyond sum of base norms) fairly.
+    // Each doctor's target includes their base norm + a fair share of extras,
+    // so the paceGap mechanism naturally distributes extra shifts equally.
+    const totalSlots = daysInMonth * (this.shiftsPerDay + this.shiftsPerNight);
+    let sumBaseTargets = 0;
+    doctorBaseTargets.forEach(t => { sumBaseTargets += t; });
+    const totalExtraShifts = Math.max(0, totalSlots - sumBaseTargets);
+    const fairExtraPerDoctor = totalExtraShifts / this.doctors.length;
+
+    const doctorTargetShifts = new Map<string, number>();
+    for (const d of this.doctors) {
+      const base = doctorBaseTargets.get(d.id) || 0;
+      doctorTargetShifts.set(d.id, base + fairExtraPerDoctor);
+    }
 
     // Pre-compute total available days per doctor (days in month minus leave days and bridge days).
     const doctorTotalAvailDays = new Map<string, number>();
@@ -203,6 +218,10 @@ export class SchedulingEngine implements EngineContext {
 
     // ── Norm equalization repair ──
     repairNormDeficits(this, shifts);
+    rebuildCounters(this, shifts);
+
+    // ── Extra-shift equalization repair ──
+    repairExtraShiftEqualization(this, shifts);
     rebuildCounters(this, shifts);
 
     const normWarnings = checkDoctorNorms(this);

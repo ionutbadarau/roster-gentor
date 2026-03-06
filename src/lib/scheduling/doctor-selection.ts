@@ -26,6 +26,13 @@ const LOOKAHEAD_PENALTY_WEIGHT = 5;
 const CONTINUATION_BONUS = 10;
 
 /**
+ * Penalty weight for extra-shift equalization.
+ * Doctors who have more extra shifts (beyond base norm) than the average
+ * are penalized proportionally, so extra work is distributed fairly.
+ */
+const EXTRA_SHIFT_EQUALIZATION_WEIGHT = 3;
+
+/**
  * Look-ahead: compute a penalty for assigning this doctor to a shift today.
  * If their mandatory rest would block them on a future day that's already
  * tight on availability, we penalise so the algorithm prefers other doctors.
@@ -118,9 +125,22 @@ export function selectDoctorsForShift(
     underTarget: boolean;
     lookaheadPenalty: number;
     continuationBonus: number;
+    extraShiftPenalty: number;
   }
 
   const candidates: Candidate[] = [];
+
+  // Compute average total shifts across all doctors for equalization.
+  // Using total shifts (not "extra beyond target") ensures the penalty
+  // is active even while doctors are still underTarget — preventing
+  // some doctors from accumulating too many shifts early on.
+  let totalShiftsSum = 0;
+  let doctorCount = 0;
+  for (const doc of ctx.doctors) {
+    totalShiftsSum += ctx.doctorShiftCount.get(doc.id) || 0;
+    doctorCount++;
+  }
+  const avgShifts = doctorCount > 0 ? totalShiftsSum / doctorCount : 0;
 
   const consider = (doc: DoctorWithTeam) => {
     if (!canDoctorWork(ctx, doc, currentDate, shiftType)) return;
@@ -135,6 +155,10 @@ export function selectDoctorsForShift(
 
     const lookaheadPenalty = getLookaheadPenalty(ctx, doc, currentDate, shiftType);
 
+    // Penalize doctors who have more total shifts than average.
+    // This is active even for underTarget doctors, preventing early accumulation.
+    const extraShiftPenalty = (current - avgShifts) * EXTRA_SHIFT_EQUALIZATION_WEIGHT;
+
     let continuationBonus = 0;
     if (shiftType === 'night') {
       const lastShift = ctx.doctorLastShift.get(doc.id);
@@ -148,7 +172,7 @@ export function selectDoctorsForShift(
       }
     }
 
-    candidates.push({ doc, paceGap, underTarget: current < target, lookaheadPenalty, continuationBonus });
+    candidates.push({ doc, paceGap, underTarget: current < target, lookaheadPenalty, continuationBonus, extraShiftPenalty });
   };
 
   for (const teamId of teamIds) {
@@ -157,8 +181,8 @@ export function selectDoctorsForShift(
   for (const doc of floatingDoctors) consider(doc);
 
   const sortByScore = (a: Candidate, b: Candidate) =>
-    (b.paceGap - b.lookaheadPenalty + b.continuationBonus) -
-    (a.paceGap - a.lookaheadPenalty + a.continuationBonus);
+    (b.paceGap - b.lookaheadPenalty + b.continuationBonus - b.extraShiftPenalty) -
+    (a.paceGap - a.lookaheadPenalty + a.continuationBonus - a.extraShiftPenalty);
 
   const underTarget = candidates
     .filter(c => c.underTarget)

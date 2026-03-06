@@ -15,7 +15,7 @@ Generate a monthly schedule assigning doctors to 12-hour shifts (day 08:00–20:
 - **Base norm** (when feasible): each doctor must work ≥ 7h × (working days − leave days) where only `leave_type !== 'bridge'` leave days count. Enforced via norm-equalization repair after the greedy + slot-repair passes. If total required shifts across all doctors exceeds total available slots (structurally infeasible), this constraint is relaxed to best-effort with warnings.
 
 ### Soft Goals
-- **Equalization**: distribute shifts evenly across doctors
+- **Equalization**: distribute shifts evenly across doctors; extra shifts (beyond base norm) should have at most a 2-shift gap between any two doctors
 - **Team cohesion**: prefer same-team doctors on the same day when possible
 - **Day→night continuation**: prefer assigning night shifts to doctors who worked the preceding day shift
 
@@ -34,12 +34,25 @@ for each day:
     record each selected shift
 ```
 
+#### Equalization Targets
+
+Before the greedy loop, each doctor's target is computed as:
+
+```
+baseTarget = ceil(baseNorm / SHIFT_DURATION)
+totalExtraShifts = max(0, totalSlots - sum(baseTargets))
+fairExtra = totalExtraShifts / numDoctors
+target = baseTarget + fairExtra
+```
+
+This ensures the paceGap mechanism distributes extra shifts (beyond base norm) equally from the start, rather than letting doctors with high base norms accumulate disproportionately more shifts.
+
 #### Doctor Selection Heuristic (`doctor-selection.ts`)
 
 For each candidate doctor, compute a **priority score**:
 
 ```
-score = paceGap - lookaheadPenalty + continuationBonus
+score = paceGap - lookaheadPenalty + continuationBonus - extraShiftPenalty
 ```
 
 - **paceGap** = `(target × elapsedAvailDays / totalAvailDays) - currentShifts`
@@ -47,6 +60,9 @@ score = paceGap - lookaheadPenalty + continuationBonus
   - Doctors with upcoming leave fall behind faster → get prioritized
 - **lookaheadPenalty** = penalty if this doctor's rest would block a tight future day (checked 1-3 days ahead)
 - **continuationBonus** = +10 if this is a night shift and the doctor worked yesterday's day shift
+- **extraShiftPenalty** = `(currentShifts - avgShifts) × EXTRA_SHIFT_EQUALIZATION_WEIGHT`
+  - Active even for under-target doctors, preventing early accumulation imbalances
+  - Compares total shifts vs average across all doctors (not just extras beyond target)
 
 Selection uses a **hard partition**: under-target doctors always come before met-target doctors. Within each group, sorted by score descending.
 
@@ -103,9 +119,37 @@ After slot repair, if any doctor's hours fall below their base norm while the co
 5. Repeat until all doctors meet norm or no more beneficial swaps exist
 6. Limited to 200 iterations to prevent infinite loops
 
-### Phase 4: Validation & Output
+### Phase 4: Extra-Shift Equalization Repair
 
-1. Rebuild counters from final shifts (post norm repair)
+After norm equalization, doctors may still have unequal numbers of extra shifts (shifts beyond their base norm target). This phase evens them out, targeting a max gap of 1 extra shift between any two doctors.
+
+Uses **date-based rest checking** (midnight-to-midnight distance) consistent with `detectConflicts` semantics — not exact shift start/end times, which are stricter and would prevent valid transfers.
+
+#### Direct Transfer
+
+For each iteration, identify the doctor with the most extra shifts (surplus) and the one with the fewest (deficit). Try to reassign one of the surplus doctor's shifts directly to the deficit doctor:
+
+1. The surplus doctor must still meet their base norm after losing the shift
+2. The deficit doctor must pass leave, bridge day, duplicate, and date-based rest checks
+
+#### Chain Transfer
+
+If no direct transfer works (due to rest constraints), attempt a 3-doctor chain transfer:
+
+```
+surplus → middle doctor (takes surplus's shift)
+middle → deficit doctor (deficit takes one of middle's shifts)
+```
+
+- The middle doctor's net shift count stays the same (gains 1, loses 1)
+- Both the middle and deficit doctor's full schedules are verified post-swap
+- If verification fails, the swap is rolled back
+
+Limited to 300 iterations. Stops when the max extra-shift gap is ≤ 1.
+
+### Phase 5: Validation & Output
+
+1. Rebuild counters from final shifts (post equalization repairs)
 2. Check base norm attainment per doctor → warnings
 3. Detect conflicts (understaffing, rest violations)
 4. Compute per-doctor statistics
@@ -118,6 +162,7 @@ After slot repair, if any doctor's hours fall below their base norm while the co
 | `TEAM_GAP_THRESHOLD` | 1.5 | doctor-selection.ts | Max paceGap difference to prefer same-team doctor |
 | `LOOKAHEAD_PENALTY_WEIGHT` | 5 | doctor-selection.ts | Penalty per tight future day blocked |
 | `CONTINUATION_BONUS` | 10 | doctor-selection.ts | Bonus for day→night rotation pattern |
+| `EXTRA_SHIFT_EQUALIZATION_WEIGHT` | 3 | doctor-selection.ts | Penalty weight for doctors above average shift count |
 | `BACKTRACK_MAX_RADIUS` | 3 | repair.ts | Max window radius for stage 1 backtracking |
 | `BACKTRACK_MAX_NODES` | 5,000 | repair.ts | Node limit per stage 1 window |
 | `BACKTRACK_MAX_SLOTS` | 30 | repair.ts | Max slots per stage 1 window |
@@ -128,6 +173,8 @@ After slot repair, if any doctor's hours fall below their base norm while the co
 | `MAX_REPAIRABLE_RATIO` | 0.15 | repair.ts | Skip repair if >15% slots unfilled |
 | `MIN_REPAIRABLE_SLOTS` | 3 | repair.ts | Minimum unfilled slots to attempt repair |
 | `MAX_ITERATIONS` (norm) | 200 | repair.ts | Max swap iterations for norm equalization |
+| `MAX_ITERATIONS` (extra) | 300 | repair.ts | Max iterations for extra-shift equalization |
+| `MAX_EXTRA_SHIFT_GAP` | 1 | repair.ts | Target max gap between any two doctors' extra shifts |
 
 ## Module Map
 
@@ -138,7 +185,7 @@ scheduling-engine.ts  ← Orchestrator (constructor + generateSchedule + static 
   ├── bridge-days.ts      ← computeDoctorBridgeDays, computeAllBridgeDays
   ├── constraints.ts      ← canDoctorWork, canDoctorWorkWithTimeline
   ├── doctor-selection.ts ← selectDoctorsForShift, getLookaheadPenalty
-  ├── repair.ts           ← repairUnfilledSlots (3-stage: backtrack → swap → MAC), repairNormDeficits
+  ├── repair.ts           ← repairUnfilledSlots (3-stage), repairNormDeficits, repairExtraShiftEqualization
   ├── stats.ts            ← recordShift, rebuildCounters, calculateBaseNorm, calculateDoctorStats
   └── validation.ts       ← detectConflicts, validateLeaveDays, computeUnderstaffedDays
 ```
@@ -172,6 +219,12 @@ ScheduleGenerationOptions
 │  Norm Equalization       │  → swaps shifts from surplus
 │  uses: repairNormDeficits│     to deficit doctors
 │        calculateBaseNorm │
+└────────────┬────────────┘
+             ▼
+┌─────────────────────────┐
+│  Extra-Shift Equalization│  → transfers/chain-transfers
+│  uses: repairExtraShift  │     to even out extra shifts
+│        Equalization      │     (max 1-shift gap target)
 └────────────┬────────────┘
              ▼
 ┌─────────────────────────┐

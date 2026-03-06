@@ -995,3 +995,210 @@ export function repairNormDeficits(ctx: EngineContext, shifts: Shift[]): void {
     if (!swapped) return; // No more beneficial swaps possible
   }
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Phase 5: Extra-shift equalization — even out shifts beyond base norm
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * After all other passes, doctors may have unequal numbers of extra shifts
+ * (shifts beyond their base norm). This function swaps shifts from doctors
+ * with the most extra shifts to those with the fewest, targeting a max gap
+ * of MAX_EXTRA_SHIFT_GAP between any two doctors.
+ */
+export function repairExtraShiftEqualization(ctx: EngineContext, shifts: Shift[]): void {
+  const MAX_ITERATIONS = 300;
+  const MAX_EXTRA_SHIFT_GAP = 1;
+  const SHIFT_HOURS = SCHEDULING_CONSTANTS.SHIFT_DURATION;
+
+  /**
+   * Date-based rest conflict check, consistent with detectConflicts semantics.
+   * Uses midnight-to-midnight distance, NOT exact shift start/end times.
+   */
+  function hasDateBasedRestConflict(
+    dateA: string, typeA: string,
+    dateB: string, typeB: string
+  ): boolean {
+    const midnightA = new Date(dateA).getTime();
+    const midnightB = new Date(dateB).getTime();
+    const hoursBetween = Math.abs(midnightB - midnightA) / 3600_000;
+
+    // Check rest in both directions (earlier shift's rest constrains later shift)
+    if (midnightA <= midnightB) {
+      if (typeA === 'day' && hoursBetween < SCHEDULING_CONSTANTS.DAY_SHIFT_REST) return true;
+      if (typeA === 'night' && hoursBetween < SCHEDULING_CONSTANTS.NIGHT_SHIFT_REST) return true;
+    }
+    if (midnightB <= midnightA) {
+      if (typeB === 'day' && hoursBetween < SCHEDULING_CONSTANTS.DAY_SHIFT_REST) return true;
+      if (typeB === 'night' && hoursBetween < SCHEDULING_CONSTANTS.NIGHT_SHIFT_REST) return true;
+    }
+    return false;
+  }
+
+  /** Check if doctor can take a specific shift (by index), using date-based rest checks. */
+  function canTakeShift(docId: string, si: number): boolean {
+    const shift = shifts[si];
+    const parts = shift.shift_date.split('-').map(Number);
+    const date = new Date(parts[0], parts[1] - 1, parts[2]);
+    if (isDoctorOnLeave(ctx, docId, date)) return false;
+    if (isDoctorOnBridgeDay(ctx, docId, date)) return false;
+    const alreadyOnSlot = shifts.some(
+      s => s.doctor_id === docId && s.shift_date === shift.shift_date && s.shift_type === shift.shift_type
+    );
+    if (alreadyOnSlot) return false;
+
+    // Check against all existing shifts for this doctor
+    const allDocShifts = [
+      ...ctx.previousMonthShifts.filter(s => s.doctor_id === docId),
+      ...ctx.fixedShifts.filter(s => s.doctor_id === docId),
+      ...shifts.filter(s => s.doctor_id === docId),
+    ];
+    for (const existing of allDocShifts) {
+      if (existing.shift_type !== 'day' && existing.shift_type !== 'night') continue;
+      if (hasDateBasedRestConflict(shift.shift_date, shift.shift_type, existing.shift_date, existing.shift_type)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /** Verify no date-based rest violations in a doctor's schedule. */
+  function verifyDoctorSchedule(docId: string): boolean {
+    const allDocShifts = [
+      ...ctx.previousMonthShifts.filter(s => s.doctor_id === docId),
+      ...ctx.fixedShifts.filter(s => s.doctor_id === docId),
+      ...shifts.filter(s => s.doctor_id === docId && (s.shift_type === 'day' || s.shift_type === 'night')),
+    ];
+
+    for (let i = 0; i < allDocShifts.length; i++) {
+      const si = allDocShifts[i];
+      if (si.shift_type !== 'day' && si.shift_type !== 'night') continue;
+      for (let j = i + 1; j < allDocShifts.length; j++) {
+        const sj = allDocShifts[j];
+        if (sj.shift_type !== 'day' && sj.shift_type !== 'night') continue;
+        if (hasDateBasedRestConflict(si.shift_date, si.shift_type, sj.shift_date, sj.shift_type)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  function computeExtras(): { id: string; extra: number }[] {
+    const shiftCounts = new Map<string, number>();
+    for (const doc of ctx.doctors) shiftCounts.set(doc.id, 0);
+    for (const s of ctx.fixedShifts) {
+      if (s.shift_type === 'day' || s.shift_type === 'night') {
+        shiftCounts.set(s.doctor_id, (shiftCounts.get(s.doctor_id) || 0) + 1);
+      }
+    }
+    for (const s of shifts) {
+      if (s.shift_type === 'day' || s.shift_type === 'night') {
+        shiftCounts.set(s.doctor_id, (shiftCounts.get(s.doctor_id) || 0) + 1);
+      }
+    }
+    return ctx.doctors.map(doc => {
+      const norm = calculateBaseNorm(ctx, doc.id);
+      const baseTarget = Math.ceil(norm / SHIFT_HOURS);
+      return { id: doc.id, extra: (shiftCounts.get(doc.id) || 0) - baseTarget };
+    });
+  }
+
+  /** Try direct transfer: reassign a shift from surplus to deficit. */
+  function tryDirectTransfer(surplusId: string, deficitId: string): boolean {
+    const surplusNorm = calculateBaseNorm(ctx, surplusId);
+    const surplusShiftCount = shifts.filter(s => s.doctor_id === surplusId && (s.shift_type === 'day' || s.shift_type === 'night')).length
+      + ctx.fixedShifts.filter(s => s.doctor_id === surplusId && (s.shift_type === 'day' || s.shift_type === 'night')).length;
+    if (surplusShiftCount * SHIFT_HOURS - SHIFT_HOURS < surplusNorm) return false;
+
+    for (let si = 0; si < shifts.length; si++) {
+      if (shifts[si].doctor_id !== surplusId) continue;
+      if (shifts[si].shift_type !== 'day' && shifts[si].shift_type !== 'night') continue;
+      if (canTakeShift(deficitId, si)) {
+        shifts[si].doctor_id = deficitId;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Chain transfer: surplus → middle, middle → deficit.
+   * Surplus loses 1 shift, middle ±0, deficit gains 1.
+   */
+  function tryChainTransfer(surplusId: string, deficitId: string): boolean {
+    const surplusNorm = calculateBaseNorm(ctx, surplusId);
+    const surplusShiftCount = shifts.filter(s => s.doctor_id === surplusId && (s.shift_type === 'day' || s.shift_type === 'night')).length
+      + ctx.fixedShifts.filter(s => s.doctor_id === surplusId && (s.shift_type === 'day' || s.shift_type === 'night')).length;
+    if (surplusShiftCount * SHIFT_HOURS - SHIFT_HOURS < surplusNorm) return false;
+
+    // Pre-index shifts by doctor for performance
+    const shiftsByDoctor = new Map<string, number[]>();
+    for (const doc of ctx.doctors) shiftsByDoctor.set(doc.id, []);
+    for (let i = 0; i < shifts.length; i++) {
+      if (shifts[i].shift_type === 'day' || shifts[i].shift_type === 'night') {
+        shiftsByDoctor.get(shifts[i].doctor_id)?.push(i);
+      }
+    }
+
+    const surplusShifts = shiftsByDoctor.get(surplusId) || [];
+
+    for (const middleDoc of ctx.doctors) {
+      if (middleDoc.id === surplusId || middleDoc.id === deficitId) continue;
+
+      const middleShifts = shiftsByDoctor.get(middleDoc.id) || [];
+
+      for (const si of surplusShifts) {
+        // Can middle take surplus's shift si?
+        if (!canTakeShift(middleDoc.id, si)) continue;
+
+        // Middle can take si. Now find a shift of middle that deficit can take.
+        for (const mi of middleShifts) {
+          if (!canTakeShift(deficitId, mi)) continue;
+
+          // Found candidate chain: si (surplus→middle), mi (middle→deficit)
+          // Execute tentatively
+          const oldSurplusOwner = shifts[si].doctor_id;
+          const oldMiddleOwner = shifts[mi].doctor_id;
+          shifts[si].doctor_id = middleDoc.id;
+          shifts[mi].doctor_id = deficitId;
+
+          // Verify middle doctor's schedule is still valid after gaining si and losing mi
+          if (verifyDoctorSchedule(middleDoc.id) && verifyDoctorSchedule(deficitId)) {
+            return true; // Chain successful
+          }
+
+          // Undo
+          shifts[si].doctor_id = oldSurplusOwner;
+          shifts[mi].doctor_id = oldMiddleOwner;
+        }
+      }
+    }
+    return false;
+  }
+
+  for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
+    const extras = computeExtras();
+    extras.sort((a, b) => b.extra - a.extra);
+    const maxExtra = extras[0];
+    const minExtra = extras[extras.length - 1];
+
+    if (maxExtra.extra - minExtra.extra <= MAX_EXTRA_SHIFT_GAP) return;
+
+    // Try all surplus doctors (those with extra > minExtra + MAX_EXTRA_SHIFT_GAP)
+    let progress = false;
+    for (const surplus of extras) {
+      if (surplus.extra - minExtra.extra <= MAX_EXTRA_SHIFT_GAP) break;
+      // Try direct transfer first
+      if (tryDirectTransfer(surplus.id, minExtra.id)) { progress = true; break; }
+    }
+    if (progress) continue;
+
+    // Try chain transfers for all surplus doctors
+    for (const surplus of extras) {
+      if (surplus.extra - minExtra.extra <= MAX_EXTRA_SHIFT_GAP) break;
+      if (tryChainTransfer(surplus.id, minExtra.id)) { progress = true; break; }
+    }
+    if (!progress) return;
+  }
+}
