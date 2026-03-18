@@ -111,7 +111,7 @@ export function repairUnfilledSlots(
   // re-solve all 12h slots in that window. This keeps each FC solve under ~40
   // slots, which is tractable even for heavy-leave scenarios. Days filled by
   // an earlier window solve are automatically skipped.
-  const solverDeadline = Date.now() + 45_000;
+  const solverDeadline = Date.now() + 90_000;
   ({ count: unfilledCount } = getUnfilled());
   if (unfilledCount > 0) {
     const FC_WINDOW_RADIUS = 3;
