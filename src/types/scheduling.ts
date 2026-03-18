@@ -5,6 +5,7 @@ export interface Doctor {
   email?: string;
   team_id?: string;
   is_floating: boolean;
+  is_optional?: boolean;
   shift_mode?: '12h' | '24h';
   display_order?: number;
   preferences: Record<string, any>;

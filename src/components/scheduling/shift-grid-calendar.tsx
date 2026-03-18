@@ -129,9 +129,68 @@ export default function ShiftGridCalendar({
 
   const isUnderstaffedDay = (day: number): boolean => understaffedDays.has(day) || shiftShortfallDays.has(day);
 
-  // Reactive warnings: combine generation norm warnings with shift shortfall warnings
+  // Reactive norm warnings: recompute from current shifts whenever edits happen
+  const normWarnings = useMemo(() => {
+    if (!hasGeneratedForMonth) return [];
+    const result: string[] = [];
+    const monthShifts = shifts.filter(s => s.shift_date.startsWith(monthPrefix));
+    const workingDays = SchedulingEngine.getWorkingDaysInMonthStatic(currentMonth, currentYear, nationalHolidays);
+
+    for (const doc of doctors) {
+      if (doc.is_optional) continue;
+      const docShifts = monthShifts.filter(s => s.doctor_id === doc.id);
+      const shifts24h = docShifts.filter(s => s.shift_type === '24h').length;
+      const dayCount = docShifts.filter(s => s.shift_type === 'day').length + shifts24h;
+      const nightCount = docShifts.filter(s => s.shift_type === 'night').length + shifts24h;
+      const totalHours = (dayCount + nightCount) * SCHEDULING_CONSTANTS.SHIFT_DURATION;
+
+      const docLeave = leaveDays.filter(l => l.doctor_id === doc.id && l.leave_date.startsWith(monthPrefix) && l.leave_type !== 'bridge').length;
+      const baseNorm = SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * (workingDays - docLeave);
+
+      if (totalHours < baseNorm) {
+        const shortfall = baseNorm - totalHours;
+        const requiredLeaveDays = Math.ceil(shortfall / SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY);
+        result.push(`scheduling.engine.normWarning::${JSON.stringify({ name: doc.name, days: requiredLeaveDays })}`);
+      }
+    }
+    return result;
+  }, [shifts, doctors, leaveDays, monthPrefix, currentMonth, currentYear, nationalHolidays, hasGeneratedForMonth]);
+
+  // Reactive rest violation warnings: recompute from current shifts
+  const restViolationWarnings = useMemo(() => {
+    if (!hasGeneratedForMonth) return [];
+    const result: string[] = [];
+    const monthShifts = shifts.filter(s => s.shift_date.startsWith(monthPrefix));
+    const byDoctor = groupShiftsByDoctor(monthShifts);
+
+    byDoctor.forEach((doctorShifts, doctorId) => {
+      const doctor = doctors.find(d => d.id === doctorId);
+      if (!doctor) return;
+      const sorted = [...doctorShifts].sort((a, b) =>
+        new Date(a.shift_date).getTime() - new Date(b.shift_date).getTime()
+      );
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = sorted[i - 1];
+        const curr = sorted[i];
+        const hoursBetween = (new Date(curr.shift_date).getTime() - new Date(prev.shift_date).getTime()) / (1000 * 60 * 60);
+        const minRest = prev.shift_type === '24h' ? SCHEDULING_CONSTANTS.SHIFT_24H_REST
+          : prev.shift_type === 'night' ? SCHEDULING_CONSTANTS.NIGHT_SHIFT_REST
+          : SCHEDULING_CONSTANTS.DAY_SHIFT_REST;
+        if (hoursBetween < minRest) {
+          result.push(`scheduling.engine.restViolation::${JSON.stringify({ name: doctor.name, date: curr.shift_date, hours: hoursBetween, required: minRest })}`);
+        }
+      }
+    });
+    return result;
+  }, [shifts, doctors, monthPrefix, hasGeneratedForMonth]);
+
+  // Reactive warnings: combine all warning sources
   const warnings = useMemo(() => {
-    const result: string[] = [...generationWarnings];
+    const result: string[] = [
+      ...generationWarnings,
+      ...normWarnings,
+      ...restViolationWarnings,
+    ];
 
     shiftShortfallDays.forEach(({ dayCount, nightCount }, day) => {
       const dateStr = formatDateString(currentYear, currentMonth, day);
@@ -144,7 +203,7 @@ export default function ShiftGridCalendar({
     });
 
     return Array.from(new Set(result));
-  }, [generationWarnings, shiftShortfallDays, currentMonth, currentYear, shiftsPerDay, shiftsPerNight]);
+  }, [generationWarnings, normWarnings, restViolationWarnings, shiftShortfallDays, currentMonth, currentYear, shiftsPerDay, shiftsPerNight]);
 
   // Sort doctors by display_order (manual sort from config)
   const sortedDoctors = useMemo(() => {
@@ -191,7 +250,10 @@ export default function ShiftGridCalendar({
         fixedShifts: manualShifts,
         previousMonthShifts,
       });
-      setGenerationWarnings(result.warnings);
+      setGenerationWarnings(result.warnings.filter(w =>
+        !w.startsWith('scheduling.engine.normWarning') &&
+        !w.startsWith('scheduling.engine.understaffed')
+      ));
 
       // Delete only non-manual shifts for this month from DB
       const { error: deleteError } = await supabase
@@ -564,12 +626,13 @@ export default function ShiftGridCalendar({
 
   // --- Cell letter extraction ---
   const extractCellLetter = (label: string, fallback: string): string => {
-    return label.match(/\((.)\)/)?.[1] || fallback;
+    return label.match(/\((.+?)\)/)?.[1] || fallback;
   };
 
   const dayShiftLetter = extractCellLetter(t('scheduling.grid.dayShiftLabel'), 'Z');
   const nightShiftLetter = extractCellLetter(t('scheduling.grid.nightShiftLabel'), 'N');
   const leaveLetter = extractCellLetter(t('scheduling.grid.leaveLabel'), 'C');
+  const shift24hLetter = extractCellLetter(t('scheduling.grid.shift24hLabel'), 'DN');
 
   return (
     <div className="space-y-4">
@@ -638,6 +701,7 @@ export default function ShiftGridCalendar({
                   dayShiftLetter={dayShiftLetter}
                   nightShiftLetter={nightShiftLetter}
                   leaveLetter={leaveLetter}
+                  shift24hLetter={shift24hLetter}
                   getShiftForDay={(day) => getShiftForDoctorAndDay(doctor.id, day)}
                   isLeaveDay={(day) => isLeaveDay(doctor.id, day)}
                   isCellSelected={(day) => isCellSelected(doctor.id, day)}
@@ -668,7 +732,7 @@ export default function ShiftGridCalendar({
           )}
 
           <ShiftGridWarnings warnings={warnings} understaffedDays={understaffedDays} />
-          <ShiftGridLegend dayShiftLetter={dayShiftLetter} nightShiftLetter={nightShiftLetter} leaveLetter={leaveLetter} />
+          <ShiftGridLegend dayShiftLetter={dayShiftLetter} nightShiftLetter={nightShiftLetter} leaveLetter={leaveLetter} shift24hLetter={shift24hLetter} />
         </CardContent>
       </Card>
     </div>

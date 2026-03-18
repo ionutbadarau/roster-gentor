@@ -54,7 +54,7 @@
       "dayShift": "Tur\u0103 de Zi",
       "nightShift": "Tur\u0103 de Noapte",
       "shift24h": "Tur\u0103 de 24h",
-      "shift24hLabel": "Tur\u0103 de 24h (DN)",
+      "shift24hLabel": "Tur\u0103 de 24h (ZN)",
       "shift24hLegend": "Tur\u0103 de 24h (08:00-08:00)",
       "leave": "Concediu",
       "holidayLegend": "S\u0103rb\u0103toare Legal\u0103",
@@ -117,6 +117,9 @@
       "changeTeamError": "Nu s-a putut actualiza echipa doctorului",
       "shiftModeChangedSuccess": "Modul de tură a fost actualizat cu succes",
       "shiftModeChangeError": "Nu s-a putut actualiza modul de tură",
+      "optionalLabel": "Opțional",
+      "optionalChangedSuccess": "Statusul opțional al doctorului a fost actualizat",
+      "optionalChangeError": "Nu s-a putut actualiza statusul opțional",
       "reorderError": "Nu s-a putut reordona doctorii",
       "doctorRenamedSuccess": "Doctorul a fost redenumit cu succes",
       "doctorRenameError": "Nu s-a putut redenumi doctorul",
@@ -188,7 +191,8 @@
       "understaffedNight": "{{date}}: Tura de noapte are {{count}}/{{required}} doctori. Eliminați câteva zile de concediu.",
       "restViolationDay": "Violare perioad\u0103 de odihn\u0103: mai pu\u021bin de {{hours}} ore dup\u0103 tura de zi",
       "restViolationNight": "Violare perioad\u0103 de odihn\u0103: mai pu\u021bin de {{hours}} ore dup\u0103 tura de noapte",
-      "restViolation24h": "Violare perioad\u0103 de odihn\u0103: mai pu\u021bin de {{hours}} ore dup\u0103 tura de 24h"
+      "restViolation24h": "Violare perioad\u0103 de odihn\u0103: mai pu\u021bin de {{hours}} ore dup\u0103 tura de 24h",
+      "restViolation": "{{date}}: Violare perioadă de odihnă pentru {{name}} — doar {{hours}}h odihnă ({{required}}h necesare)"
     }
   },
   "auth": {

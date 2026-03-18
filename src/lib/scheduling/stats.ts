@@ -86,6 +86,7 @@ export function checkDoctorNorms(ctx: EngineContext): string[] {
   const warnings: string[] = [];
 
   for (const doc of ctx.doctors) {
+    if (doc.is_optional) continue;
     const baseNorm = calculateBaseNorm(ctx, doc.id);
     const currentHours = ctx.doctorHours.get(doc.id) || 0;
 
@@ -117,7 +118,7 @@ export function calculateDoctorStats(ctx: EngineContext, shifts: Shift[]): Docto
   const allShifts = [...ctx.fixedShifts, ...shifts];
 
   return ctx.doctors.map(doctor => {
-    const baseNorm = calculateBaseNorm(ctx, doctor.id);
+    const baseNorm = doctor.is_optional ? 0 : calculateBaseNorm(ctx, doctor.id);
     const totalHours = ctx.doctorHours.get(doctor.id) || 0;
     const leaveDays = ctx.leaveDays.filter(
       l => l.doctor_id === doctor.id && l.leave_date.startsWith(monthPrefix) && l.leave_type !== 'bridge'
@@ -136,7 +137,7 @@ export function calculateDoctorStats(ctx: EngineContext, shifts: Shift[]): Docto
       nightShifts,
       leaveDays,
       baseNorm,
-      meetsBaseNorm: totalHours >= baseNorm,
+      meetsBaseNorm: doctor.is_optional ? true : totalHours >= baseNorm,
     };
   });
 }

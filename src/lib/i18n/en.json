@@ -117,6 +117,9 @@
       "changeTeamError": "Could not update doctor team",
       "shiftModeChangedSuccess": "Shift mode updated successfully",
       "shiftModeChangeError": "Could not update shift mode",
+      "optionalLabel": "Optional",
+      "optionalChangedSuccess": "Doctor optional status updated",
+      "optionalChangeError": "Could not update optional status",
       "reorderError": "Could not reorder doctors",
       "doctorRenamedSuccess": "Doctor renamed successfully",
       "doctorRenameError": "Could not rename doctor",
@@ -188,7 +191,8 @@
       "understaffedNight": "{{date}}: Night shift has {{count}}/{{required}} doctors. Consider removing leave days.",
       "restViolationDay": "Rest violation: Less than {{hours}} hours after day shift",
       "restViolationNight": "Rest violation: Less than {{hours}} hours after night shift",
-      "restViolation24h": "Rest violation: Less than {{hours}} hours after 24h shift"
+      "restViolation24h": "Rest violation: Less than {{hours}} hours after 24h shift",
+      "restViolation": "{{date}}: Rest violation for {{name}} — only {{hours}}h rest ({{required}}h required)"
     }
   },
   "auth": {

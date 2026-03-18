@@ -1722,8 +1722,8 @@ describe('SchedulingEngine', () => {
       const result = engine.generateSchedule();
       const elapsed = performance.now() - start;
 
-      // Must finish in under 60 seconds
-      expect(elapsed).toBeLessThan(60_000);
+      // Must finish in under 120 seconds (solver deadline is 90s)
+      expect(elapsed).toBeLessThan(120_000);
       expect(result.shifts.length).toBeGreaterThan(0);
     });
 
@@ -1857,9 +1857,52 @@ describe('SchedulingEngine', () => {
       }
 
       // With heavy leave (8 doctors on leave various weeks), available 12h capacity
-      // (~164 slots) is less than full coverage demand (170 slots = 31 days × 5.5 avg),
-      // so some understaffing is mathematically unavoidable.
-      expect(understaffedDays.length).toBeLessThanOrEqual(6);
+      // is less than full coverage demand, so some understaffing is unavoidable.
+      // With the 90s solver deadline the algorithm consistently achieves ≤ 5.
+      expect(understaffedDays.length).toBeLessThanOrEqual(5);
     });
+  });
+
+  // ── Optional doctors ────────────────────────────────────────────────────────
+
+  describe('optional doctors', () => {
+    it('should not assign any shifts to optional doctors', () => {
+      const { teams, doctors } = createTeamsAndDoctors([7, 7], 2);
+      // Mark last doctor as optional
+      doctors[doctors.length - 1].is_optional = true;
+
+      const result = generate(teams, doctors);
+
+      const optionalDoc = doctors[doctors.length - 1];
+      const docShifts = result.shifts.filter(s => s.doctor_id === optionalDoc.id);
+      expect(docShifts).toHaveLength(0);
+    }, 15000);
+
+    it('should not generate norm warnings for optional doctors', () => {
+      const { teams, doctors } = createTeamsAndDoctors([7, 7], 2);
+      doctors[doctors.length - 1].is_optional = true;
+
+      const result = generate(teams, doctors);
+
+      const optionalDoc = doctors[doctors.length - 1];
+      const normWarnings = result.warnings.filter(w =>
+        w.includes('normWarning') && w.includes(optionalDoc.name)
+      );
+      expect(normWarnings).toHaveLength(0);
+    }, 15000);
+
+    it('should report baseNorm=0 and meetsBaseNorm=true in stats for optional doctors', () => {
+      const { teams, doctors } = createTeamsAndDoctors([7, 7], 2);
+      doctors[doctors.length - 1].is_optional = true;
+
+      const result = generate(teams, doctors);
+
+      const optionalDoc = doctors[doctors.length - 1];
+      const stats = result.doctorStats.find(s => s.doctorId === optionalDoc.id);
+      expect(stats).toBeDefined();
+      expect(stats!.baseNorm).toBe(0);
+      expect(stats!.meetsBaseNorm).toBe(true);
+      expect(stats!.totalHours).toBe(0);
+    }, 15000);
   });
 });

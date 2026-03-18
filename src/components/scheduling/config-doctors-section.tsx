@@ -138,6 +138,22 @@ export default function ConfigDoctorsSection({
     }
   };
 
+  const handleToggleOptional = async (doctorId: string, isOptional: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('doctors')
+        .update({ is_optional: isOptional })
+        .eq('id', doctorId);
+      if (error) throw error;
+
+      toast({ title: t('common.success'), description: t('scheduling.config.optionalChangedSuccess') });
+      await onUpdate();
+    } catch (error) {
+      console.error('Error toggling optional:', error);
+      toast({ title: t('common.error'), description: t('scheduling.config.optionalChangeError'), variant: 'destructive' });
+    }
+  };
+
   const handleDeleteDoctor = async (doctorId: string) => {
     onSetDeletingId(doctorId);
     try {
@@ -280,6 +296,15 @@ export default function ConfigDoctorsSection({
                         <option value="12h">12h</option>
                         <option value="24h">24h</option>
                       </select>
+                      <label className="flex items-center gap-1 text-xs cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={doctor.is_optional ?? false}
+                          onChange={(e) => handleToggleOptional(doctor.id, e.target.checked)}
+                          className="rounded border-input"
+                        />
+                        {t('scheduling.config.optionalLabel')}
+                      </label>
                     </div>
                   }
                 />

@@ -18,6 +18,7 @@ interface ShiftGridDoctorRowProps {
   dayShiftLetter: string;
   nightShiftLetter: string;
   leaveLetter: string;
+  shift24hLetter: string;
   getShiftForDay: (day: number) => Shift | undefined;
   isLeaveDay: (day: number) => boolean;
   isCellSelected: (day: number) => boolean;
@@ -82,6 +83,7 @@ function ShiftGridDoctorRow({
   dayShiftLetter,
   nightShiftLetter,
   leaveLetter,
+  shift24hLetter,
   getShiftForDay,
   isLeaveDay,
   isCellSelected,
@@ -99,7 +101,7 @@ function ShiftGridDoctorRow({
 
   return (
     <div className={`flex border-b ${
-      hasGenerated && stats.totalHours < stats.baseNorm
+      hasGenerated && !doctor.is_optional && stats.totalHours < stats.baseNorm
         ? 'bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40'
         : 'hover:bg-accent/30'
     }`}>
@@ -109,7 +111,10 @@ function ShiftGridDoctorRow({
           style={{ backgroundColor: teamColor }}
         />
         <span className="truncate text-sm font-medium">{doctor.name}</span>
-        {doctor.is_floating && (
+        {doctor.is_optional && (
+          <Badge variant="outline" className="text-xs ml-auto">OPT</Badge>
+        )}
+        {doctor.is_floating && !doctor.is_optional && (
           <Badge variant="outline" className="text-xs ml-auto">F</Badge>
         )}
       </div>
@@ -134,17 +139,18 @@ function ShiftGridDoctorRow({
               onMouseDown={(e) => onCellMouseDown(day, e)}
               onMouseEnter={() => onCellMouseEnter(day)}
             >
-              {bridge ? '·' : leave ? leaveLetter : shift?.shift_type === '24h' ? 'DN' : shift?.shift_type === 'day' ? dayShiftLetter : shift?.shift_type === 'night' ? nightShiftLetter : ''}
+              {bridge ? '·' : leave ? leaveLetter : shift?.shift_type === '24h' ? shift24hLetter : shift?.shift_type === 'day' ? dayShiftLetter : shift?.shift_type === 'night' ? nightShiftLetter : ''}
             </button>
           </div>
         );
       })}
       <div className="w-20 min-w-20 p-2 border-r text-center text-xs font-semibold">
         {(() => {
-          const delta = stats.totalHours - stats.baseNorm;
-          if (!hasGenerated) return `${delta}h`;
-          const color = delta >= 0 ? 'text-green-600' : 'text-red-600';
-          return <span className={color}>{delta > 0 ? '+' : ''}{delta}h</span>;
+          if (doctor.is_optional) return null;
+          const deltaShifts = Math.round(((stats.totalHours - stats.baseNorm) / 12) * 10) / 10;
+          if (!hasGenerated) return `${deltaShifts}`;
+          const color = deltaShifts >= 0 ? 'text-green-600' : 'text-red-600';
+          return <span className={color}>{deltaShifts > 0 ? '+' : ''}{deltaShifts}</span>;
         })()}
       </div>
     </div>

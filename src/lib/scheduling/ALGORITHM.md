@@ -10,6 +10,7 @@ Generate a monthly schedule assigning doctors to 12h shifts (day 08:00–20:00, 
 - **Leave/bridge days**: no shifts on leave or bridge days (weekends/holidays between two leave periods). Bridge days block scheduling but don't reduce base norm
 - **Coverage**: each day needs `shiftsPerDay` day + `shiftsPerNight` night doctors
 - **Base norm**: each doctor works ≥ 7h × (working days − leave days)
+- **Optional doctors**: doctors marked `is_optional` are excluded from all automatic scheduling — they receive shifts only via manual assignment
 
 ### Soft Goals
 - Equalize shifts (extra shifts beyond norm have ≤2-shift gap between doctors)
@@ -18,6 +19,10 @@ Generate a monthly schedule assigning doctors to 12h shifts (day 08:00–20:00, 
 - Cadence following (D-N-R-R rotation per team, staggered by team order)
 
 ## Algorithm Overview
+
+### Pre-filter: Optional Doctors
+
+At the start of `generateSchedule()`, doctors with `is_optional = true` are filtered out of the active doctor list. This filtered list is used throughout all scheduling phases (24h allocation, greedy, repair, norm checks). The full doctor list (including optional) is restored only before stats computation and conflict detection, so optional doctors still appear in the output with `baseNorm: 0` and `meetsBaseNorm: true`. Optional doctors can still have manual shifts added to them — these are included in conflict detection and counter rebuilds.
 
 ### Phase 0: 24h Allocation
 
@@ -70,7 +75,7 @@ Fills gaps left by the greedy pass. Skipped if >15% of slots unfilled.
 
 ### Phase 3: Validation & Output
 
-Rebuild counters → check norms (warnings) → detect conflicts (understaffing, rest violations) → compute per-doctor stats → return `{ shifts, conflicts, warnings, doctorStats }`.
+Rebuild counters → check norms (warnings, skipping optional doctors) → restore full doctor list (including optional) → rebuild counters again → detect conflicts (understaffing, rest violations) → compute per-doctor stats (optional doctors get `baseNorm: 0`) → return `{ shifts, conflicts, warnings, doctorStats }`.
 
 ## Module Map
 

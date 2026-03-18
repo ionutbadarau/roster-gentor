@@ -77,6 +77,10 @@ export class SchedulingEngine implements EngineContext {
     const shifts: Shift[] = [];
     const warnings: string[] = [];
 
+    // Filter out optional doctors — they only get shifts manually
+    const allDoctors = this.doctors;
+    this.doctors = allDoctors.filter(d => !d.is_optional);
+
     // ── Doctor classification ──
     const doctorsByTeam = new Map<string, DoctorWithTeam[]>();
     const floatingDoctors: DoctorWithTeam[] = [];
@@ -588,6 +592,10 @@ export class SchedulingEngine implements EngineContext {
     }
 
     applyShiftRounding(this, shifts);
+
+    // Restore full doctor list (including optional) for stats and conflict detection
+    this.doctors = allDoctors;
+    rebuildCounters(this, shifts);
 
     // Include fixed (manual) shifts when checking for conflicts
     const allShifts = [...this.fixedShifts, ...shifts];

@@ -5,9 +5,10 @@ interface ShiftGridLegendProps {
   dayShiftLetter: string;
   nightShiftLetter: string;
   leaveLetter: string;
+  shift24hLetter: string;
 }
 
-export default function ShiftGridLegend({ dayShiftLetter, nightShiftLetter, leaveLetter }: ShiftGridLegendProps) {
+export default function ShiftGridLegend({ dayShiftLetter, nightShiftLetter, leaveLetter, shift24hLetter }: ShiftGridLegendProps) {
   const { t } = useTranslation();
 
   return (
@@ -21,7 +22,7 @@ export default function ShiftGridLegend({ dayShiftLetter, nightShiftLetter, leav
         <span className="text-muted-foreground">{t('scheduling.grid.nightShiftLegend')}</span>
       </div>
       <div className="flex items-center gap-2">
-        <div className="w-6 h-6 bg-purple-100 dark:bg-purple-900 rounded flex items-center justify-center text-purple-700 dark:text-purple-300 text-xs font-bold">DN</div>
+        <div className="w-6 h-6 bg-purple-100 dark:bg-purple-900 rounded flex items-center justify-center text-purple-700 dark:text-purple-300 text-xs font-bold">{shift24hLetter}</div>
         <span className="text-muted-foreground">{t('scheduling.grid.shift24hLegend')}</span>
       </div>
       <div className="flex items-center gap-2">
