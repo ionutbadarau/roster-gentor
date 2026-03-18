@@ -20,6 +20,7 @@
       "description": "Vizualizeaz\u0103 \u0219i editeaz\u0103 turele pentru fiecare doctor",
       "generate": "Genereaz\u0103 Program",
       "generating": "Se genereaz\u0103...",
+      "generatingMessage": "Se genereaz\u0103 programul, v\u0103 rug\u0103m a\u0219tepta\u021bi...",
       "clearMonth": "Gole\u0219te Luna",
       "leaveDaysThisMonth": "Zile concediu luna aceasta",
       "doctorColumn": "Doctor",

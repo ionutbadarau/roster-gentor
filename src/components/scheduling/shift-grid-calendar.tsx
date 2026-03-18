@@ -4,9 +4,11 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Doctor, Team, Shift, LeaveDay, NationalHoliday } from '@/types/scheduling';
 import { SchedulingEngine, SCHEDULING_CONSTANTS } from '@/lib/scheduling-engine';
+import { useSchedulingWorker } from '@/lib/scheduling/use-scheduling-worker';
 import { createClient } from '../../../supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { Loader2 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 import { formatDateString, getMonthPrefix, getMonthBoundary, groupShiftsByDoctor } from '@/lib/scheduling/shift-utils';
 import { upsertShift, createLeaveDay, deleteRecord, deleteMonthShifts, deleteMonthLeaveDays } from '@/lib/scheduling/shift-data-service';
@@ -50,6 +52,7 @@ export default function ShiftGridCalendar({
   onNationalHolidaysUpdate,
 }: ShiftGridCalendarProps) {
   const [generating, setGenerating] = useState(false);
+  const { generate: generateInWorker } = useSchedulingWorker();
   const [generationWarnings, setGenerationWarnings] = useState<string[]>([]);
   const [dragState, setDragState] = useState<{
     doctorId: string;
@@ -181,15 +184,13 @@ export default function ShiftGridCalendar({
       const prevMonthLookback = formatDateString(prevMonthDate.getFullYear(), prevMonthDate.getMonth(), prevLookbackDay);
       const previousMonthShifts = shifts.filter(s => s.shift_date >= prevMonthLookback && s.shift_date <= prevMonthEnd);
 
-      const engine = new SchedulingEngine({
+      const result = await generateInWorker({
         month: currentMonth,
         year: currentYear,
         doctors, teams, shiftsPerDay, shiftsPerNight, leaveDays, nationalHolidays,
         fixedShifts: manualShifts,
         previousMonthShifts,
       });
-
-      const result = engine.generateSchedule();
       setGenerationWarnings(result.warnings);
 
       // Delete only non-manual shifts for this month from DB
@@ -584,7 +585,15 @@ export default function ShiftGridCalendar({
           onGenerate={handleGenerateSchedule}
           onClearMonth={handleClearMonth}
         />
-        <CardContent>
+        <CardContent className="relative">
+          {generating && (
+            <div className="absolute inset-0 bg-background/60 backdrop-blur-sm z-20 flex items-center justify-center">
+              <div className="flex items-center gap-3 text-muted-foreground">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <span className="text-lg font-medium">{t('scheduling.grid.generatingMessage')}</span>
+              </div>
+            </div>
+          )}
           <ScrollArea className="w-full">
             <div className="min-w-max">
               {/* Header row with days */}
