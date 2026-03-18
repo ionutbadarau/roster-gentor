@@ -113,12 +113,6 @@ function ShiftGridDoctorRow({
           <Badge variant="outline" className="text-xs ml-auto">F</Badge>
         )}
       </div>
-      <div className="w-20 min-w-20 p-2 border-r text-center text-xs">
-        <div className={!hasGenerated ? '' : stats.totalHours >= stats.baseNorm ? 'text-green-600' : 'text-red-600'}>
-          {stats.totalHours}h
-        </div>
-        <div className="text-muted-foreground">/{stats.baseNorm}h</div>
-      </div>
       {days.map(day => {
         const shift = getShiftForDay(day);
         const leave = isLeaveDay(day);
@@ -145,6 +139,14 @@ function ShiftGridDoctorRow({
           </div>
         );
       })}
+      <div className="w-20 min-w-20 p-2 border-r text-center text-xs font-semibold">
+        {(() => {
+          const delta = stats.totalHours - stats.baseNorm;
+          if (!hasGenerated) return `${delta}h`;
+          const color = delta >= 0 ? 'text-green-600' : 'text-red-600';
+          return <span className={color}>{delta > 0 ? '+' : ''}{delta}h</span>;
+        })()}
+      </div>
     </div>
   );
 }

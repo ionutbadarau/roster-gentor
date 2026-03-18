@@ -592,9 +592,6 @@ export default function ShiftGridCalendar({
                 <div className="w-48 min-w-48 p-2 font-semibold border-r bg-muted sticky left-0 z-10">
                   {t('scheduling.grid.doctorColumn')}
                 </div>
-                <div className="w-20 min-w-20 p-2 font-semibold border-r bg-muted text-center text-xs">
-                  {t('scheduling.grid.hoursColumn')}
-                </div>
                 {days.map(day => (
                   <div
                     key={day}
@@ -616,6 +613,9 @@ export default function ShiftGridCalendar({
                     <div>{getDayOfWeek(day)}</div>
                   </div>
                 ))}
+                <div className="w-20 min-w-20 p-2 font-semibold border-r bg-muted text-center text-xs">
+                  {t('scheduling.grid.hoursColumn')}
+                </div>
               </div>
 
               {/* Doctor rows */}
