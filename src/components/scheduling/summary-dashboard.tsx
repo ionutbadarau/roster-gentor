@@ -28,8 +28,9 @@ export default function SummaryDashboard({
   const monthNames = tArray('months');
 
   const conflicts = SchedulingEngine.detectConflicts(shifts, doctors);
-  const dayShifts = shifts.filter((s) => s.shift_type === 'day').length;
-  const nightShifts = shifts.filter((s) => s.shift_type === 'night').length;
+  const shifts24h = shifts.filter((s) => s.shift_type === '24h').length;
+  const dayShifts = shifts.filter((s) => s.shift_type === 'day').length + shifts24h;
+  const nightShifts = shifts.filter((s) => s.shift_type === 'night').length + shifts24h;
   const totalHours = (dayShifts + nightShifts) * SCHEDULING_CONSTANTS.SHIFT_DURATION;
 
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();

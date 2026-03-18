@@ -9,7 +9,7 @@ import type { Doctor, Shift, ScheduleConflict, LeaveDay, NationalHoliday, Schedu
 import { SCHEDULING_CONSTANTS } from './constants';
 import { computeDoctorBridgeDays } from './bridge-days';
 import { getWorkingDaysInMonth } from './calendar-utils';
-import { groupShiftsByDate, groupShiftsByDoctor } from './shift-utils';
+import { groupShiftsByDate, groupShiftsByDoctor, getShiftEndMs, getShiftStartMs, getRestHours } from './shift-utils';
 
 /**
  * Convenience wrapper: accepts NationalHoliday[] (builds the Set internally).
@@ -131,8 +131,9 @@ export function detectConflicts(shifts: Shift[], doctors: Doctor[], requiredPerD
   const shiftsByDate = groupShiftsByDate(shifts);
 
   shiftsByDate.forEach((dayShifts, date) => {
-    const dayShiftCount = dayShifts.filter(s => s.shift_type === 'day').length;
-    const nightShiftCount = dayShifts.filter(s => s.shift_type === 'night').length;
+    const shifts24h = dayShifts.filter(s => s.shift_type === '24h').length;
+    const dayShiftCount = dayShifts.filter(s => s.shift_type === 'day').length + shifts24h;
+    const nightShiftCount = dayShifts.filter(s => s.shift_type === 'night').length + shifts24h;
 
     if (dayShiftCount < requiredPerDay) {
       conflicts.push({
@@ -154,33 +155,32 @@ export function detectConflicts(shifts: Shift[], doctors: Doctor[], requiredPerD
   const doctorShifts = groupShiftsByDoctor(shifts);
 
   doctorShifts.forEach((doctorShiftList, doctorId) => {
-    const sortedShifts = doctorShiftList.sort((a, b) =>
-      new Date(a.shift_date).getTime() - new Date(b.shift_date).getTime()
+    const workShifts = doctorShiftList.filter(
+      s => s.shift_type === 'day' || s.shift_type === 'night' || s.shift_type === '24h'
+    );
+    const sortedShifts = workShifts.sort((a, b) =>
+      getShiftStartMs(a.shift_date, a.shift_type as 'day' | 'night' | '24h') -
+      getShiftStartMs(b.shift_date, b.shift_type as 'day' | 'night' | '24h')
     );
 
     for (let i = 1; i < sortedShifts.length; i++) {
       const prevShift = sortedShifts[i - 1];
       const currShift = sortedShifts[i];
 
-      const prevDate = new Date(prevShift.shift_date);
-      const currDate = new Date(currShift.shift_date);
-      const hoursBetween = (currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60);
+      const prevType = prevShift.shift_type as 'day' | 'night' | '24h';
+      const currType = currShift.shift_type as 'day' | 'night' | '24h';
+      const prevEndMs = getShiftEndMs(prevShift.shift_date, prevType);
+      const currStartMs = getShiftStartMs(currShift.shift_date, currType);
+      const gapHours = (currStartMs - prevEndMs) / 3_600_000;
+      const minRest = getRestHours(prevType);
 
-      if (prevShift.shift_type === 'day' && hoursBetween < SCHEDULING_CONSTANTS.DAY_SHIFT_REST) {
+      if (gapHours < minRest) {
+        const key = prevType === '24h' ? '24h' : prevType === 'night' ? 'Night' : 'Day';
         conflicts.push({
           type: 'rest_violation',
           date: currShift.shift_date,
           doctor_id: doctorId,
-          message: `scheduling.engine.restViolationDay::${JSON.stringify({ hours: SCHEDULING_CONSTANTS.DAY_SHIFT_REST })}`,
-        });
-      }
-
-      if (prevShift.shift_type === 'night' && hoursBetween < SCHEDULING_CONSTANTS.NIGHT_SHIFT_REST) {
-        conflicts.push({
-          type: 'rest_violation',
-          date: currShift.shift_date,
-          doctor_id: doctorId,
-          message: `scheduling.engine.restViolationNight::${JSON.stringify({ hours: SCHEDULING_CONSTANTS.NIGHT_SHIFT_REST })}`,
+          message: `scheduling.engine.restViolation${key}::${JSON.stringify({ hours: minRest })}`,
         });
       }
     }

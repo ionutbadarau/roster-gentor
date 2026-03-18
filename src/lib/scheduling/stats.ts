@@ -38,6 +38,28 @@ export function recordShift(ctx: EngineContext, doctor: DoctorWithTeam, date: Da
   weeklyMap.set(weekNumber, (weeklyMap.get(weekNumber) || 0) + SCHEDULING_CONSTANTS.SHIFT_DURATION);
 }
 
+/** Record a 24h shift (08:00→08:00+1). Counts as 2 slot-fills, 24h of work. */
+export function recordShift24h(ctx: EngineContext, doctor: DoctorWithTeam, date: Date): void {
+  const shiftEndTime = utcMs(date.getFullYear(), date.getMonth(), date.getDate() + 1, 8);
+
+  ctx.doctorLastShift.set(doctor.id, {
+    date,
+    type: '24h',
+    endTime: shiftEndTime,
+  });
+
+  // Counts as 2 slots (1 day + 1 night)
+  ctx.doctorShiftCount.set(doctor.id, (ctx.doctorShiftCount.get(doctor.id) || 0) + 2);
+  ctx.doctorHours.set(doctor.id, (ctx.doctorHours.get(doctor.id) || 0) + 24);
+
+  const weekNumber = getWeekNumber(date);
+  if (!ctx.doctorWeeklyHours.has(doctor.id)) {
+    ctx.doctorWeeklyHours.set(doctor.id, new Map());
+  }
+  const weeklyMap = ctx.doctorWeeklyHours.get(doctor.id)!;
+  weeklyMap.set(weekNumber, (weeklyMap.get(weekNumber) || 0) + 24);
+}
+
 /**
  * Rebuild doctorShiftCount and doctorHours from the final shifts array
  * (the greedy-pass counters become stale after the repair phase).
@@ -50,9 +72,13 @@ export function rebuildCounters(ctx: EngineContext, shifts: Shift[]): void {
 
   const allShifts = [...ctx.fixedShifts, ...shifts];
   for (const s of allShifts) {
-    if (s.shift_type !== 'day' && s.shift_type !== 'night') continue;
-    ctx.doctorShiftCount.set(s.doctor_id, (ctx.doctorShiftCount.get(s.doctor_id) || 0) + 1);
-    ctx.doctorHours.set(s.doctor_id, (ctx.doctorHours.get(s.doctor_id) || 0) + SCHEDULING_CONSTANTS.SHIFT_DURATION);
+    if (s.shift_type === '24h') {
+      ctx.doctorShiftCount.set(s.doctor_id, (ctx.doctorShiftCount.get(s.doctor_id) || 0) + 2);
+      ctx.doctorHours.set(s.doctor_id, (ctx.doctorHours.get(s.doctor_id) || 0) + 24);
+    } else if (s.shift_type === 'day' || s.shift_type === 'night') {
+      ctx.doctorShiftCount.set(s.doctor_id, (ctx.doctorShiftCount.get(s.doctor_id) || 0) + 1);
+      ctx.doctorHours.set(s.doctor_id, (ctx.doctorHours.get(s.doctor_id) || 0) + SCHEDULING_CONSTANTS.SHIFT_DURATION);
+    }
   }
 }
 
@@ -98,8 +124,9 @@ export function calculateDoctorStats(ctx: EngineContext, shifts: Shift[]): Docto
     ).length;
 
     const doctorShifts = allShifts.filter(s => s.doctor_id === doctor.id);
-    const dayShifts = doctorShifts.filter(s => s.shift_type === 'day').length;
-    const nightShifts = doctorShifts.filter(s => s.shift_type === 'night').length;
+    const shifts24h = doctorShifts.filter(s => s.shift_type === '24h').length;
+    const dayShifts = doctorShifts.filter(s => s.shift_type === 'day').length + shifts24h;
+    const nightShifts = doctorShifts.filter(s => s.shift_type === 'night').length + shifts24h;
 
     return {
       doctorId: doctor.id,

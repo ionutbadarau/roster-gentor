@@ -18,7 +18,7 @@ export function useDoctors() {
   return useQuery({
     queryKey: queryKeys.doctors,
     queryFn: async () => {
-      const { data, error } = await supabase.from('doctors').select('*');
+      const { data, error } = await supabase.from('doctors').select('*').order('display_order', { ascending: true });
       if (error) throw error;
       return (data ?? []) as Doctor[];
     },

@@ -13,7 +13,7 @@ interface ShiftSelectionPopupProps {
   popup: SelectionPopupData;
   hasAssignments: boolean;
   hasBridgeCandidates: boolean;
-  onBatchAction: (action: 'day' | 'night' | 'leave' | 'bridge') => void;
+  onBatchAction: (action: 'day' | 'night' | '24h' | 'leave' | 'bridge') => void;
   onBatchClear: () => void;
 }
 
@@ -22,7 +22,7 @@ const ShiftSelectionPopup = forwardRef<HTMLDivElement, ShiftSelectionPopupProps>
     const { t } = useTranslation();
 
     const POPUP_W = 190;
-    let baseH = 160;
+    let baseH = 196;
     if (hasBridgeCandidates) baseH += 36;
     if (hasAssignments) baseH += 40;
     const POPUP_H = baseH;
@@ -51,6 +51,13 @@ const ShiftSelectionPopup = forwardRef<HTMLDivElement, ShiftSelectionPopupProps>
         >
           <span className="w-4 h-4 rounded bg-indigo-500 flex-shrink-0" />
           {t('scheduling.grid.nightShiftLabel')}
+        </button>
+        <button
+          className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
+          onClick={() => onBatchAction('24h')}
+        >
+          <span className="w-4 h-4 rounded bg-purple-500 flex-shrink-0" />
+          {t('scheduling.grid.shift24hLabel')}
         </button>
         <button
           className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"

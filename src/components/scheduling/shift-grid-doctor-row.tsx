@@ -54,6 +54,10 @@ function getCellClassName(
     state = nonWorking
       ? 'bg-orange-50 dark:bg-orange-900/50 text-orange-600 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-800/70'
       : 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-800';
+  } else if (shift?.shift_type === '24h') {
+    state = nonWorking
+      ? 'bg-purple-50 dark:bg-purple-900/50 text-purple-600 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-800/70'
+      : 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-800';
   } else if (shift?.shift_type === 'day') {
     state = nonWorking
       ? 'bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800/70'
@@ -136,7 +140,7 @@ function ShiftGridDoctorRow({
               onMouseDown={(e) => onCellMouseDown(day, e)}
               onMouseEnter={() => onCellMouseEnter(day)}
             >
-              {bridge ? '·' : leave ? leaveLetter : shift?.shift_type === 'day' ? dayShiftLetter : shift?.shift_type === 'night' ? nightShiftLetter : ''}
+              {bridge ? '·' : leave ? leaveLetter : shift?.shift_type === '24h' ? 'DN' : shift?.shift_type === 'day' ? dayShiftLetter : shift?.shift_type === 'night' ? nightShiftLetter : ''}
             </button>
           </div>
         );

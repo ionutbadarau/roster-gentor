@@ -5,6 +5,8 @@ export interface Doctor {
   email?: string;
   team_id?: string;
   is_floating: boolean;
+  shift_mode?: '12h' | '24h';
+  display_order?: number;
   preferences: Record<string, any>;
   created_at?: string;
   updated_at?: string;
@@ -47,7 +49,7 @@ export interface Shift {
   id: string;
   doctor_id: string;
   shift_date: string;
-  shift_type: 'day' | 'night' | 'rest';
+  shift_type: 'day' | 'night' | '24h' | 'rest';
   start_time?: string;
   end_time?: string;
   is_manual?: boolean;

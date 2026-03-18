@@ -7,6 +7,8 @@ export const SCHEDULING_CONSTANTS = {
   SHIFT_24H_REST: 72,
   MAX_WEEKLY_HOURS: 48,
   BASE_NORM_HOURS_PER_DAY: 7,
+  /** Length of the D-N-R-R cadence cycle. */
+  CADENCE_CYCLE_LENGTH: 4,
 };
 
 export interface ScheduleGenerationOptions {
@@ -44,4 +46,8 @@ export interface EngineContext {
   doctorShiftCount: Map<string, number>;
   doctorHours: Map<string, number>;
   doctorWeeklyHours: Map<string, Map<number, number>>;
+  /** Per-doctor score noise for multi-attempt greedy. */
+  scorePerturbation: Map<string, number>;
+  /** Per-doctor cadence schedule: doctorId → (dayNumber → 'day'|'night'|null). */
+  doctorCadence: Map<string, Map<number, 'day' | 'night' | null>>;
 }

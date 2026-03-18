@@ -52,6 +52,9 @@
       "batchAppliedDesc": "{{label}} applied for days {{start}}\u2013{{end}} {{month}}",
       "dayShift": "Day Shift",
       "nightShift": "Night Shift",
+      "shift24h": "24h Shift",
+      "shift24hLabel": "24h Shift (DN)",
+      "shift24hLegend": "24h Shift (08:00-08:00)",
       "leave": "Leave",
       "holidayLegend": "National Holiday",
       "bridgeDayLegend": "Bridge Day (free, not leave)",
@@ -111,6 +114,9 @@
       "shiftSettingsSaveError": "Could not save shift settings",
       "teamChangedSuccess": "Doctor team updated successfully",
       "changeTeamError": "Could not update doctor team",
+      "shiftModeChangedSuccess": "Shift mode updated successfully",
+      "shiftModeChangeError": "Could not update shift mode",
+      "reorderError": "Could not reorder doctors",
       "doctorRenamedSuccess": "Doctor renamed successfully",
       "doctorRenameError": "Could not rename doctor",
       "teamRenamedSuccess": "Team renamed successfully",
@@ -180,7 +186,8 @@
       "understaffedDay": "{{date}}: Day shift has {{count}}/{{required}} doctors. Consider removing leave days.",
       "understaffedNight": "{{date}}: Night shift has {{count}}/{{required}} doctors. Consider removing leave days.",
       "restViolationDay": "Rest violation: Less than {{hours}} hours after day shift",
-      "restViolationNight": "Rest violation: Less than {{hours}} hours after night shift"
+      "restViolationNight": "Rest violation: Less than {{hours}} hours after night shift",
+      "restViolation24h": "Rest violation: Less than {{hours}} hours after 24h shift"
     }
   },
   "auth": {

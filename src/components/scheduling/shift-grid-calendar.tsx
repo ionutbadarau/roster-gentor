@@ -108,7 +108,8 @@ export default function ShiftGridCalendar({
     for (const s of monthShifts) {
       if (!byDate.has(s.shift_date)) byDate.set(s.shift_date, { day: 0, night: 0 });
       const counts = byDate.get(s.shift_date)!;
-      if (s.shift_type === 'day') counts.day++;
+      if (s.shift_type === '24h') { counts.day++; counts.night++; }
+      else if (s.shift_type === 'day') counts.day++;
       else if (s.shift_type === 'night') counts.night++;
     }
 
@@ -142,19 +143,10 @@ export default function ShiftGridCalendar({
     return Array.from(new Set(result));
   }, [generationWarnings, shiftShortfallDays, currentMonth, currentYear, shiftsPerDay, shiftsPerNight]);
 
-  // Sort doctors: team doctors first (by team order), then floating
+  // Sort doctors by display_order (manual sort from config)
   const sortedDoctors = useMemo(() => {
-    const teamDoctors = doctors.filter(d => d.team_id && !d.is_floating);
-    const floatingDoctors = doctors.filter(d => d.is_floating || !d.team_id);
-
-    teamDoctors.sort((a, b) => {
-      const teamA = teams.find(t => t.id === a.team_id);
-      const teamB = teams.find(t => t.id === b.team_id);
-      return (teamA?.order || 0) - (teamB?.order || 0);
-    });
-
-    return [...teamDoctors, ...floatingDoctors];
-  }, [doctors, teams]);
+    return [...doctors].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+  }, [doctors]);
 
   // --- Navigation ---
   const handlePreviousMonth = () => {
@@ -209,8 +201,15 @@ export default function ShiftGridCalendar({
         .eq('is_manual', false);
       if (deleteError) throw deleteError;
 
-      const { error } = await supabase.from('shifts').insert(
-        result.shifts.map(({ id, ...shift }) => shift)
+      // Deduplicate by (doctor_id, shift_date) – keep last entry so repair-pass
+      // overrides greedy-pass when both produce a shift for the same slot.
+      const deduped = new Map<string, Omit<Shift, 'id'>>();
+      for (const { id, ...shift } of result.shifts) {
+        deduped.set(`${shift.doctor_id}:${shift.shift_date}`, shift);
+      }
+      const { error } = await supabase.from('shifts').upsert(
+        Array.from(deduped.values()),
+        { onConflict: 'doctor_id,shift_date' },
       );
       if (error) throw error;
 
@@ -310,8 +309,9 @@ export default function ShiftGridCalendar({
   // --- Doctor stats ---
   const getDoctorStats = (doctorId: string) => {
     const doctorShifts = shifts.filter(s => s.doctor_id === doctorId && s.shift_date.startsWith(monthPrefix));
-    const dayShifts = doctorShifts.filter(s => s.shift_type === 'day').length;
-    const nightShifts = doctorShifts.filter(s => s.shift_type === 'night').length;
+    const shifts24h = doctorShifts.filter(s => s.shift_type === '24h').length;
+    const dayShifts = doctorShifts.filter(s => s.shift_type === 'day').length + shifts24h;
+    const nightShifts = doctorShifts.filter(s => s.shift_type === 'night').length + shifts24h;
     const totalHours = (dayShifts + nightShifts) * SCHEDULING_CONSTANTS.SHIFT_DURATION;
     const doctorLeaveDays = leaveDays.filter(l => l.doctor_id === doctorId && l.leave_date.startsWith(monthPrefix) && l.leave_type !== 'bridge').length;
     const workingDays = SchedulingEngine.getWorkingDaysInMonthStatic(currentMonth, currentYear, nationalHolidays);
@@ -335,7 +335,7 @@ export default function ShiftGridCalendar({
         const prev = sorted[i - 1];
         const curr = sorted[i];
         const hoursBetween = (new Date(curr.shift_date).getTime() - new Date(prev.shift_date).getTime()) / (1000 * 60 * 60);
-        const minRest = prev.shift_type === 'night' ? SCHEDULING_CONSTANTS.NIGHT_SHIFT_REST : SCHEDULING_CONSTANTS.DAY_SHIFT_REST;
+        const minRest = prev.shift_type === '24h' ? SCHEDULING_CONSTANTS.SHIFT_24H_REST : prev.shift_type === 'night' ? SCHEDULING_CONSTANTS.NIGHT_SHIFT_REST : SCHEDULING_CONSTANTS.DAY_SHIFT_REST;
 
         if (hoursBetween < minRest) {
           violations.add(`${doctorId}:${prev.shift_date}`);
@@ -449,7 +449,7 @@ export default function ShiftGridCalendar({
   }, [selectionPopup, currentYear, currentMonth, nationalHolidays, leaveDays]);
 
   // --- Batch actions ---
-  const handleBatchAction = async (action: 'day' | 'night' | 'leave' | 'bridge') => {
+  const handleBatchAction = async (action: 'day' | 'night' | '24h' | 'leave' | 'bridge') => {
     if (!selectionPopup) return;
     const { doctorId, days: selectedDays } = selectionPopup;
     setSelectionPopup(null);
@@ -494,7 +494,7 @@ export default function ShiftGridCalendar({
       onShiftsUpdate(updatedShifts);
       onLeaveDaysUpdate(updatedLeaveDays);
 
-      const label = action === 'day' ? t('scheduling.grid.dayShift') : action === 'night' ? t('scheduling.grid.nightShift') : action === 'bridge' ? t('scheduling.grid.bridgeDayLegend') : t('scheduling.grid.leave');
+      const label = action === '24h' ? t('scheduling.grid.shift24h') : action === 'day' ? t('scheduling.grid.dayShift') : action === 'night' ? t('scheduling.grid.nightShift') : action === 'bridge' ? t('scheduling.grid.bridgeDayLegend') : t('scheduling.grid.leave');
       toast({
         title: t('scheduling.grid.batchApplied', { label, count: selectedDays.length }),
         description: t('scheduling.grid.batchAppliedDesc', { label, start: selectedDays[0], end: selectedDays[selectedDays.length - 1], month: monthNames[currentMonth] }),

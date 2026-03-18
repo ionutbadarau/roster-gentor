@@ -10,8 +10,10 @@ export async function upsertShift(
   supabase: SupabaseClient,
   doctorId: string,
   dateStr: string,
-  shiftType: 'day' | 'night',
+  shiftType: 'day' | 'night' | '24h',
 ): Promise<Shift> {
+  const startTime = shiftType === 'night' ? '20:00' : '08:00';
+  const endTime = shiftType === 'day' ? '20:00' : '08:00'; // night and 24h both end at 08:00
   const { data, error } = await supabase
     .from('shifts')
     .upsert(
@@ -19,8 +21,8 @@ export async function upsertShift(
         doctor_id: doctorId,
         shift_date: dateStr,
         shift_type: shiftType,
-        start_time: shiftType === 'day' ? '08:00' : '20:00',
-        end_time: shiftType === 'day' ? '20:00' : '08:00',
+        start_time: startTime,
+        end_time: endTime,
         is_manual: true,
       },
       { onConflict: 'doctor_id,shift_date' },

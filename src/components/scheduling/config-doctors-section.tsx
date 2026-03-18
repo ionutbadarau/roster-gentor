@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,9 +46,37 @@ export default function ConfigDoctorsSection({
   const [newDoctorName, setNewDoctorName] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState<string>(teams[0]?.id ?? '');
   const [addingDoctor, setAddingDoctor] = useState(false);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const draggedIdRef = useRef<string | null>(null);
 
   const { toast } = useToast();
   const { t } = useTranslation();
+
+  // Sort doctors by display_order for rendering
+  const sortedDoctors = [...doctors].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+
+  const handleReorder = useCallback(async (fromId: string, toId: string) => {
+    if (fromId === toId) return;
+    const ordered = [...sortedDoctors];
+    const fromIndex = ordered.findIndex(d => d.id === fromId);
+    const toIndex = ordered.findIndex(d => d.id === toId);
+    if (fromIndex === -1 || toIndex === -1) return;
+
+    const [moved] = ordered.splice(fromIndex, 1);
+    ordered.splice(toIndex, 0, moved);
+
+    // Persist new order
+    try {
+      const updates = ordered.map((d, i) =>
+        supabase.from('doctors').update({ display_order: i }).eq('id', d.id)
+      );
+      await Promise.all(updates);
+      await onUpdate();
+    } catch (error) {
+      console.error('Error reordering doctors:', error);
+      toast({ title: t('common.error'), description: t('scheduling.config.reorderError'), variant: 'destructive' });
+    }
+  }, [sortedDoctors, supabase, onUpdate, toast, t]);
 
   const handleAddDoctor = async () => {
     if (!newDoctorName.trim()) {
@@ -91,6 +119,22 @@ export default function ConfigDoctorsSection({
     } catch (error) {
       console.error('Error changing team:', error);
       toast({ title: t('common.error'), description: t('scheduling.config.changeTeamError'), variant: 'destructive' });
+    }
+  };
+
+  const handleChangeShiftMode = async (doctorId: string, mode: '12h' | '24h') => {
+    try {
+      const { error } = await supabase
+        .from('doctors')
+        .update({ shift_mode: mode })
+        .eq('id', doctorId);
+      if (error) throw error;
+
+      toast({ title: t('common.success'), description: t('scheduling.config.shiftModeChangedSuccess') });
+      await onUpdate();
+    } catch (error) {
+      console.error('Error changing shift mode:', error);
+      toast({ title: t('common.error'), description: t('scheduling.config.shiftModeChangeError'), variant: 'destructive' });
     }
   };
 
@@ -173,8 +217,8 @@ export default function ConfigDoctorsSection({
 
         <div className="space-y-2">
           <Label>{t('scheduling.config.doctorsLabel')} ({doctors.length})</Label>
-          <div className="space-y-2 max-h-64 overflow-y-auto">
-            {doctors.map((doctor) => {
+          <div className="space-y-2 max-h-[32rem] overflow-y-auto">
+            {sortedDoctors.map((doctor) => {
               const team = teams.find((t) => t.id === doctor.team_id);
               return (
                 <InlineEditableItem
@@ -189,20 +233,54 @@ export default function ConfigDoctorsSection({
                   onConfirmEdit={(id) => onConfirmEdit(id, 'doctor')}
                   onDelete={handleDeleteDoctor}
                   onEditingNameChange={onEditingNameChange}
+                  dragHandleProps={{
+                    draggable: true,
+                    onDragStart: (e) => {
+                      draggedIdRef.current = doctor.id;
+                      e.dataTransfer.effectAllowed = 'move';
+                    },
+                    onDragEnd: () => {
+                      draggedIdRef.current = null;
+                      setDragOverId(null);
+                    },
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    setDragOverId(doctor.id);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOverId(null);
+                    if (draggedIdRef.current) {
+                      handleReorder(draggedIdRef.current, doctor.id);
+                    }
+                  }}
+                  isDragOver={dragOverId === doctor.id}
                   prefix={
                     team ? <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: team.color }} /> : undefined
                   }
                   extra={
-                    <select
-                      className="text-xs px-2 py-1 rounded-md border border-input bg-background"
-                      value={doctor.team_id || ''}
-                      onChange={(e) => handleChangeTeam(doctor.id, e.target.value)}
-                    >
-                      <option value="">{t('scheduling.config.noTeamOption')}</option>
-                      {teams.map((tm) => (
-                        <option key={tm.id} value={tm.id}>{tm.name}</option>
-                      ))}
-                    </select>
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        className="text-xs px-2 py-1 rounded-md border border-input bg-background"
+                        value={doctor.team_id || ''}
+                        onChange={(e) => handleChangeTeam(doctor.id, e.target.value)}
+                      >
+                        <option value="">{t('scheduling.config.noTeamOption')}</option>
+                        {teams.map((tm) => (
+                          <option key={tm.id} value={tm.id}>{tm.name}</option>
+                        ))}
+                      </select>
+                      <select
+                        className="text-xs px-2 py-1 rounded-md border border-input bg-background"
+                        value={doctor.shift_mode || '12h'}
+                        onChange={(e) => handleChangeShiftMode(doctor.id, e.target.value as '12h' | '24h')}
+                      >
+                        <option value="12h">12h</option>
+                        <option value="24h">24h</option>
+                      </select>
+                    </div>
                   }
                 />
               );

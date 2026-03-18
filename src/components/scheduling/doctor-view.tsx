@@ -37,8 +37,9 @@ export default function DoctorView({
   };
 
   const calculateStats = (doctorShifts: Shift[]) => {
-    const dayShifts = doctorShifts.filter((s) => s.shift_type === 'day').length;
-    const nightShifts = doctorShifts.filter((s) => s.shift_type === 'night').length;
+    const shifts24h = doctorShifts.filter((s) => s.shift_type === '24h').length;
+    const dayShifts = doctorShifts.filter((s) => s.shift_type === 'day').length + shifts24h;
+    const nightShifts = doctorShifts.filter((s) => s.shift_type === 'night').length + shifts24h;
     const totalHours = (dayShifts + nightShifts) * SCHEDULING_CONSTANTS.SHIFT_DURATION;
 
     return {
@@ -203,7 +204,9 @@ export default function DoctorView({
                         <div
                           key={shift.id}
                           className={`p-3 rounded-lg border ${
-                            shift.shift_type === 'day'
+                            shift.shift_type === '24h'
+                              ? 'bg-purple-50 dark:bg-purple-950 border-purple-200 dark:border-purple-800'
+                              : shift.shift_type === 'day'
                               ? 'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800'
                               : 'bg-indigo-50 dark:bg-indigo-950 border-indigo-200 dark:border-indigo-800'
                           }`}
@@ -215,19 +218,21 @@ export default function DoctorView({
                               </p>
                               <p
                                 className={`text-sm ${
-                                  shift.shift_type === 'day'
+                                  shift.shift_type === '24h'
+                                    ? 'text-purple-700 dark:text-purple-300'
+                                    : shift.shift_type === 'day'
                                     ? 'text-blue-700 dark:text-blue-300'
                                     : 'text-indigo-700 dark:text-indigo-300'
                                 }`}
                               >
-                                {shift.shift_type === 'day' ? t('scheduling.doctorView.dayShiftLabel') : t('scheduling.doctorView.nightShiftLabel')}
+                                {shift.shift_type === '24h' ? t('scheduling.grid.shift24h') : shift.shift_type === 'day' ? t('scheduling.doctorView.dayShiftLabel') : t('scheduling.doctorView.nightShiftLabel')}
                               </p>
                             </div>
                             <div className="text-right">
                               <p className="text-sm font-medium">
                                 {shift.start_time} - {shift.end_time}
                               </p>
-                              <p className="text-xs text-muted-foreground">{t('scheduling.doctorView.hours12')}</p>
+                              <p className="text-xs text-muted-foreground">{shift.shift_type === '24h' ? '24h' : t('scheduling.doctorView.hours12')}</p>
                             </div>
                           </div>
                         </div>
