@@ -2,7 +2,7 @@
  * Shift recording, counter management, and per-doctor statistics.
  */
 
-import type { DoctorWithTeam, Shift, DoctorMonthlyStats } from '@/types/scheduling';
+import type { DoctorWithTeam, Shift, DoctorMonthlyStats, Doctor } from '@/types/scheduling';
 import type { EngineContext } from './constants';
 import { SCHEDULING_CONSTANTS } from './constants';
 import { utcMs, getWeekNumber, getWorkingDaysInMonth, getMonthPrefix } from './calendar-utils';
@@ -111,6 +111,40 @@ export function applyShiftRounding(ctx: EngineContext, shifts: Shift[]): void {
       ctx.doctorShiftCount.set(doctor.id, (ctx.doctorShiftCount.get(doctor.id) || 0) + 1);
     }
   }
+}
+
+/**
+ * Compute extra shifts (beyond base norm) for all non-optional 12h doctors.
+ * 24h doctors are excluded: they follow a rigid 72h cadence and their shifts
+ * are never added/removed by equalization or repair.
+ * Used by the equalization repair and post-generation warning.
+ */
+export function computeExtraShifts(ctx: EngineContext, shifts: Shift[]): { id: string; extra: number }[] {
+  const SHIFT_HOURS = SCHEDULING_CONSTANTS.SHIFT_DURATION;
+  const shiftCounts = new Map<string, number>();
+  for (const doc of ctx.doctors) shiftCounts.set(doc.id, 0);
+  for (const s of ctx.fixedShifts) {
+    if (s.shift_type === '24h') {
+      shiftCounts.set(s.doctor_id, (shiftCounts.get(s.doctor_id) || 0) + 2);
+    } else if (s.shift_type === 'day' || s.shift_type === 'night') {
+      shiftCounts.set(s.doctor_id, (shiftCounts.get(s.doctor_id) || 0) + 1);
+    }
+  }
+  for (const s of shifts) {
+    if (s.shift_type === '24h') {
+      shiftCounts.set(s.doctor_id, (shiftCounts.get(s.doctor_id) || 0) + 2);
+    } else if (s.shift_type === 'day' || s.shift_type === 'night') {
+      shiftCounts.set(s.doctor_id, (shiftCounts.get(s.doctor_id) || 0) + 1);
+    }
+  }
+  return ctx.doctors
+    .filter((doc: Doctor | DoctorWithTeam) =>
+      !(doc as DoctorWithTeam).is_optional && (doc as DoctorWithTeam).shift_mode !== '24h')
+    .map(doc => {
+      const norm = calculateBaseNorm(ctx, doc.id);
+      const baseTarget = Math.ceil(norm / SHIFT_HOURS);
+      return { id: doc.id, extra: (shiftCounts.get(doc.id) || 0) - baseTarget };
+    });
 }
 
 export function calculateDoctorStats(ctx: EngineContext, shifts: Shift[]): DoctorMonthlyStats[] {

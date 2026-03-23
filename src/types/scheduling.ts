@@ -54,6 +54,7 @@ export interface Shift {
   start_time?: string;
   end_time?: string;
   is_manual?: boolean;
+  is_forced_coverage?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -79,6 +80,7 @@ export interface ScheduleConflict {
   date: string;
   doctor_id?: string;
   message: string;
+  is_forced_coverage?: boolean;
 }
 
 export interface ScheduleStats {

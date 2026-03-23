@@ -192,7 +192,8 @@
       "restViolationDay": "Rest violation: Less than {{hours}} hours after day shift",
       "restViolationNight": "Rest violation: Less than {{hours}} hours after night shift",
       "restViolation24h": "Rest violation: Less than {{hours}} hours after 24h shift",
-      "restViolation": "{{date}}: Rest violation for {{name}} — only {{hours}}h rest ({{required}}h required)"
+      "restViolation": "{{date}}: Rest violation for {{name}} — only {{hours}}h rest ({{required}}h required)",
+      "extraShiftImbalance": "Extra shift imbalance: {{gap}}-shift gap between doctors. Some doctors may be over/under-scheduled."
     }
   },
   "auth": {

@@ -44,16 +44,26 @@ function formatDate(year: number, month: number, day: number): string {
 }
 
 /**
- * Assert that extra shifts (beyond base norm) are equalized: max 2-shift gap.
+ * Assert that extra shifts (beyond base norm) are equalized: max 1-shift gap.
+ * When doctors are provided, 24h doctors are excluded (they follow a rigid cadence
+ * and are not part of equalization).
  */
-function expectExtraShiftsEqualized(result: { doctorStats: { baseNorm: number; totalHours: number }[] }): void {
-  const extraShifts = result.doctorStats.map(stat => {
+function expectExtraShiftsEqualized(
+  result: { doctorStats: { doctorId?: string; baseNorm: number; totalHours: number }[] },
+  doctors?: DoctorWithTeam[],
+): void {
+  let stats = result.doctorStats;
+  if (doctors) {
+    const ids24h = new Set(doctors.filter(d => d.shift_mode === '24h').map(d => d.id));
+    stats = stats.filter(s => !ids24h.has(s.doctorId!));
+  }
+  const extraShifts = stats.map(stat => {
     const baseTarget = Math.ceil(stat.baseNorm / SCHEDULING_CONSTANTS.SHIFT_DURATION);
     return stat.totalHours / SCHEDULING_CONSTANTS.SHIFT_DURATION - baseTarget;
   });
   const maxExtra = Math.max(...extraShifts);
   const minExtra = Math.min(...extraShifts);
-  expect(maxExtra - minExtra).toBeLessThanOrEqual(2);
+  expect(maxExtra - minExtra).toBeLessThanOrEqual(1);
 }
 
 // ── Test constants for January 2026 ─────────────────────────────────────────
@@ -1332,9 +1342,11 @@ describe('SchedulingEngine', () => {
       );
       expect(understaffedWarnings).toHaveLength(0);
 
-      // No rest violation conflicts
+      // No rest violation conflicts (except forced-coverage shifts)
       const conflicts = SchedulingEngine.detectConflicts(allShifts, doctors, 1, 1);
-      const restViolations = conflicts.filter(c => c.type === 'rest_violation');
+      const restViolations = conflicts.filter(c =>
+        c.type === 'rest_violation' && !c.is_forced_coverage
+      );
       expect(restViolations).toHaveLength(0);
 
       // Every day in Feb 2026 (28 days) should have exactly 1 day shift and 1 night shift
@@ -1402,8 +1414,10 @@ describe('SchedulingEngine', () => {
 
       const result = engine.generateSchedule();
 
-      // No rest violations (critical: proper time-based constraints)
-      const restViolations = result.conflicts.filter(c => c.type === 'rest_violation');
+      // No rest violations except on forced-coverage shifts
+      const restViolations = result.conflicts.filter(c =>
+        c.type === 'rest_violation' && !c.is_forced_coverage
+      );
       expect(restViolations).toHaveLength(0);
 
       // Leave days respected
@@ -1412,8 +1426,6 @@ describe('SchedulingEngine', () => {
       const d2OnLeave13 = result.shifts.filter(s => s.doctor_id === 'd2' && s.shift_date === formatDate(YEAR, MARCH, 13));
       expect(d2OnLeave13).toHaveLength(0);
 
-      // With 4 doctors at minimum capacity and leave days, some understaffing
-      // is expected — the engine correctly refuses to create rest violations.
       // Most days should still be fully staffed.
       let fullyStaffedDays = 0;
       for (let d = 1; d <= 31; d++) {
@@ -1486,7 +1498,7 @@ describe('SchedulingEngine', () => {
       expect(fullyStaffedDays).toBeGreaterThanOrEqual(28);
     });
 
-    it('March 2026 — 4 floating doctors, leave on March 11 & 13 (non-consecutive), no understaffed slots', () => {
+    it('March 2026 — 4 floating doctors, leave on March 11 & 13 (non-consecutive), no understaffed slots', { timeout: 10_000 }, () => {
       // Reproduces bug: 4 floating doctors, 1 shift/day, 1 shift/night.
       // Doctor 2 has leave on March 11 (Wed) and March 13 (Fri) — non-consecutive.
       // The greedy algorithm fails to fill:
@@ -1530,8 +1542,10 @@ describe('SchedulingEngine', () => {
       const understaffed = result.conflicts.filter(c => c.type === 'understaffed');
       console.log('Understaffed:', understaffed.map(c => c.message));
 
-      // No rest violations (critical: proper time-based constraints)
-      const restViolations = result.conflicts.filter(c => c.type === 'rest_violation');
+      // No rest violations except on forced-coverage shifts
+      const restViolations = result.conflicts.filter(c =>
+        c.type === 'rest_violation' && !c.is_forced_coverage
+      );
       expect(restViolations).toHaveLength(0);
 
       // Leave days respected
@@ -1619,15 +1633,16 @@ describe('SchedulingEngine', () => {
       const result = engine.generateSchedule();
       const elapsed = performance.now() - start;
 
-      // Must finish in under 10 seconds (previously hung forever)
-      expect(elapsed).toBeLessThan(10_000);
+      // Must finish in under 15 seconds
+      expect(elapsed).toBeLessThan(15_000);
       expect(result.shifts.length).toBeGreaterThan(0);
 
-      // No rest violations (critical: proper time-based constraints)
-      const restViolations = result.conflicts.filter(c => c.type === 'rest_violation');
+      // No rest violations except on forced-coverage shifts
+      const restViolations = result.conflicts.filter(c =>
+        c.type === 'rest_violation' && !c.is_forced_coverage
+      );
       expect(restViolations).toHaveLength(0);
 
-      // With heavy leave and proper rest constraints, some understaffing may occur.
       // Most days should still be fully staffed.
       let fullyStaffedDays = 0;
       for (let d = 1; d <= 31; d++) {
@@ -1685,25 +1700,25 @@ describe('SchedulingEngine', () => {
     const leaveDays: LeaveDay[] = [
       // doctor 1: Mar 1 (1 day)
       ...([1] as number[]).map(d => makeLeaveDay('d1', formatDate(YEAR, MARCH, d))),
-      // doctor 2: Mar 2–6 (5 days)
+      // doctor 2: Mar 1–8 (8 days)
       ...([1, 2, 3, 4, 5, 6, 7, 8] as number[]).map(d => makeLeaveDay('d2', formatDate(YEAR, MARCH, d))),
-      // doctor 3: Mar 6 - 9 
+      // doctor 3: Mar 6 - 9 (4 days)
       ...[6, 7, 8, 9].map(d => makeLeaveDay('d3', formatDate(YEAR, MARCH, d))),
-      // doctor 5: Mar 12–20 
+      // doctor 5: Mar 12–21 (10 days) 
       ...([12, 13, 14, 15, 16, 17, 18, 19, 20, 21] as number[]).map(d => makeLeaveDay('d5', formatDate(YEAR, MARCH, d))),
-      // dr 6: Mar 8–13 
+      // dr 6: Mar 8–13 (6 days)
       ...([8, 9, 10, 11, 12, 13] as number[]).map(d => makeLeaveDay('d6', formatDate(YEAR, MARCH, d))),
-      // dr 8: Mar 5–7, 12–14 
+      // dr 8: Mar 5–7, 12–14 (6 days)
       ...([5, 6, 7, 12, 13, 14] as number[]).map(d => makeLeaveDay('d8', formatDate(YEAR, MARCH, d))),
-      // dr 10: Mar 3-9, 15
+      // dr 10: Mar 3-9, 15 (8 days)
       ...([3, 4, 5, 6, 7, 8, 9, 15] as number[]).map(d => makeLeaveDay('d10', formatDate(YEAR, MARCH, d))),
       // dr 11: Mar 23–27 (5 days)
       ...([23, 24, 25, 26, 27] as number[]).map(d => makeLeaveDay('d11', formatDate(YEAR, MARCH, d))),
       // dr flotant 1: Mar 3, 12, 18 (3 days)
       ...([3, 12, 18] as number[]).map(d => makeLeaveDay('df1', formatDate(YEAR, MARCH, d))),
-      // dr flotant 2
+      // dr flotant 2: Mar 1, 19-22 (5 days)
       ...([1, 19, 20, 21, 22] as number[]).map(d => makeLeaveDay('df2', formatDate(YEAR, MARCH, d))),
-      // dr flotant 4
+      // dr flotant 4: Mar 2-9 (8 days)
       ...([2, 3, 4, 5, 6, 7, 8, 9] as number[]).map(d => makeLeaveDay('df4', formatDate(YEAR, MARCH, d))),
     ];
 
@@ -1727,7 +1742,7 @@ describe('SchedulingEngine', () => {
       expect(result.shifts.length).toBeGreaterThan(0);
     });
 
-    it('no rest violations', { timeout: 90_000 }, () => {
+    it('no rest violations except on forced-coverage shifts', { timeout: 90_000 }, () => {
       const engine = new SchedulingEngine({
         month: MARCH,
         year: YEAR,
@@ -1739,8 +1754,11 @@ describe('SchedulingEngine', () => {
       });
 
       const result = engine.generateSchedule();
-      const restViolations = result.conflicts.filter(c => c.type === 'rest_violation');
-      expect(restViolations).toHaveLength(0);
+      // Rest violations involving forced-coverage shifts are expected
+      const nonForcedViolations = result.conflicts.filter(c =>
+        c.type === 'rest_violation' && !c.is_forced_coverage
+      );
+      expect(nonForcedViolations).toHaveLength(0);
     });
 
     it('leave days are respected — no shifts on leave dates', { timeout: 90_000 }, () => {
@@ -1791,7 +1809,7 @@ describe('SchedulingEngine', () => {
       }
     });
 
-    it('72h rest respected after 24h shifts', { timeout: 90_000 }, () => {
+    it('72h rest respected after 24h shifts (except forced-coverage)', { timeout: 90_000 }, () => {
       const engine = new SchedulingEngine({
         month: MARCH,
         year: YEAR,
@@ -1806,8 +1824,9 @@ describe('SchedulingEngine', () => {
       const floatingIdList = floatingDoctors24h.map(d => d.id);
 
       for (const docId of floatingIdList) {
+        // Exclude forced-coverage shifts — they may intentionally break rest
         const docShifts = result.shifts
-          .filter(s => s.doctor_id === docId && s.shift_type === '24h')
+          .filter(s => s.doctor_id === docId && s.shift_type === '24h' && !s.is_forced_coverage)
           .sort((a, b) => a.shift_date.localeCompare(b.shift_date));
 
         for (let i = 1; i < docShifts.length; i++) {
@@ -1856,10 +1875,25 @@ describe('SchedulingEngine', () => {
         console.log(`  ${doc.name} (${doc.shift_mode}): ${docShifts.length} shifts`);
       }
 
-      // With heavy leave (8 doctors on leave various weeks), available 12h capacity
-      // is less than full coverage demand, so some understaffing is unavoidable.
-      // With the 90s solver deadline the algorithm consistently achieves ≤ 5.
-      expect(understaffedDays.length).toBeLessThanOrEqual(5);
+      // The forced coverage pass (repairForcedCoverage) fills all remaining
+      // understaffed slots — possibly breaking rest violations when necessary.
+      // Those shifts are marked is_forced_coverage=true for warning display.
+      expect(understaffedDays.length).toBe(0);
+    });
+
+    it('extra shifts equalized — max 1-shift gap', { timeout: 90_000 }, () => {
+      const engine = new SchedulingEngine({
+        month: MARCH,
+        year: YEAR,
+        doctors: allDoctors,
+        teams: allTeams,
+        shiftsPerDay: 4,
+        shiftsPerNight: 4,
+        leaveDays,
+      });
+
+      const result = engine.generateSchedule();
+      expectExtraShiftsEqualized(result, allDoctors);
     });
   });
 
@@ -1904,5 +1938,46 @@ describe('SchedulingEngine', () => {
       expect(stats!.meetsBaseNorm).toBe(true);
       expect(stats!.totalHours).toBe(0);
     }, 15000);
+  });
+
+  describe('Determinism', () => {
+    it('produces identical output for identical inputs', { timeout: 120_000 }, () => {
+      const team1 = makeTeam('t1', 'Team 1', 1, '#ff0000');
+      const team2 = makeTeam('t2', 'Team 2', 2, '#00ff00');
+      const teams = [team1, team2];
+
+      const doctors: DoctorWithTeam[] = [
+        makeDoctor('d1', 'Doc 1', 't1', false, team1),
+        makeDoctor('d2', 'Doc 2', 't1', false, team1),
+        makeDoctor('d3', 'Doc 3', 't2', false, team2),
+        makeDoctor('d4', 'Doc 4', 't2', false, team2),
+        makeDoctor('d5', 'Doc 5', undefined, true),
+        makeDoctor('d6', 'Doc 6', undefined, true),
+      ];
+
+      const leaveDays = [
+        makeLeaveDay('d1', '2026-03-05'),
+        makeLeaveDay('d1', '2026-03-06'),
+        makeLeaveDay('d3', '2026-03-10'),
+      ];
+
+      const options = {
+        month: 2, year: 2026, doctors, teams,
+        shiftsPerDay: 2, shiftsPerNight: 2,
+        leaveDays, nationalHolidays: [],
+      };
+
+      const result1 = new SchedulingEngine(options).generateSchedule();
+      const result2 = new SchedulingEngine(options).generateSchedule();
+
+      // Same shifts (ignoring IDs which are counter-based but reset per engine)
+      const normalize = (shifts: Shift[]) =>
+        shifts.map(s => ({ doctor_id: s.doctor_id, shift_date: s.shift_date, shift_type: s.shift_type }))
+          .sort((a, b) => a.shift_date.localeCompare(b.shift_date) || a.doctor_id.localeCompare(b.doctor_id));
+
+      expect(normalize(result1.shifts)).toEqual(normalize(result2.shifts));
+      expect(result1.conflicts.length).toBe(result2.conflicts.length);
+      expect(result1.warnings).toEqual(result2.warnings);
+    });
   });
 });

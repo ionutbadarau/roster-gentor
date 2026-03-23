@@ -267,7 +267,7 @@ export default function ShiftGridCalendar({
       // Deduplicate by (doctor_id, shift_date) – keep last entry so repair-pass
       // overrides greedy-pass when both produce a shift for the same slot.
       const deduped = new Map<string, Omit<Shift, 'id'>>();
-      for (const { id, ...shift } of result.shifts) {
+      for (const { id, is_forced_coverage, ...shift } of result.shifts) {
         deduped.set(`${shift.doctor_id}:${shift.shift_date}`, shift);
       }
       const { error } = await supabase.from('shifts').upsert(

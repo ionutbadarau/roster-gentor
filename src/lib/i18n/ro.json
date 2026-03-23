@@ -192,7 +192,8 @@
       "restViolationDay": "Violare perioad\u0103 de odihn\u0103: mai pu\u021bin de {{hours}} ore dup\u0103 tura de zi",
       "restViolationNight": "Violare perioad\u0103 de odihn\u0103: mai pu\u021bin de {{hours}} ore dup\u0103 tura de noapte",
       "restViolation24h": "Violare perioad\u0103 de odihn\u0103: mai pu\u021bin de {{hours}} ore dup\u0103 tura de 24h",
-      "restViolation": "{{date}}: Violare perioadă de odihnă pentru {{name}} — doar {{hours}}h odihnă ({{required}}h necesare)"
+      "restViolation": "{{date}}: Violare perioadă de odihnă pentru {{name}} — doar {{hours}}h odihnă ({{required}}h necesare)",
+      "extraShiftImbalance": "Dezechilibru ture suplimentare: diferență de {{gap}} ture între doctori. Unii doctori pot fi supra/sub-programați."
     }
   },
   "auth": {

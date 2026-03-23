@@ -72,7 +72,8 @@ function getCellClassName(
   }
 
   const manual = isManual ? 'ring-2 ring-yellow-400 ring-inset' : '';
-  return `${base} ${state} ${manual}`;
+  const forced = shift?.is_forced_coverage ? 'ring-2 ring-amber-500 ring-inset' : '';
+  return `${base} ${state} ${manual || forced}`;
 }
 
 function ShiftGridDoctorRow({

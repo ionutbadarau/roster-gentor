@@ -15,8 +15,9 @@ import type { EngineContext } from './constants';
 import { SCHEDULING_CONSTANTS } from './constants';
 import { getDaysInMonth, formatDate } from './calendar-utils';
 import { isDoctorOnLeave, isDoctorOnBridgeDay, canDoctorWorkWithTimeline } from './constraints';
-import { calculateBaseNorm } from './stats';
+import { calculateBaseNorm, computeExtraShifts } from './stats';
 import { getShiftStartMs, getShiftEndMs, getRestHours, hasActualTimeRestConflict } from './shift-utils';
+import { shuffleArray } from './prng';
 
 /** Phase 1: small-window backtracking limits. */
 const BACKTRACK_MAX_RADIUS = 3;
@@ -111,7 +112,8 @@ export function repairUnfilledSlots(
   // re-solve all 12h slots in that window. This keeps each FC solve under ~40
   // slots, which is tractable even for heavy-leave scenarios. Days filled by
   // an earlier window solve are automatically skipped.
-  const solverDeadline = Date.now() + 90_000;
+  let totalWindowsSolved = 0;
+  const MAX_WINDOWS = 200;
   ({ count: unfilledCount } = getUnfilled());
   if (unfilledCount > 0) {
     const FC_WINDOW_RADIUS = 3;
@@ -120,7 +122,7 @@ export function repairUnfilledSlots(
     const solvedDays = new Set<number>();
 
     for (const day of sortedUnfilled) {
-      if (Date.now() > solverDeadline) break;
+      if (totalWindowsSolved >= MAX_WINDOWS) break;
       if (solvedDays.has(day)) continue;
 
       // Check if this day is still unfilled (may have been solved by adjacent window)
@@ -138,7 +140,8 @@ export function repairUnfilledSlots(
 
       const wStart = Math.max(1, day - FC_WINDOW_RADIUS);
       const wEnd = Math.min(daysInMonth, day + FC_WINDOW_RADIUS);
-      tryFullMonthSolve(ctx, shifts, fixedShiftsByDateType, solverDeadline, wStart, wEnd);
+      tryFullMonthSolve(ctx, shifts, fixedShiftsByDateType, 2_000_000, wStart, wEnd);
+      totalWindowsSolved++;
 
       // Mark all days in this window as processed to avoid redundant solves
       for (let d = wStart; d <= wEnd; d++) solvedDays.add(d);
@@ -412,7 +415,7 @@ function trySwapRepair(
             // Can they work directly?
             if (canWorkSlot(doc.id, slotStartMs, slotEndMs, slotRestHours, new Set())) {
               const newShift: Shift = {
-                id: crypto.randomUUID(),
+                id: ctx.generateId(),
                 doctor_id: doc.id,
                 shift_date: dateStr,
                 shift_type: shiftType,
@@ -447,7 +450,7 @@ function trySwapRepair(
               }
               // Add new shift
               const newShift: Shift = {
-                id: crypto.randomUUID(),
+                id: ctx.generateId(),
                 doctor_id: doc.id,
                 shift_date: dateStr,
                 shift_type: shiftType,
@@ -536,7 +539,7 @@ function tryBacktrackWindow(
   if (result) {
     for (let i = 0; i < slots.length; i++) {
       shifts.push({
-        id: crypto.randomUUID(),
+        id: ctx.generateId(),
         doctor_id: result[i],
         shift_date: slots[i].dateStr,
         shift_type: slots[i].shiftType,
@@ -647,7 +650,7 @@ function tryMACWindow(
   if (result) {
     for (let i = 0; i < slots.length; i++) {
       shifts.push({
-        id: crypto.randomUUID(),
+        id: ctx.generateId(),
         doctor_id: result[i],
         shift_date: slots[i].dateStr,
         shift_type: slots[i].shiftType,
@@ -971,7 +974,7 @@ function tryFullMonthSolve(
   ctx: EngineContext,
   shifts: Shift[],
   fixedShiftsByDateType: Map<string, Shift[]>,
-  deadline: number,
+  maxTotalNodes: number,
   rangeStart?: number,
   rangeEnd?: number
 ): boolean {
@@ -1125,9 +1128,9 @@ function tryFullMonthSolve(
     }
   }
 
-  // Forward-checking backtracker with time-based random restarts
+  // Forward-checking backtracker with random restarts (deterministic node budget)
   const MAX_RESTARTS = 20;
-  const solverStartTime = Date.now();
+  let totalNodesExplored = 0;
 
   // Debug logging for solver diagnostics
   const domainSizesList = domains.map(d => d.size);
@@ -1142,7 +1145,7 @@ function tryFullMonthSolve(
   type UndoEntry = { slotIdx: number; docId: string };
 
   for (let restart = 0; restart < MAX_RESTARTS; restart++) {
-    if (Date.now() > deadline) break;
+    if (totalNodesExplored >= maxTotalNodes) break;
 
     // Reset solver state
     const assignments: (string | null)[] = new Array(slots.length).fill(null);
@@ -1162,11 +1165,7 @@ function tryFullMonthSolve(
     const restartOrdered: string[][] = initialDomains.map(ids => {
       const arr = [...ids];
       if (restart > 0) {
-        // Fisher-Yates shuffle
-        for (let i = arr.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [arr[i], arr[j]] = [arr[j], arr[i]];
-        }
+        shuffleArray(arr, ctx.random);
       } else {
         arr.sort((a, b) => (eligibility.get(a) || 0) - (eligibility.get(b) || 0));
       }
@@ -1234,10 +1233,9 @@ function tryFullMonthSolve(
 
     const solve = (): boolean => {
       if (numAssigned >= slots.length) return true;
-      // Time check every 10000 nodes to amortize Date.now() cost
-      if (++nodesExplored % 10_000 === 0) {
-        if (Date.now() > deadline) return false;
-      }
+      nodesExplored++;
+      totalNodesExplored++;
+      if (totalNodesExplored >= maxTotalNodes) return false;
 
       // MRV: find unassigned slot with smallest domain
       let bestIdx = -1;
@@ -1281,11 +1279,11 @@ function tryFullMonthSolve(
     }
 
     if (solve()) {
-      console.log(`[FC-solver] SOLVED on restart ${restart} (${nodesExplored} nodes, ${Date.now() - solverStartTime}ms)`);
+      console.log(`[FC-solver] SOLVED on restart ${restart} (${nodesExplored} nodes, ${totalNodesExplored} total)`);
       // Apply solution
       for (let i = 0; i < slots.length; i++) {
         shifts.push({
-          id: crypto.randomUUID(),
+          id: ctx.generateId(),
           doctor_id: assignments[i]!,
           shift_date: slots[i].dateStr,
           shift_type: slots[i].shiftType,
@@ -1295,11 +1293,11 @@ function tryFullMonthSolve(
       }
       return true;
     }
-    console.log(`[FC-solver] restart ${restart} exhausted (${nodesExplored} nodes, ${Date.now() - solverStartTime}ms)`);
+    console.log(`[FC-solver] restart ${restart} exhausted (${nodesExplored} nodes, ${totalNodesExplored} total)`);
   }
 
   // All restarts failed — restore original 12h shifts
-  console.log(`[FC-solver] ALL RESTARTS FAILED after ${Date.now() - solverStartTime}ms`);
+  console.log(`[FC-solver] ALL RESTARTS FAILED after ${totalNodesExplored} total nodes`);
   shifts.push(...saved12h);
   return false;
 }
@@ -1605,32 +1603,6 @@ export function repairExtraShiftEqualization(ctx: EngineContext, shifts: Shift[]
     return true;
   }
 
-  function computeExtras(): { id: string; extra: number }[] {
-    const shiftCounts = new Map<string, number>();
-    for (const doc of ctx.doctors) shiftCounts.set(doc.id, 0);
-    for (const s of ctx.fixedShifts) {
-      if (s.shift_type === '24h') {
-        shiftCounts.set(s.doctor_id, (shiftCounts.get(s.doctor_id) || 0) + 2);
-      } else if (s.shift_type === 'day' || s.shift_type === 'night') {
-        shiftCounts.set(s.doctor_id, (shiftCounts.get(s.doctor_id) || 0) + 1);
-      }
-    }
-    for (const s of shifts) {
-      if (s.shift_type === '24h') {
-        shiftCounts.set(s.doctor_id, (shiftCounts.get(s.doctor_id) || 0) + 2);
-      } else if (s.shift_type === 'day' || s.shift_type === 'night') {
-        shiftCounts.set(s.doctor_id, (shiftCounts.get(s.doctor_id) || 0) + 1);
-      }
-    }
-    return ctx.doctors
-      .filter(doc => doc.shift_mode !== '24h')
-      .map(doc => {
-        const norm = calculateBaseNorm(ctx, doc.id);
-        const baseTarget = Math.ceil(norm / SHIFT_HOURS);
-        return { id: doc.id, extra: (shiftCounts.get(doc.id) || 0) - baseTarget };
-      });
-  }
-
   /** Try direct transfer: reassign a shift from surplus to deficit. */
   function tryDirectTransfer(surplusId: string, deficitId: string): boolean {
     const surplusNorm = calculateBaseNorm(ctx, surplusId);
@@ -1677,21 +1649,29 @@ export function repairExtraShiftEqualization(ctx: EngineContext, shifts: Shift[]
       const middleShifts = shiftsByDoctor.get(middleDoc.id) || [];
 
       for (const si of surplusShifts) {
-        // Can middle take surplus's shift si?
-        if (!canTakeShift(middleDoc.id, si)) continue;
+        // Quick check: middle must not be on leave/bridge for si's date
+        const siParts = shifts[si].shift_date.split('-').map(Number);
+        const siDate = new Date(siParts[0], siParts[1] - 1, siParts[2]);
+        if (isDoctorOnLeave(ctx, middleDoc.id, siDate)) continue;
+        if (isDoctorOnBridgeDay(ctx, middleDoc.id, siDate)) continue;
+        // Check middle doesn't already have same type on same date
+        const siDup = shifts.some(
+          s => s.doctor_id === middleDoc.id && s.shift_date === shifts[si].shift_date && s.shift_type === shifts[si].shift_type
+        );
+        if (siDup) continue;
 
-        // Middle can take si. Now find a shift of middle that deficit can take.
         for (const mi of middleShifts) {
+          // Pre-check: can deficit take middle's shift mi? (accurate — deficit isn't changing)
           if (!canTakeShift(deficitId, mi)) continue;
 
-          // Found candidate chain: si (surplus→middle), mi (middle→deficit)
-          // Execute tentatively
+          // Apply both transfers tentatively (skip rest pre-check for middle — it's inaccurate
+          // because it doesn't account for mi being simultaneously removed from middle)
           const oldSurplusOwner = shifts[si].doctor_id;
           const oldMiddleOwner = shifts[mi].doctor_id;
           shifts[si].doctor_id = middleDoc.id;
           shifts[mi].doctor_id = deficitId;
 
-          // Verify middle doctor's schedule is still valid after gaining si and losing mi
+          // Verify all affected doctors
           if (verifyDoctorSchedule(middleDoc.id) && verifyDoctorSchedule(deficitId)) {
             return true; // Chain successful
           }
@@ -1705,29 +1685,505 @@ export function repairExtraShiftEqualization(ctx: EngineContext, shifts: Shift[]
     return false;
   }
 
+  /**
+   * Constraint-freeing transfer: find a shift of surplus that deficit can't take due
+   * to a rest conflict with one of deficit's adjacent shifts. Move the blocker to another
+   * doctor, then transfer surplus's shift to deficit.
+   */
+  function tryConstraintFreeTransfer(surplusId: string, deficitId: string): boolean {
+    const surplusNorm = calculateBaseNorm(ctx, surplusId);
+    const surplusShiftCount = shifts.filter(s => s.doctor_id === surplusId && (s.shift_type === 'day' || s.shift_type === 'night')).length
+      + ctx.fixedShifts.filter(s => s.doctor_id === surplusId && (s.shift_type === 'day' || s.shift_type === 'night')).length;
+    if (surplusShiftCount * SHIFT_HOURS - SHIFT_HOURS < surplusNorm) return false;
+
+    for (let si = 0; si < shifts.length; si++) {
+      if (shifts[si].doctor_id !== surplusId) continue;
+      if (shifts[si].shift_type !== 'day' && shifts[si].shift_type !== 'night') continue;
+
+      // Find which of deficit's shifts blocks taking si
+      const deficitShifts = shifts
+        .map((s, i) => ({ s, i }))
+        .filter(({ s }) => s.doctor_id === deficitId && (s.shift_type === 'day' || s.shift_type === 'night'));
+
+      for (const { s: blocker, i: bi } of deficitShifts) {
+        if (!hasActualTimeRestConflict(
+          shifts[si].shift_date, shifts[si].shift_type as 'day' | 'night',
+          blocker.shift_date, blocker.shift_type as 'day' | 'night',
+        )) continue;
+
+        // Found blocker. Try to move it to another doctor.
+        for (const doc of ctx.doctors) {
+          if (doc.shift_mode === '24h') continue;
+          if (doc.id === surplusId || doc.id === deficitId) continue;
+          if (!canTakeShift(doc.id, bi)) continue;
+
+          // Move blocker from deficit → doc, then transfer si from surplus → deficit
+          const origBlocker = shifts[bi].doctor_id;
+          shifts[bi].doctor_id = doc.id;
+
+          if (canTakeShift(deficitId, si)) {
+            const origSurplus = shifts[si].doctor_id;
+            shifts[si].doctor_id = deficitId;
+
+            if (verifyDoctorSchedule(deficitId) && verifyDoctorSchedule(doc.id)) {
+              return true;
+            }
+            shifts[si].doctor_id = origSurplus;
+          }
+          shifts[bi].doctor_id = origBlocker;
+        }
+      }
+    }
+    return false;
+  }
+
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
-    const extras = computeExtras();
-    extras.sort((a, b) => b.extra - a.extra);
+    const extras = computeExtraShifts(ctx, shifts);
+    extras.sort((a: { id: string; extra: number }, b: { id: string; extra: number }) => b.extra - a.extra);
+    if (extras.length === 0) return;
     const maxExtra = extras[0];
     const minExtra = extras[extras.length - 1];
 
     if (maxExtra.extra - minExtra.extra <= MAX_EXTRA_SHIFT_GAP) return;
 
-    // Try all surplus doctors (those with extra > minExtra + MAX_EXTRA_SHIFT_GAP)
+    // Try all surplus→deficit pairs, sorted by severity.
+    // Deficit candidates: any doctor whose extra is low enough that the gap exceeds MAX_EXTRA_SHIFT_GAP.
+    const deficitCandidates = [...extras].reverse().filter(
+      (e: { id: string; extra: number }) => maxExtra.extra - e.extra > MAX_EXTRA_SHIFT_GAP
+    );
+
     let progress = false;
-    for (const surplus of extras) {
-      if (surplus.extra - minExtra.extra <= MAX_EXTRA_SHIFT_GAP) break;
-      // Try direct transfer first
-      if (tryDirectTransfer(surplus.id, minExtra.id)) { progress = true; break; }
+    // 24h doctors are excluded from extras (rigid 72h cadence — shifts are immutable).
+    for (const deficit of deficitCandidates) {
+      if (progress) break;
+
+      for (const surplus of extras) {
+        if (surplus.extra - deficit.extra <= MAX_EXTRA_SHIFT_GAP) break;
+        if (tryDirectTransfer(surplus.id, deficit.id)) { progress = true; break; }
+      }
     }
     if (progress) continue;
 
-    // Try chain transfers for all surplus doctors
-    for (const surplus of extras) {
-      if (surplus.extra - minExtra.extra <= MAX_EXTRA_SHIFT_GAP) break;
-      if (tryChainTransfer(surplus.id, minExtra.id)) { progress = true; break; }
+    // Try chain transfers for 12h surplus → 12h deficit
+    for (const deficit of deficitCandidates) {
+      if (progress) break;
+
+      for (const surplus of extras) {
+        if (surplus.extra - deficit.extra <= MAX_EXTRA_SHIFT_GAP) break;
+        if (tryChainTransfer(surplus.id, deficit.id)) { progress = true; break; }
+      }
+    }
+    if (progress) continue;
+
+    // Try constraint-freeing transfers: move blocking adjacent shifts out of the way
+    for (const deficit of deficitCandidates) {
+      if (progress) break;
+
+      for (const surplus of extras) {
+        if (surplus.extra - deficit.extra <= MAX_EXTRA_SHIFT_GAP) break;
+        if (tryConstraintFreeTransfer(surplus.id, deficit.id)) { progress = true; break; }
+      }
+    }
+    if (progress) continue;
+
+    // Forced equalization: remove a shift from a non-surplus doctor on a day
+    // where the deficit doctor can work, give it to deficit, then backfill the
+    // removed shift to the surplus doctor (or any available doctor).
+    for (const deficit of deficitCandidates) {
+      if (progress) break;
+
+      for (let si = 0; si < shifts.length; si++) {
+        if (progress) break;
+        const s = shifts[si];
+        if (s.shift_type !== 'day' && s.shift_type !== 'night') continue;
+        // Skip shifts of deficit (can't steal from self)
+        if (s.doctor_id === deficit.id) continue;
+        // Only steal from non-deficit doctors who won't become deficit themselves
+        const donorExtra = extras.find(e => e.id === s.doctor_id);
+        if (!donorExtra || donorExtra.extra <= deficit.extra + 1) continue;
+
+        // Can deficit take this shift?
+        if (!canTakeShift(deficit.id, si)) continue;
+
+        // Steal the shift from donor, give to deficit
+        const originalDonor = s.doctor_id;
+        shifts[si].doctor_id = deficit.id;
+
+        // Verify deficit's schedule
+        if (!verifyDoctorSchedule(deficit.id)) {
+          shifts[si].doctor_id = originalDonor;
+          continue;
+        }
+
+        // Now find a replacement for the donor's lost shift:
+        // try to give surplus a different shift via direct transfer from donor's remaining pool
+        // Or just accept the loss (donor goes from donorExtra to donorExtra-1)
+        progress = true;
+        break;
+      }
     }
     if (!progress) return;
+  }
+}
+
+/**
+ * Hard enforcement of extra-shift equalization. Runs AFTER the iterative
+ * equalization repair. If the gap is still > 1, removes shifts from surplus
+ * doctors (preferring well-staffed days) until the gap is ≤ 1.
+ * This sacrifices coverage to guarantee pay equity per priority rules.
+ */
+export function enforceExtraShiftEqualizationSafe(ctx: EngineContext, shifts: Shift[]): void {
+  return enforceExtraShiftEqualization(ctx, shifts, true);
+}
+
+export function enforceExtraShiftEqualization(ctx: EngineContext, shifts: Shift[], coverageGuard = false): void {
+  const MAX_EXTRA_SHIFT_GAP = 1;
+  const SHIFT_HOURS = SCHEDULING_CONSTANTS.SHIFT_DURATION;
+
+  function getCoverage(dateStr: string, shiftType: 'day' | 'night'): number {
+    let count = 0;
+    for (const s of shifts) {
+      if (s.shift_date !== dateStr) continue;
+      if (s.shift_type === shiftType || s.shift_type === '24h') count++;
+    }
+    for (const s of ctx.fixedShifts) {
+      if (s.shift_date !== dateStr) continue;
+      if (s.shift_type === shiftType || s.shift_type === '24h') count++;
+    }
+    return count;
+  }
+
+  for (let pass = 0; pass < 100; pass++) {
+    const extras = computeExtraShifts(ctx, shifts);
+    if (extras.length === 0) return;
+    extras.sort((a, b) => b.extra - a.extra);
+    const maxExtra = extras[0].extra;
+    const minExtra = extras[extras.length - 1].extra;
+    if (maxExtra - minExtra <= MAX_EXTRA_SHIFT_GAP) return;
+
+    // Deficit doctors who could receive a reassigned shift
+    const deficitIds = extras
+      .filter(e => maxExtra - e.extra > MAX_EXTRA_SHIFT_GAP)
+      .map(e => e.id);
+
+    let progress = false;
+
+    for (const surplus of extras) {
+      if (progress) break;
+      if (surplus.extra - minExtra <= MAX_EXTRA_SHIFT_GAP) break;
+
+      const surplusNorm = calculateBaseNorm(ctx, surplus.id);
+
+      // Compute current hours (only 12h doctors reach here — 24h excluded from extras)
+      let surplusHours = 0;
+      for (const s of ctx.fixedShifts) {
+        if (s.doctor_id !== surplus.id) continue;
+        if (s.shift_type === 'day' || s.shift_type === 'night') surplusHours += SHIFT_HOURS;
+      }
+      for (const s of shifts) {
+        if (s.doctor_id !== surplus.id) continue;
+        if (s.shift_type === 'day' || s.shift_type === 'night') surplusHours += SHIFT_HOURS;
+      }
+
+      // Only act if doctor still meets base norm after losing a shift
+      if (surplusHours - SHIFT_HOURS < surplusNorm) continue;
+
+      {
+        // For 12h surplus: try reassigning to a deficit doctor first (preserves coverage),
+        // then fall back to removal from best-staffed day.
+        const surplusShifts: { idx: number; cov: number }[] = [];
+        for (let si = 0; si < shifts.length; si++) {
+          if (shifts[si].doctor_id !== surplus.id) continue;
+          if (shifts[si].shift_type !== 'day' && shifts[si].shift_type !== 'night') continue;
+          const cov = getCoverage(shifts[si].shift_date, shifts[si].shift_type as 'day' | 'night');
+          surplusShifts.push({ idx: si, cov });
+        }
+        // Sort worst-staffed first for reassignment (save those slots first)
+        surplusShifts.sort((a, b) => a.cov - b.cov);
+
+        // Strategy 1: Reassign to a deficit doctor (preserves coverage)
+        for (const sc of surplusShifts) {
+          if (progress) break;
+          const shift = shifts[sc.idx];
+          const parts = shift.shift_date.split('-').map(Number);
+          const date = new Date(parts[0], parts[1] - 1, parts[2]);
+          for (const deficitId of deficitIds) {
+            if (isDoctorOnLeave(ctx, deficitId, date)) continue;
+            if (isDoctorOnBridgeDay(ctx, deficitId, date)) continue;
+            if (shifts.some(s => s.doctor_id === deficitId && s.shift_date === shift.shift_date && s.shift_type === shift.shift_type)) continue;
+            // Check rest constraints
+            const allDefShifts = [
+              ...ctx.previousMonthShifts.filter(s => s.doctor_id === deficitId),
+              ...ctx.fixedShifts.filter(s => s.doctor_id === deficitId),
+              ...shifts.filter(s => s.doctor_id === deficitId),
+            ];
+            let restOk = true;
+            for (const existing of allDefShifts) {
+              if (existing.shift_type !== 'day' && existing.shift_type !== 'night' && existing.shift_type !== '24h') continue;
+              if (hasActualTimeRestConflict(
+                shift.shift_date, shift.shift_type as 'day' | 'night',
+                existing.shift_date, existing.shift_type as 'day' | 'night' | '24h',
+              )) { restOk = false; break; }
+            }
+            if (!restOk) continue;
+            // Reassign: surplus loses shift, deficit gains it
+            shifts[sc.idx].doctor_id = deficitId;
+            progress = true;
+            break;
+          }
+        }
+
+        // Strategy 1b: Chain reassignment (surplus → middle → deficit)
+        // Only used with coverage guard (without it, Strategy 2 removes freely).
+        if (!progress && coverageGuard) {
+          for (const sc of surplusShifts) {
+            if (progress) break;
+            const sShift = shifts[sc.idx];
+            for (const middleDoc of ctx.doctors) {
+              if (progress) break;
+              if (middleDoc.shift_mode === '24h') continue;
+              if (middleDoc.id === surplus.id || deficitIds.includes(middleDoc.id)) continue;
+
+              // Can middle take surplus's shift?
+              const sParts = sShift.shift_date.split('-').map(Number);
+              const sDate = new Date(sParts[0], sParts[1] - 1, sParts[2]);
+              if (isDoctorOnLeave(ctx, middleDoc.id, sDate)) continue;
+              if (isDoctorOnBridgeDay(ctx, middleDoc.id, sDate)) continue;
+              if (shifts.some(s => s.doctor_id === middleDoc.id && s.shift_date === sShift.shift_date && s.shift_type === sShift.shift_type)) continue;
+
+              // Find a middle shift that deficit can take
+              for (let mi = 0; mi < shifts.length; mi++) {
+                if (shifts[mi].doctor_id !== middleDoc.id) continue;
+                if (shifts[mi].shift_type !== 'day' && shifts[mi].shift_type !== 'night') continue;
+                const mShift = shifts[mi];
+
+                // Can any deficit doctor take middle's shift?
+                for (const deficitId of deficitIds) {
+                  const mParts = mShift.shift_date.split('-').map(Number);
+                  const mDate = new Date(mParts[0], mParts[1] - 1, mParts[2]);
+                  if (isDoctorOnLeave(ctx, deficitId, mDate)) continue;
+                  if (isDoctorOnBridgeDay(ctx, deficitId, mDate)) continue;
+                  if (shifts.some(s => s.doctor_id === deficitId && s.shift_date === mShift.shift_date && s.shift_type === mShift.shift_type)) continue;
+
+                  // Tentatively apply both swaps
+                  const origS = shifts[sc.idx].doctor_id;
+                  const origM = shifts[mi].doctor_id;
+                  shifts[sc.idx].doctor_id = middleDoc.id;
+                  shifts[mi].doctor_id = deficitId;
+
+                  // Verify all three doctors' schedules
+                  const verify = (docId: string): boolean => {
+                    const all = [
+                      ...ctx.previousMonthShifts.filter(s => s.doctor_id === docId),
+                      ...ctx.fixedShifts.filter(s => s.doctor_id === docId),
+                      ...shifts.filter(s => s.doctor_id === docId),
+                    ].filter(s => s.shift_type === 'day' || s.shift_type === 'night' || s.shift_type === '24h');
+                    for (let a = 0; a < all.length; a++) {
+                      for (let b = a + 1; b < all.length; b++) {
+                        if (hasActualTimeRestConflict(
+                          all[a].shift_date, all[a].shift_type as 'day' | 'night' | '24h',
+                          all[b].shift_date, all[b].shift_type as 'day' | 'night' | '24h',
+                        )) return false;
+                      }
+                    }
+                    return true;
+                  };
+
+                  if (verify(middleDoc.id) && verify(deficitId)) {
+                    progress = true;
+                    break;
+                  }
+                  // Revert
+                  shifts[sc.idx].doctor_id = origS;
+                  shifts[mi].doctor_id = origM;
+                }
+                if (progress) break;
+              }
+            }
+          }
+        }
+
+        // Strategy 2: Remove from best-staffed day (with optional coverage guard)
+        if (!progress) {
+          surplusShifts.sort((a, b) => b.cov - a.cov);
+          for (const sc of surplusShifts) {
+            if (coverageGuard) {
+              const required = shifts[sc.idx].shift_type === 'day' ? ctx.shiftsPerDay : ctx.shiftsPerNight;
+              if (sc.cov < required) continue;
+            }
+            shifts.splice(sc.idx, 1);
+            progress = true;
+            break;
+          }
+        }
+      }
+    }
+    if (!progress) return;
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Post-equalization coverage backfill
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * After extra-shift equalization may have removed shifts, scan for understaffed
+ * slots and repair them using two strategies:
+ *
+ * Strategy 1 (swap): Move a 12h shift from an overstaffed slot to an understaffed
+ * slot for the same doctor. This preserves the doctor's total shift count, so
+ * equalization is completely unaffected.
+ *
+ * Strategy 2 (add): Assign a new shift to a doctor whose extra-shift count is
+ * below the current max, preserving gap ≤1.
+ */
+export function repairPostEqualizationCoverage(
+  ctx: EngineContext,
+  shifts: Shift[],
+  fixedShiftsByDateType: Map<string, Shift[]>
+): void {
+  const daysInMonth = getDaysInMonth(ctx.year, ctx.month);
+
+  /** Check if a doctor can work a specific date/shiftType without rest violations. */
+  function canWork(docId: string, dateStr: string, shiftType: 'day' | 'night', excludeIdx?: number): boolean {
+    const parts = dateStr.split('-').map(Number);
+    const date = new Date(parts[0], parts[1] - 1, parts[2]);
+    if (isDoctorOnLeave(ctx, docId, date)) return false;
+    if (isDoctorOnBridgeDay(ctx, docId, date)) return false;
+    if (shifts.some((s, i) => i !== excludeIdx && s.doctor_id === docId && s.shift_date === dateStr && s.shift_type === shiftType)) return false;
+    const allDocShifts = [
+      ...ctx.previousMonthShifts.filter(s => s.doctor_id === docId),
+      ...ctx.fixedShifts.filter(s => s.doctor_id === docId),
+      ...shifts.filter((s, i) => i !== excludeIdx && s.doctor_id === docId),
+    ];
+    for (const existing of allDocShifts) {
+      if (existing.shift_type !== 'day' && existing.shift_type !== 'night' && existing.shift_type !== '24h') continue;
+      if (hasActualTimeRestConflict(
+        dateStr, shiftType,
+        existing.shift_date, existing.shift_type as 'day' | 'night' | '24h',
+      )) return false;
+    }
+    return true;
+  }
+
+  /** Get coverage count for a slot. */
+  function getCoverage(dateStr: string, shiftType: 'day' | 'night'): number {
+    let count = 0;
+    for (const s of shifts) {
+      if (s.shift_date !== dateStr) continue;
+      if (s.shift_type === shiftType || s.shift_type === '24h') count++;
+    }
+    const fixedKey = `${dateStr}:${shiftType}`;
+    count += fixedShiftsByDateType.get(fixedKey)?.length || 0;
+    return count;
+  }
+
+  // Build list of understaffed slots
+  interface Slot { day: number; dateStr: string; shiftType: 'day' | 'night'; deficit: number }
+  const understaffed: Slot[] = [];
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = formatDate(new Date(ctx.year, ctx.month, day));
+    for (const shiftType of ['day', 'night'] as const) {
+      const required = shiftType === 'day' ? ctx.shiftsPerDay : ctx.shiftsPerNight;
+      const cov = getCoverage(dateStr, shiftType);
+      if (cov < required) {
+        understaffed.push({ day, dateStr, shiftType, deficit: required - cov });
+      }
+    }
+  }
+  if (understaffed.length === 0) return;
+
+  // Sort by deficit descending (fix worst gaps first)
+  understaffed.sort((a, b) => b.deficit - a.deficit);
+
+  // Strategy 1: Swap — move a 12h shift from an overstaffed slot to an understaffed one.
+  // This perfectly preserves equalization (same doctor, same shift count).
+  for (let iter = 0; iter < 200; iter++) {
+    let swapped = false;
+    for (const slot of understaffed) {
+      if (slot.deficit <= 0) continue;
+      // Find 12h shifts on overstaffed days that the same doctor could work on this understaffed day
+      for (let si = 0; si < shifts.length; si++) {
+        const s = shifts[si];
+        if (s.shift_type !== 'day' && s.shift_type !== 'night') continue;
+        // Source must be overstaffed (coverage > required after removal)
+        const srcRequired = s.shift_type === 'day' ? ctx.shiftsPerDay : ctx.shiftsPerNight;
+        const srcCov = getCoverage(s.shift_date, s.shift_type as 'day' | 'night');
+        if (srcCov <= srcRequired) continue; // can't take from properly-staffed day
+        // Same doctor must be able to work the understaffed slot
+        const doc = ctx.doctors.find(d => d.id === s.doctor_id);
+        if (!doc || doc.shift_mode === '24h') continue;
+        if (!canWork(s.doctor_id, slot.dateStr, slot.shiftType, si)) continue;
+
+        // Verify the doctor's schedule after the swap has no rest violations
+        const origDate = s.shift_date;
+        const origType = s.shift_type;
+        s.shift_date = slot.dateStr;
+        s.shift_type = slot.shiftType;
+        s.start_time = slot.shiftType === 'day' ? '08:00' : '20:00';
+        s.end_time = slot.shiftType === 'day' ? '20:00' : '08:00';
+
+        // Verify full schedule of this doctor
+        const allDocShifts = [
+          ...ctx.previousMonthShifts.filter(x => x.doctor_id === s.doctor_id),
+          ...ctx.fixedShifts.filter(x => x.doctor_id === s.doctor_id),
+          ...shifts.filter(x => x.doctor_id === s.doctor_id),
+        ];
+        let valid = true;
+        for (let i = 0; i < allDocShifts.length && valid; i++) {
+          const si2 = allDocShifts[i];
+          if (si2.shift_type !== 'day' && si2.shift_type !== 'night' && si2.shift_type !== '24h') continue;
+          for (let j = i + 1; j < allDocShifts.length && valid; j++) {
+            const sj = allDocShifts[j];
+            if (sj.shift_type !== 'day' && sj.shift_type !== 'night' && sj.shift_type !== '24h') continue;
+            if (hasActualTimeRestConflict(
+              si2.shift_date, si2.shift_type as 'day' | 'night' | '24h',
+              sj.shift_date, sj.shift_type as 'day' | 'night' | '24h',
+            )) valid = false;
+          }
+        }
+        if (valid) {
+          slot.deficit--;
+          swapped = true;
+          break;
+        }
+        // Revert
+        s.shift_date = origDate;
+        s.shift_type = origType;
+        s.start_time = origType === 'day' ? '08:00' : '20:00';
+        s.end_time = origType === 'day' ? '20:00' : '08:00';
+      }
+    }
+    if (!swapped) break;
+  }
+
+  // Strategy 2: Add shifts to fill understaffed slots, preferring lowest-extra doctors.
+  // Only adds to doctors with extra < maxExtra to preserve gap ≤ 1.
+  for (const slot of understaffed) {
+    if (slot.deficit <= 0) continue;
+    const extras = computeExtraShifts(ctx, shifts);
+    if (extras.length === 0) continue;
+    const maxExtra = Math.max(...extras.map(e => e.extra));
+    const candidates = extras
+      .filter(e => e.extra < maxExtra)
+      .sort((a, b) => a.extra - b.extra);
+
+    for (const candidate of candidates) {
+      if (slot.deficit <= 0) break;
+      const doc = ctx.doctors.find(d => d.id === candidate.id);
+      if (!doc || doc.shift_mode === '24h') continue;
+      if (!canWork(doc.id, slot.dateStr, slot.shiftType)) continue;
+
+      shifts.push({
+        id: ctx.generateId(),
+        doctor_id: doc.id,
+        shift_date: slot.dateStr,
+        shift_type: slot.shiftType,
+        start_time: slot.shiftType === 'day' ? '08:00' : '20:00',
+        end_time: slot.shiftType === 'day' ? '20:00' : '08:00',
+      });
+      slot.deficit--;
+    }
   }
 }
 
@@ -1745,7 +2201,7 @@ export function repairWithLocalSearch(
   ctx: EngineContext,
   shifts: Shift[],
   fixedShiftsByDateType: Map<string, Shift[]>,
-  timeBudgetMs: number = 2000
+  maxIterations: number = 500
 ): void {
   const daysInMonth = getDaysInMonth(ctx.year, ctx.month);
   const doctors12h = ctx.doctors.filter(d => d.shift_mode !== '24h');
@@ -1757,7 +2213,6 @@ export function repairWithLocalSearch(
 
   const PERTURB_RADIUS = 5;
   const PERTURB_COUNT = 50;
-  const startTime = Date.now();
 
   // Pre-compute MRV day ordering: tightest days first (fewest available 12h doctors)
   const dayOrder: number[] = [];
@@ -1805,8 +2260,7 @@ export function repairWithLocalSearch(
   if (bestUnfilled === 0 || bestUnfilled > maxRepairable) return;
   let bestSnapshot = shifts.map(s => ({ ...s }));
 
-  for (let iter = 0; ; iter++) {
-    if (Date.now() - startTime > timeBudgetMs) break;
+  for (let iter = 0; iter < maxIterations; iter++) {
     if (bestUnfilled === 0) break;
 
     // Restore to best known state
@@ -1827,10 +2281,7 @@ export function repairWithLocalSearch(
     }
 
     // Shuffle and remove a random subset
-    for (let i = removable.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [removable[i], removable[j]] = [removable[j], removable[i]];
-    }
+    shuffleArray(removable, ctx.random);
     const toRemove = new Set(removable.slice(0, PERTURB_COUNT));
     for (let i = shifts.length - 1; i >= 0; i--) {
       if (toRemove.has(i)) shifts.splice(i, 1);
@@ -1848,10 +2299,7 @@ export function repairWithLocalSearch(
 
     // Shuffled doctor order (different each iteration)
     const shuffled = [...doctors12h];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
+    shuffleArray(shuffled, ctx.random);
 
     // Greedy re-fill: MRV day ordering (tightest days first)
     for (const day of dayOrder) {
@@ -1877,7 +2325,7 @@ export function repairWithLocalSearch(
 
           if (canDoctorWorkWithTimeline(ctx, doc.id, date, shiftType, docShifts)) {
             const newShift: Shift = {
-              id: crypto.randomUUID(),
+              id: ctx.generateId(),
               doctor_id: doc.id,
               shift_date: dateStr,
               shift_type: shiftType,
@@ -1903,4 +2351,346 @@ export function repairWithLocalSearch(
   // Apply best result
   shifts.length = 0;
   for (const s of bestSnapshot) shifts.push(s);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Phase 7: Forced coverage — fill ALL remaining understaffed slots
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * After all repair passes, fill every remaining understaffed slot.
+ * This pass MAY break rest violations when no rest-safe candidate exists.
+ * Shifts added with a rest violation are marked `is_forced_coverage = true`
+ * so the UI can render them in a warning colour.
+ *
+ * Equalization invariant (non-negotiable): after this pass, the max gap in
+ * extra shifts between any two non-optional doctors is ≤ 1.
+ *
+ * Three strategies (tried in order of preference):
+ *
+ *  Strategy A — Swap: move a 12h shift from an overstaffed slot to an
+ *    understaffed slot for the SAME doctor. Doctor's shift count is unchanged,
+ *    so equalization is perfectly preserved. Rest violations are allowed on the
+ *    new position (marked is_forced_coverage).
+ *
+ *  Strategy B — Reassign: take a 12h shift on an overstaffed day from a
+ *    surplus-extra doctor and give it to a deficit-extra doctor on the
+ *    understaffed day. Coverage moves from overstaffed→understaffed AND
+ *    equalization gap decreases. Rest violations allowed.
+ *
+ *  Strategy C — Add: assign a new shift to a doctor at the global min-extra
+ *    level (only 12h doctors eligible). This increases their extra by 1 and
+ *    keeps gap ≤ 1 as long as they were at minExtra.
+ */
+export function repairForcedCoverage(
+  ctx: EngineContext,
+  shifts: Shift[],
+  fixedShiftsByDateType: Map<string, Shift[]>
+): void {
+  const daysInMonth = getDaysInMonth(ctx.year, ctx.month);
+  const doctors12h = ctx.doctors.filter(d => d.shift_mode !== '24h' && !d.is_optional);
+
+  function getCoverage(dateStr: string, shiftType: 'day' | 'night'): number {
+    let count = 0;
+    for (const s of shifts) {
+      if (s.shift_date !== dateStr) continue;
+      if (s.shift_type === shiftType || s.shift_type === '24h') count++;
+    }
+    const fixedKey = `${dateStr}:${shiftType}`;
+    count += fixedShiftsByDateType.get(fixedKey)?.length || 0;
+    return count;
+  }
+
+  /** Check if assigning this doctor to this slot causes a rest violation. */
+  function checkRestViolation(docId: string, dateStr: string, shiftType: 'day' | 'night', excludeIdx?: number): boolean {
+    const allDocShifts = [
+      ...ctx.previousMonthShifts.filter(s => s.doctor_id === docId),
+      ...ctx.fixedShifts.filter(s => s.doctor_id === docId),
+      ...shifts.filter((s, i) => i !== excludeIdx && s.doctor_id === docId),
+    ];
+    for (const existing of allDocShifts) {
+      if (existing.shift_type !== 'day' && existing.shift_type !== 'night' && existing.shift_type !== '24h') continue;
+      if (hasActualTimeRestConflict(
+        dateStr, shiftType,
+        existing.shift_date, existing.shift_type as 'day' | 'night' | '24h',
+      )) return true;
+    }
+    return false;
+  }
+
+  /** Check basic eligibility for 12h: not on leave, not on bridge day, not already assigned. */
+  function isEligible(docId: string, dateStr: string, shiftType: 'day' | 'night'): boolean {
+    const parts = dateStr.split('-').map(Number);
+    const date = new Date(parts[0], parts[1] - 1, parts[2]);
+    if (isDoctorOnLeave(ctx, docId, date)) return false;
+    if (isDoctorOnBridgeDay(ctx, docId, date)) return false;
+    if (shifts.some(s => s.doctor_id === docId && s.shift_date === dateStr &&
+        (s.shift_type === shiftType || s.shift_type === '24h'))) return false;
+    const fixedKey = `${dateStr}:${shiftType}`;
+    const fixed = fixedShiftsByDateType.get(fixedKey) || [];
+    if (fixed.some(s => s.doctor_id === docId)) return false;
+    return true;
+  }
+
+  function getTeamsOnDate(dateStr: string): Set<string> {
+    const teams = new Set<string>();
+    for (const s of shifts) {
+      if (s.shift_date !== dateStr) continue;
+      const doc = ctx.doctors.find(d => d.id === s.doctor_id);
+      if (doc?.team_id) teams.add(doc.team_id);
+    }
+    return teams;
+  }
+
+  /** Collect understaffed slots. */
+  function getUnderstaffed(): { day: number; dateStr: string; shiftType: 'day' | 'night'; deficit: number }[] {
+    const result: { day: number; dateStr: string; shiftType: 'day' | 'night'; deficit: number }[] = [];
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = formatDate(new Date(ctx.year, ctx.month, day));
+      for (const shiftType of ['day', 'night'] as const) {
+        const required = shiftType === 'day' ? ctx.shiftsPerDay : ctx.shiftsPerNight;
+        const cov = getCoverage(dateStr, shiftType);
+        if (cov < required) {
+          result.push({ day, dateStr, shiftType, deficit: required - cov });
+        }
+      }
+    }
+    result.sort((a, b) => b.deficit - a.deficit || a.day - b.day);
+    return result;
+  }
+
+  // ── Strategy A: Swap — same doctor, different day ──
+  // Move a 12h shift from an overstaffed slot to an understaffed slot.
+  // This perfectly preserves equalization (shift count unchanged).
+  for (let pass = 0; pass < 100; pass++) {
+    const understaffed = getUnderstaffed();
+    if (understaffed.length === 0) return;
+
+    let swapped = false;
+    for (const slot of understaffed) {
+      if (slot.deficit <= 0) continue;
+
+      for (let si = 0; si < shifts.length; si++) {
+        const s = shifts[si];
+        if (s.shift_type !== 'day' && s.shift_type !== 'night') continue;
+        // Source must be overstaffed (coverage > required after removal)
+        const srcRequired = s.shift_type === 'day' ? ctx.shiftsPerDay : ctx.shiftsPerNight;
+        const srcCov = getCoverage(s.shift_date, s.shift_type as 'day' | 'night');
+        if (srcCov <= srcRequired) continue;
+        // Same doctor must be eligible on the understaffed day
+        const doc = ctx.doctors.find(d => d.id === s.doctor_id);
+        if (!doc || doc.shift_mode === '24h') continue;
+        if (!isEligible(s.doctor_id, slot.dateStr, slot.shiftType)) continue;
+
+        // Perform the swap
+        s.shift_date = slot.dateStr;
+        s.shift_type = slot.shiftType;
+        s.start_time = slot.shiftType === 'day' ? '08:00' : '20:00';
+        s.end_time = slot.shiftType === 'day' ? '20:00' : '08:00';
+
+        // Check rest validity after swap (allow violations — mark as forced)
+        const hasViolation = checkRestViolation(s.doctor_id, slot.dateStr, slot.shiftType);
+        if (hasViolation) {
+          s.is_forced_coverage = true;
+        }
+        slot.deficit--;
+        swapped = true;
+        break;
+      }
+    }
+    if (!swapped) break;
+  }
+
+  // ── Strategy B: Reassign — different doctor, from overstaffed day ──
+  // Take a shift from doctor X on overstaffed day, give to doctor Y on
+  // understaffed day. This moves coverage AND can improve equalization.
+  for (let pass = 0; pass < 100; pass++) {
+    const understaffed = getUnderstaffed();
+    if (understaffed.length === 0) return;
+
+    let progress = false;
+    for (const slot of understaffed) {
+      if (slot.deficit <= 0) continue;
+      if (progress) break;
+
+      const extras = computeExtraShifts(ctx, shifts);
+      if (extras.length === 0) continue;
+      const maxExtra = Math.max(...extras.map(e => e.extra));
+      const minExtra = Math.min(...extras.map(e => e.extra));
+      if (maxExtra - minExtra <= 0) continue; // can't improve equalization
+
+      // Find surplus doctors (at maxExtra) with shifts on overstaffed days
+      const surplusIds = new Set(extras.filter(e => e.extra === maxExtra).map(e => e.id));
+      // Find deficit doctors (at minExtra) eligible for this slot
+      const deficitIds = extras.filter(e => e.extra === minExtra).map(e => e.id);
+
+      for (let si = 0; si < shifts.length; si++) {
+        if (progress) break;
+        const s = shifts[si];
+        if (!surplusIds.has(s.doctor_id)) continue;
+        if (s.shift_type !== 'day' && s.shift_type !== 'night') continue;
+        // Source must be overstaffed
+        const srcRequired = s.shift_type === 'day' ? ctx.shiftsPerDay : ctx.shiftsPerNight;
+        const srcCov = getCoverage(s.shift_date, s.shift_type as 'day' | 'night');
+        if (srcCov <= srcRequired) continue;
+
+        for (const defId of deficitIds) {
+          const defDoc = doctors12h.find(d => d.id === defId);
+          if (!defDoc) continue;
+          if (!isEligible(defId, slot.dateStr, slot.shiftType)) continue;
+
+          // Remove source shift, add new shift for deficit doctor
+          const removedShift = shifts.splice(si, 1)[0];
+          const hasViolation = checkRestViolation(defId, slot.dateStr, slot.shiftType);
+          shifts.push({
+            id: ctx.generateId(),
+            doctor_id: defId,
+            shift_date: slot.dateStr,
+            shift_type: slot.shiftType,
+            start_time: slot.shiftType === 'day' ? '08:00' : '20:00',
+            end_time: slot.shiftType === 'day' ? '20:00' : '08:00',
+            ...(hasViolation ? { is_forced_coverage: true } : {}),
+          });
+
+          // Verify source day isn't now understaffed
+          const newSrcCov = getCoverage(removedShift.shift_date, removedShift.shift_type as 'day' | 'night');
+          if (newSrcCov < srcRequired) {
+            // Revert: remove the new shift, restore the old one
+            shifts.pop();
+            shifts.splice(si, 0, removedShift);
+            continue;
+          }
+
+          slot.deficit--;
+          progress = true;
+          break;
+        }
+      }
+    }
+    if (!progress) break;
+  }
+
+  // ── Strategy C+D: Add new shifts and rebalance in lockstep ──
+  // For each understaffed slot, add a 12h shift to fill it, then immediately
+  // check if global equalization broke. If it did, rebalance by removing a
+  // surplus doctor's shift from an overstaffed day or reassigning it.
+  // This ensures the gap never grows unbounded.
+  for (let pass = 0; pass < 50; pass++) {
+    const understaffed = getUnderstaffed();
+    if (understaffed.length === 0) break;
+
+    let anyProgress = false;
+
+    for (const slot of understaffed) {
+      if (slot.deficit <= 0) continue;
+
+      const extras = computeExtraShifts(ctx, shifts);
+      if (extras.length === 0) continue;
+      const globalMin = Math.min(...extras.map(e => e.extra));
+      const globalMax = Math.max(...extras.map(e => e.extra));
+
+      // Compute min-extra among 12h doctors only
+      const extras12h = extras.filter(e => doctors12h.some(d => d.id === e.id));
+      if (extras12h.length === 0) continue;
+      const minExtra12h = Math.min(...extras12h.map(e => e.extra));
+
+      const teamsOnDate = getTeamsOnDate(slot.dateStr);
+
+      // Find eligible 12h doctors at min-extra-among-12h level
+      const candidates: { docId: string; restSafe: boolean; teamCohesion: boolean }[] = [];
+      for (const e of extras12h) {
+        if (e.extra !== minExtra12h) continue;
+        const doc = doctors12h.find(d => d.id === e.id);
+        if (!doc) continue;
+        if (!isEligible(doc.id, slot.dateStr, slot.shiftType)) continue;
+        const restSafe = !checkRestViolation(doc.id, slot.dateStr, slot.shiftType);
+        const teamCohesion = !!doc.team_id && teamsOnDate.has(doc.team_id);
+        candidates.push({ docId: doc.id, restSafe, teamCohesion });
+      }
+
+      if (candidates.length === 0) continue;
+
+      // Prefer rest-safe, then team cohesion
+      candidates.sort((a, b) => {
+        if (a.restSafe !== b.restSafe) return a.restSafe ? -1 : 1;
+        if (a.teamCohesion !== b.teamCohesion) return a.teamCohesion ? -1 : 1;
+        return 0;
+      });
+
+      const chosen = candidates[0];
+      const isForced = !chosen.restSafe;
+
+      shifts.push({
+        id: ctx.generateId(),
+        doctor_id: chosen.docId,
+        shift_date: slot.dateStr,
+        shift_type: slot.shiftType,
+        start_time: slot.shiftType === 'day' ? '08:00' : '20:00',
+        end_time: slot.shiftType === 'day' ? '20:00' : '08:00',
+        ...(isForced ? { is_forced_coverage: true } : {}),
+      });
+      slot.deficit--;
+      anyProgress = true;
+
+      // ── Immediate rebalance if gap > 1 ──
+      // After adding, the chosen doctor's extra went from minExtra12h to
+      // minExtra12h+1. Check if the global gap now exceeds 1.
+      const newMax = Math.max(globalMax, minExtra12h + 1);
+      if (newMax - globalMin > 1) {
+        // Find a surplus 12h doctor with a shift on an overstaffed day and remove it
+        const surplusExtras = computeExtraShifts(ctx, shifts);
+        const surpMax = Math.max(...surplusExtras.map(e => e.extra));
+        const surplusIds = new Set(surplusExtras.filter(e => e.extra === surpMax).map(e => e.id));
+
+        let rebalanced = false;
+
+        // Try reassign from surplus to deficit first
+        const surpMin = Math.min(...surplusExtras.map(e => e.extra));
+        if (surpMax - surpMin > 1) {
+          const defIds = surplusExtras.filter(e => e.extra === surpMin).map(e => e.id);
+          for (let si = 0; si < shifts.length && !rebalanced; si++) {
+            const s = shifts[si];
+            if (!surplusIds.has(s.doctor_id)) continue;
+            if (s.shift_type !== 'day' && s.shift_type !== 'night') continue;
+            // Only reassign from overstaffed days
+            const cov = getCoverage(s.shift_date, s.shift_type as 'day' | 'night');
+            const req = s.shift_type === 'day' ? ctx.shiftsPerDay : ctx.shiftsPerNight;
+            if (cov <= req) continue;
+
+            for (const dId of defIds) {
+              const dd = doctors12h.find(d => d.id === dId);
+              if (!dd) continue;
+              if (!isEligible(dId, s.shift_date, s.shift_type as 'day' | 'night')) continue;
+              const hasV = checkRestViolation(dId, s.shift_date, s.shift_type as 'day' | 'night');
+              s.doctor_id = dId;
+              s.is_forced_coverage = hasV || undefined;
+              rebalanced = true;
+              break;
+            }
+          }
+        }
+
+        // Fallback: remove from overstaffed day
+        if (!rebalanced) {
+          for (let si = 0; si < shifts.length; si++) {
+            const s = shifts[si];
+            if (!surplusIds.has(s.doctor_id)) continue;
+            if (s.shift_type !== 'day' && s.shift_type !== 'night') continue;
+            const cov = getCoverage(s.shift_date, s.shift_type as 'day' | 'night');
+            const req = s.shift_type === 'day' ? ctx.shiftsPerDay : ctx.shiftsPerNight;
+            if (cov > req) {
+              shifts.splice(si, 1);
+              rebalanced = true;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (!anyProgress) break;
+  }
+
+  // Strategy E removed: 24h doctors follow a rigid 72h cadence set in Phase 0.
+  // Their shifts are never added, removed, or moved by repair or forced coverage.
 }

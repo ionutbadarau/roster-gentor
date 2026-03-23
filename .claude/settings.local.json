@@ -11,7 +11,14 @@
       "Bash(npx vitest run src/lib/__tests__/scheduling-engine.test.ts)",
       "Bash(npx vitest run src/lib/__tests__/scheduling-engine.test.ts -t \"leave on March 11\")",
       "Bash(npx vitest run src/lib/__tests__/scheduling-engine.test.ts --reporter=verbose)",
-      "Bash(npx vitest run src/lib/__tests__/scheduling-engine.test.ts -t \"heavy leave\")"
+      "Bash(npx vitest run src/lib/__tests__/scheduling-engine.test.ts -t \"heavy leave\")",
+      "Bash(npx *)",
+      "Bash(for i:*)",
+      "Bash(do echo:*)",
+      "Bash(done)",
+      "Bash(do npx:*)",
+      "Bash(cd c:/Users/ioanb/myprojects/roster-*)",
+      "cd c:/Users/ioanb/myprojects/roster-*"
     ]
   }
 }

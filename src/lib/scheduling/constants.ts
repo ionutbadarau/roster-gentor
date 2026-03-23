@@ -22,6 +22,8 @@ export interface ScheduleGenerationOptions {
   nationalHolidays?: NationalHoliday[];
   fixedShifts?: Shift[];
   previousMonthShifts?: Shift[];
+  /** Seed for deterministic PRNG. Defaults to year * 100 + month. */
+  seed?: number;
 }
 
 /**
@@ -50,4 +52,8 @@ export interface EngineContext {
   scorePerturbation: Map<string, number>;
   /** Per-doctor cadence schedule: doctorId → (dayNumber → 'day'|'night'|null). */
   doctorCadence: Map<string, Map<number, 'day' | 'night' | null>>;
+  /** Seeded PRNG for deterministic randomness. */
+  random: () => number;
+  /** Deterministic ID generator for shifts. */
+  generateId: () => string;
 }

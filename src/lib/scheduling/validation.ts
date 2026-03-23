@@ -176,11 +176,13 @@ export function detectConflicts(shifts: Shift[], doctors: Doctor[], requiredPerD
 
       if (gapHours < minRest) {
         const key = prevType === '24h' ? '24h' : prevType === 'night' ? 'Night' : 'Day';
+        const isForcedCoverage = !!(prevShift.is_forced_coverage || currShift.is_forced_coverage);
         conflicts.push({
           type: 'rest_violation',
           date: currShift.shift_date,
           doctor_id: doctorId,
           message: `scheduling.engine.restViolation${key}::${JSON.stringify({ hours: minRest })}`,
+          ...(isForcedCoverage ? { is_forced_coverage: true } : {}),
         });
       }
     }
