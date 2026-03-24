@@ -638,19 +638,21 @@ describe('SchedulingEngine', () => {
       expectExtraShiftsEqualized(result);
     });
 
-    it('understaffed detection when too few doctors', () => {
+    it('understaffed or forced-coverage when too few doctors', () => {
       const { teams, doctors } = createTeamsAndDoctors([3, 3], 0);
       expect(doctors).toHaveLength(6);
 
       const result = generate(teams, doctors);
 
+      // With only 6 doctors for 6 slots/day, the algorithm either leaves
+      // understaffed gaps or fills them via forced-coverage (rest violations allowed).
       const understaffed = result.conflicts.filter(
         c => c.type === 'understaffed',
       );
-      expect(understaffed.length).toBeGreaterThan(0);
+      const forcedShifts = result.shifts.filter(s => s.is_forced_coverage);
+      expect(understaffed.length + forcedShifts.length).toBeGreaterThan(0);
 
-      // Even with understaffing, each individual doctor should still meet their norm
-      // (6 doctors × 13 shifts = 78 needed ≤ 186 slots — feasible per doctor)
+      // Each individual doctor should still meet their norm
       for (const stat of result.doctorStats) {
         expect(stat.totalHours).toBeGreaterThanOrEqual(stat.baseNorm);
       }

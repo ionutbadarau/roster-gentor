@@ -89,13 +89,15 @@ After all repair stages, fills **every remaining understaffed slot** — the sch
 
 **24h doctors are never involved in forced coverage.** Their shifts are immutable after Phase 0.
 
+**Candidate ranking (all strategies):** When multiple doctors can fill a forced-coverage slot, the algorithm picks the **most rested** candidate (longest time since their last shift ended). This minimizes the severity of any rest violation. Additionally, assignments that would create an effective 24h shift (day + night on the same date) for a 12h-configured doctor are deprioritized.
+
 Three strategies for 12h doctors, tried in order of preference:
 
-1. **Strategy A — Swap (same doctor):** Move a 12h shift from an overstaffed slot to an understaffed slot for the same doctor. Shift count unchanged → equalization perfectly preserved. Rest violations allowed (marked `is_forced_coverage`).
+1. **Strategy A — Swap (same doctor):** Move a 12h shift from an overstaffed slot to an understaffed slot for the same doctor. Shift count unchanged → equalization perfectly preserved. Rest violations allowed (marked `is_forced_coverage`). Among valid swaps, picks the one where the doctor is most rested on the target date and avoids creating 24h for 12h doctors.
 
-2. **Strategy B — Reassign (cross-doctor):** Take a 12h shift from a surplus-extra doctor on an overstaffed day and give it to a deficit-extra doctor on the understaffed day. Moves coverage AND improves equalization. Rest violations allowed.
+2. **Strategy B — Reassign (cross-doctor):** Take a 12h shift from a surplus-extra doctor on an overstaffed day and give it to a deficit-extra doctor on the understaffed day. Deficit candidates sorted by: avoid 24h creation for 12h doctors, then most rested. Rest violations allowed.
 
-3. **Strategy C — Add 12h shift + immediate rebalance:** Add a new 12h shift to a doctor at min-extra among 12h doctors. If this breaks the global gap (>1), immediately rebalance by reassigning a surplus doctor's shift from an overstaffed day or removing it.
+3. **Strategy C — Add 12h shift + immediate rebalance:** Add a new 12h shift to a doctor at min-extra among 12h doctors. Candidates sorted by: rest-safe first, then avoid 24h for 12h doctors, then most rested, then team cohesion. If this breaks the global gap (>1), immediately rebalance by reassigning a surplus doctor's shift from an overstaffed day or removing it.
 
 **Conflict propagation:** `detectConflicts` in `validation.ts` marks rest violations involving forced-coverage shifts with `is_forced_coverage: true`, allowing the UI and tests to distinguish intentional violations from bugs.
 

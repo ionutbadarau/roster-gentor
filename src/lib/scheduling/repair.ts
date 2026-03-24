@@ -2432,6 +2432,36 @@ export function repairForcedCoverage(
     return true;
   }
 
+  /** Compute hours since a doctor's most recent shift ended before the proposed shift start. */
+  function hoursSinceLastShiftEnd(docId: string, dateStr: string, shiftType: 'day' | 'night'): number {
+    const proposedStartMs = getShiftStartMs(dateStr, shiftType);
+    let maxEndMs = -Infinity;
+    const allDocShifts = [
+      ...ctx.previousMonthShifts.filter(s => s.doctor_id === docId),
+      ...ctx.fixedShifts.filter(s => s.doctor_id === docId),
+      ...shifts.filter(s => s.doctor_id === docId),
+    ];
+    for (const s of allDocShifts) {
+      if (s.shift_type !== 'day' && s.shift_type !== 'night' && s.shift_type !== '24h') continue;
+      const endMs = getShiftEndMs(s.shift_date, s.shift_type as 'day' | 'night' | '24h');
+      if (endMs <= proposedStartMs && endMs > maxEndMs) {
+        maxEndMs = endMs;
+      }
+    }
+    if (maxEndMs === -Infinity) return Infinity; // No prior shifts — fully rested
+    return (proposedStartMs - maxEndMs) / 3_600_000;
+  }
+
+  /** Check if assigning this shift would create an effective 24h (day+night same date) for a 12h doctor. */
+  function wouldCreate24hFor12hDoctor(docId: string, dateStr: string, shiftType: 'day' | 'night'): boolean {
+    const doc = ctx.doctors.find(d => d.id === docId);
+    if (!doc || doc.shift_mode === '24h') return false;
+    const complementType = shiftType === 'day' ? 'night' : 'day';
+    return shifts.some(s =>
+      s.doctor_id === docId && s.shift_date === dateStr && s.shift_type === complementType
+    );
+  }
+
   function getTeamsOnDate(dateStr: string): Set<string> {
     const teams = new Set<string>();
     for (const s of shifts) {
@@ -2470,33 +2500,44 @@ export function repairForcedCoverage(
     for (const slot of understaffed) {
       if (slot.deficit <= 0) continue;
 
+      // Collect all valid swap candidates for this slot
+      const swapCandidates: { si: number; restHours: number; creates24h: boolean }[] = [];
       for (let si = 0; si < shifts.length; si++) {
         const s = shifts[si];
         if (s.shift_type !== 'day' && s.shift_type !== 'night') continue;
-        // Source must be overstaffed (coverage > required after removal)
         const srcRequired = s.shift_type === 'day' ? ctx.shiftsPerDay : ctx.shiftsPerNight;
         const srcCov = getCoverage(s.shift_date, s.shift_type as 'day' | 'night');
         if (srcCov <= srcRequired) continue;
-        // Same doctor must be eligible on the understaffed day
         const doc = ctx.doctors.find(d => d.id === s.doctor_id);
         if (!doc || doc.shift_mode === '24h') continue;
         if (!isEligible(s.doctor_id, slot.dateStr, slot.shiftType)) continue;
 
-        // Perform the swap
-        s.shift_date = slot.dateStr;
-        s.shift_type = slot.shiftType;
-        s.start_time = slot.shiftType === 'day' ? '08:00' : '20:00';
-        s.end_time = slot.shiftType === 'day' ? '20:00' : '08:00';
-
-        // Check rest validity after swap (allow violations — mark as forced)
-        const hasViolation = checkRestViolation(s.doctor_id, slot.dateStr, slot.shiftType);
-        if (hasViolation) {
-          s.is_forced_coverage = true;
-        }
-        slot.deficit--;
-        swapped = true;
-        break;
+        const restHours = hoursSinceLastShiftEnd(s.doctor_id, slot.dateStr, slot.shiftType);
+        const creates24h = wouldCreate24hFor12hDoctor(s.doctor_id, slot.dateStr, slot.shiftType);
+        swapCandidates.push({ si, restHours, creates24h });
       }
+
+      if (swapCandidates.length === 0) continue;
+
+      // Pick best: avoid 24h for 12h doctors, then most rested (largest restHours)
+      swapCandidates.sort((a, b) => {
+        if (a.creates24h !== b.creates24h) return a.creates24h ? 1 : -1;
+        return b.restHours - a.restHours; // most rested first
+      });
+
+      const best = swapCandidates[0];
+      const s = shifts[best.si];
+      s.shift_date = slot.dateStr;
+      s.shift_type = slot.shiftType;
+      s.start_time = slot.shiftType === 'day' ? '08:00' : '20:00';
+      s.end_time = slot.shiftType === 'day' ? '20:00' : '08:00';
+
+      const hasViolation = checkRestViolation(s.doctor_id, slot.dateStr, slot.shiftType);
+      if (hasViolation) {
+        s.is_forced_coverage = true;
+      }
+      slot.deficit--;
+      swapped = true;
     }
     if (!swapped) break;
   }
@@ -2521,8 +2562,17 @@ export function repairForcedCoverage(
 
       // Find surplus doctors (at maxExtra) with shifts on overstaffed days
       const surplusIds = new Set(extras.filter(e => e.extra === maxExtra).map(e => e.id));
-      // Find deficit doctors (at minExtra) eligible for this slot
-      const deficitIds = extras.filter(e => e.extra === minExtra).map(e => e.id);
+      // Find deficit doctors (at minExtra) eligible for this slot, sorted by most rested
+      const deficitCandidates = extras.filter(e => e.extra === minExtra)
+        .map(e => ({
+          id: e.id,
+          restHours: hoursSinceLastShiftEnd(e.id, slot.dateStr, slot.shiftType),
+          creates24h: wouldCreate24hFor12hDoctor(e.id, slot.dateStr, slot.shiftType),
+        }))
+        .sort((a, b) => {
+          if (a.creates24h !== b.creates24h) return a.creates24h ? 1 : -1;
+          return b.restHours - a.restHours;
+        });
 
       for (let si = 0; si < shifts.length; si++) {
         if (progress) break;
@@ -2534,17 +2584,17 @@ export function repairForcedCoverage(
         const srcCov = getCoverage(s.shift_date, s.shift_type as 'day' | 'night');
         if (srcCov <= srcRequired) continue;
 
-        for (const defId of deficitIds) {
-          const defDoc = doctors12h.find(d => d.id === defId);
+        for (const def of deficitCandidates) {
+          const defDoc = doctors12h.find(d => d.id === def.id);
           if (!defDoc) continue;
-          if (!isEligible(defId, slot.dateStr, slot.shiftType)) continue;
+          if (!isEligible(def.id, slot.dateStr, slot.shiftType)) continue;
 
           // Remove source shift, add new shift for deficit doctor
           const removedShift = shifts.splice(si, 1)[0];
-          const hasViolation = checkRestViolation(defId, slot.dateStr, slot.shiftType);
+          const hasViolation = checkRestViolation(def.id, slot.dateStr, slot.shiftType);
           shifts.push({
             id: ctx.generateId(),
-            doctor_id: defId,
+            doctor_id: def.id,
             shift_date: slot.dateStr,
             shift_type: slot.shiftType,
             start_time: slot.shiftType === 'day' ? '08:00' : '20:00',
@@ -2597,7 +2647,7 @@ export function repairForcedCoverage(
       const teamsOnDate = getTeamsOnDate(slot.dateStr);
 
       // Find eligible 12h doctors at min-extra-among-12h level
-      const candidates: { docId: string; restSafe: boolean; teamCohesion: boolean }[] = [];
+      const candidates: { docId: string; restSafe: boolean; teamCohesion: boolean; restHours: number; creates24h: boolean }[] = [];
       for (const e of extras12h) {
         if (e.extra !== minExtra12h) continue;
         const doc = doctors12h.find(d => d.id === e.id);
@@ -2605,14 +2655,18 @@ export function repairForcedCoverage(
         if (!isEligible(doc.id, slot.dateStr, slot.shiftType)) continue;
         const restSafe = !checkRestViolation(doc.id, slot.dateStr, slot.shiftType);
         const teamCohesion = !!doc.team_id && teamsOnDate.has(doc.team_id);
-        candidates.push({ docId: doc.id, restSafe, teamCohesion });
+        const restHours = hoursSinceLastShiftEnd(doc.id, slot.dateStr, slot.shiftType);
+        const creates24h = wouldCreate24hFor12hDoctor(doc.id, slot.dateStr, slot.shiftType);
+        candidates.push({ docId: doc.id, restSafe, teamCohesion, restHours, creates24h });
       }
 
       if (candidates.length === 0) continue;
 
-      // Prefer rest-safe, then team cohesion
+      // Prefer rest-safe, then avoid 24h for 12h doctors, then most rested, then team cohesion
       candidates.sort((a, b) => {
         if (a.restSafe !== b.restSafe) return a.restSafe ? -1 : 1;
+        if (a.creates24h !== b.creates24h) return a.creates24h ? 1 : -1;
+        if (a.restHours !== b.restHours) return b.restHours - a.restHours; // most rested first
         if (a.teamCohesion !== b.teamCohesion) return a.teamCohesion ? -1 : 1;
         return 0;
       });

@@ -272,10 +272,10 @@ export default function ShiftGridCalendar({
       for (const { id, is_forced_coverage, ...shift } of result.shifts) {
         deduped.set(`${shift.doctor_id}:${shift.shift_date}`, shift);
       }
-      const { error } = await supabase.from('shifts').upsert(
+      const { data: savedShifts, error } = await supabase.from('shifts').upsert(
         Array.from(deduped.values()),
         { onConflict: 'doctor_id,shift_date' },
-      );
+      ).select();
       if (error) throw error;
 
       toast({
@@ -283,7 +283,7 @@ export default function ShiftGridCalendar({
         description: t('scheduling.grid.toastGenerateSuccess', { month: monthNames[currentMonth], year: currentYear }),
       });
 
-      onShiftsUpdate([...otherMonthShifts, ...manualShifts, ...result.shifts]);
+      onShiftsUpdate([...otherMonthShifts, ...manualShifts, ...(savedShifts ?? result.shifts)]);
     } catch (error) {
       console.error('Error generating schedule:', error);
       toast({ title: t('common.error'), description: t('scheduling.grid.toastGenerateError'), variant: 'destructive' });
