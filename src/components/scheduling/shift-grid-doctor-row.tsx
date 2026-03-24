@@ -108,7 +108,7 @@ function ShiftGridDoctorRow({
         ? 'bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40'
         : 'hover:bg-accent/30'
     }`}>
-      <div className="w-48 min-w-48 p-2 border-r flex items-center gap-2 sticky left-0 bg-background z-10">
+      <div className="w-32 min-w-32 md:w-48 md:min-w-48 p-2 border-r flex items-center gap-2 sticky left-0 bg-background z-10 overflow-hidden">
         <div
           className="w-3 h-3 rounded-full flex-shrink-0"
           style={{ backgroundColor: teamColor }}
@@ -169,9 +169,15 @@ function ShiftGridDoctorRow({
           if (doctor.is_optional) return null;
           const deltaShifts = Math.round(((stats.totalHours - stats.baseNorm) / 12) * 10) / 10;
           if (!hasGenerated) return `${deltaShifts}`;
-          const color = deltaShifts >= 0 ? 'text-green-600' : 'text-red-600';
-          return <span className={color}>{deltaShifts > 0 ? '+' : ''}{deltaShifts}</span>;
-        })()}
+          const color = deltaShifts >= 0 ? 'text-green-400' : 'text-red-400';
+          const sign = deltaShifts > 0 ? '+' : '';
+          const formatted = `${sign}${deltaShifts}`;
+          const dotIndex = formatted.indexOf('.');
+          const intPart = dotIndex >= 0 ? formatted.slice(0, dotIndex) : formatted;
+          const decPart = dotIndex >= 0 ? formatted.slice(dotIndex) : '';
+          const fadedColor = deltaShifts >= 0 ? 'text-green-600' : 'text-red-600';
+          return <span className={color}><span className="text-sm font-bold">{intPart}</span><span className={fadedColor}>{decPart}</span></span>;
+        })()}       
       </div>
     </div>
   );

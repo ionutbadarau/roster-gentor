@@ -62,6 +62,7 @@ export default function ShiftGridCalendar({
   const [isDragging, setIsDragging] = useState(false);
   const [selectionPopup, setSelectionPopup] = useState<SelectionPopupData | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
+  const headerScrollRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
   const { toast } = useToast();
 
@@ -434,6 +435,20 @@ export default function ShiftGridCalendar({
     return day >= min && day <= max;
   };
 
+  const bodyScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const viewport = bodyScrollRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+    if (!viewport) return;
+    const handleScroll = () => {
+      if (headerScrollRef.current) {
+        headerScrollRef.current.scrollLeft = viewport.scrollLeft;
+      }
+    };
+    viewport.addEventListener('scroll', handleScroll);
+    return () => viewport.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const handleCellMouseDown = (doctorId: string, day: number, e: React.MouseEvent) => {
     e.preventDefault();
     setSelectionPopup(null);
@@ -668,11 +683,11 @@ export default function ShiftGridCalendar({
               </div>
             </div>
           )}
-          <ScrollArea className="w-full">
+          {/* Sticky header row */}
+          <div className="sticky top-0 z-20 bg-background overflow-hidden" ref={headerScrollRef}>
             <div className="min-w-max">
-              {/* Header row with days */}
               <div className="flex border-b">
-                <div className="w-48 min-w-48 p-2 font-semibold border-r bg-muted sticky left-0 z-10">
+                <div className="w-32 min-w-32 md:w-48 md:min-w-48 p-2 font-semibold border-r bg-muted">
                   {t('scheduling.grid.doctorColumn')}
                 </div>
                 {days.map(day => (
@@ -700,7 +715,12 @@ export default function ShiftGridCalendar({
                   {t('scheduling.grid.hoursColumn')}
                 </div>
               </div>
+            </div>
+          </div>
 
+          {/* Scrollable body */}
+          <ScrollArea className="w-full" ref={bodyScrollRef}>
+            <div className="min-w-max">
               {/* Doctor rows */}
               {sortedDoctors.map(doctor => (
                 <ShiftGridDoctorRow
