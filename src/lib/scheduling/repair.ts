@@ -1104,25 +1104,10 @@ function tryFullMonthSolve(
       domains[i].forEach(id => entry.nightEligible.add(id));
     }
   }
-  // Log days where eligible doctors < slots needed (tight or infeasible)
-  daySlotDemand.forEach((entry, day) => {
-    if (entry.dayEligible.size < entry.daySlots || entry.nightEligible.size < entry.nightSlots) {
-      console.log(`[FC-solver] TIGHT DAY ${day}: need ${entry.daySlots}D+${entry.nightSlots}N, eligible ${entry.dayEligible.size}D+${entry.nightEligible.size}N`);
-    }
-  });
-
-  // Log per-doctor eligibility (total slots they can fill)
-  const docEligCounts: string[] = [];
-  for (const doc of doctors12h) {
-    const count = eligibility.get(doc.id) || 0;
-    docEligCounts.push(`${doc.id}:${count}`);
-  }
-  console.log(`[FC-solver] eligibility: ${docEligCounts.join(' ')}`);
 
   // Check for immediately infeasible slots
   for (let i = 0; i < slots.length; i++) {
     if (domains[i].size === 0) {
-      console.log(`[FC-solver] INFEASIBLE: slot ${i} (day ${slots[i].day} ${slots[i].shiftType}) has empty domain!`);
       shifts.push(...saved12h);
       return false;
     }
@@ -1131,13 +1116,6 @@ function tryFullMonthSolve(
   // Forward-checking backtracker with random restarts (deterministic node budget)
   const MAX_RESTARTS = 20;
   let totalNodesExplored = 0;
-
-  // Debug logging for solver diagnostics
-  const domainSizesList = domains.map(d => d.size);
-  const minDomain = Math.min(...domainSizesList);
-  const maxDomain = Math.max(...domainSizesList);
-  const avgDomain = domainSizesList.reduce((a, b) => a + b, 0) / domainSizesList.length;
-  console.log(`[FC-solver] slots=${slots.length} domains=[${minDomain},${maxDomain}] avg=${avgDomain.toFixed(1)} range=[${solveStart}-${solveEnd}]`);
 
   // Save initial domains for restart restoration
   const initialDomains: string[][] = domains.map(d => Array.from(d));
@@ -1279,7 +1257,6 @@ function tryFullMonthSolve(
     }
 
     if (solve()) {
-      console.log(`[FC-solver] SOLVED on restart ${restart} (${nodesExplored} nodes, ${totalNodesExplored} total)`);
       // Apply solution
       for (let i = 0; i < slots.length; i++) {
         shifts.push({
@@ -1293,11 +1270,9 @@ function tryFullMonthSolve(
       }
       return true;
     }
-    console.log(`[FC-solver] restart ${restart} exhausted (${nodesExplored} nodes, ${totalNodesExplored} total)`);
   }
 
   // All restarts failed — restore original 12h shifts
-  console.log(`[FC-solver] ALL RESTARTS FAILED after ${totalNodesExplored} total nodes`);
   shifts.push(...saved12h);
   return false;
 }
@@ -2009,7 +1984,7 @@ export function enforceExtraShiftEqualization(ctx: EngineContext, shifts: Shift[
           for (const sc of surplusShifts) {
             if (coverageGuard) {
               const required = shifts[sc.idx].shift_type === 'day' ? ctx.shiftsPerDay : ctx.shiftsPerNight;
-              if (sc.cov < required) continue;
+              if (sc.cov <= required) continue; // must be strictly overstaffed to remove
             }
             shifts.splice(sc.idx, 1);
             progress = true;
@@ -2419,16 +2394,18 @@ export function repairForcedCoverage(
   }
 
   /** Check basic eligibility for 12h: not on leave, not on bridge day, not already assigned. */
-  function isEligible(docId: string, dateStr: string, shiftType: 'day' | 'night'): boolean {
+  function isEligible(docId: string, dateStr: string, _shiftType: 'day' | 'night'): boolean {
     const parts = dateStr.split('-').map(Number);
     const date = new Date(parts[0], parts[1] - 1, parts[2]);
     if (isDoctorOnLeave(ctx, docId, date)) return false;
     if (isDoctorOnBridgeDay(ctx, docId, date)) return false;
-    if (shifts.some(s => s.doctor_id === docId && s.shift_date === dateStr &&
-        (s.shift_type === shiftType || s.shift_type === '24h'))) return false;
-    const fixedKey = `${dateStr}:${shiftType}`;
-    const fixed = fixedShiftsByDateType.get(fixedKey) || [];
-    if (fixed.some(s => s.doctor_id === docId)) return false;
+    // A 12h doctor can only have ONE shift per date (DB constraint: doctor_id + shift_date).
+    // Reject if they already have any shift on this date (day, night, or 24h).
+    if (shifts.some(s => s.doctor_id === docId && s.shift_date === dateStr)) return false;
+    // Also check fixed shifts for any type on this date
+    const fixedDay = fixedShiftsByDateType.get(`${dateStr}:day`) || [];
+    const fixedNight = fixedShiftsByDateType.get(`${dateStr}:night`) || [];
+    if (fixedDay.some(s => s.doctor_id === docId) || fixedNight.some(s => s.doctor_id === docId)) return false;
     return true;
   }
 
@@ -2639,17 +2616,18 @@ export function repairForcedCoverage(
       const globalMin = Math.min(...extras.map(e => e.extra));
       const globalMax = Math.max(...extras.map(e => e.extra));
 
-      // Compute min-extra among 12h doctors only
+      // Compute extras among 12h doctors only
       const extras12h = extras.filter(e => doctors12h.some(d => d.id === e.id));
       if (extras12h.length === 0) continue;
-      const minExtra12h = Math.min(...extras12h.map(e => e.extra));
 
       const teamsOnDate = getTeamsOnDate(slot.dateStr);
 
-      // Find eligible 12h doctors at min-extra-among-12h level
-      const candidates: { docId: string; restSafe: boolean; teamCohesion: boolean; restHours: number; creates24h: boolean }[] = [];
-      for (const e of extras12h) {
-        if (e.extra !== minExtra12h) continue;
+      // Find eligible 12h doctors, preferring lowest extra count.
+      // Sort by extra ascending so we try min-extra doctors first but don't
+      // give up if ALL min-extra doctors are blocked for this slot.
+      const sortedExtras12h = [...extras12h].sort((a, b) => a.extra - b.extra);
+      const candidates: { docId: string; extra: number; restSafe: boolean; teamCohesion: boolean; restHours: number; creates24h: boolean }[] = [];
+      for (const e of sortedExtras12h) {
         const doc = doctors12h.find(d => d.id === e.id);
         if (!doc) continue;
         if (!isEligible(doc.id, slot.dateStr, slot.shiftType)) continue;
@@ -2657,13 +2635,14 @@ export function repairForcedCoverage(
         const teamCohesion = !!doc.team_id && teamsOnDate.has(doc.team_id);
         const restHours = hoursSinceLastShiftEnd(doc.id, slot.dateStr, slot.shiftType);
         const creates24h = wouldCreate24hFor12hDoctor(doc.id, slot.dateStr, slot.shiftType);
-        candidates.push({ docId: doc.id, restSafe, teamCohesion, restHours, creates24h });
+        candidates.push({ docId: doc.id, extra: e.extra, restSafe, teamCohesion, restHours, creates24h });
       }
 
       if (candidates.length === 0) continue;
 
-      // Prefer rest-safe, then avoid 24h for 12h doctors, then most rested, then team cohesion
+      // Prefer lowest extra count, then rest-safe, then avoid 24h for 12h doctors, then most rested, then team cohesion
       candidates.sort((a, b) => {
+        if (a.extra !== b.extra) return a.extra - b.extra;
         if (a.restSafe !== b.restSafe) return a.restSafe ? -1 : 1;
         if (a.creates24h !== b.creates24h) return a.creates24h ? 1 : -1;
         if (a.restHours !== b.restHours) return b.restHours - a.restHours; // most rested first
@@ -2687,9 +2666,9 @@ export function repairForcedCoverage(
       anyProgress = true;
 
       // ── Immediate rebalance if gap > 1 ──
-      // After adding, the chosen doctor's extra went from minExtra12h to
-      // minExtra12h+1. Check if the global gap now exceeds 1.
-      const newMax = Math.max(globalMax, minExtra12h + 1);
+      // After adding, the chosen doctor's extra went up by 1.
+      // Check if the global gap now exceeds 1.
+      const newMax = Math.max(globalMax, chosen.extra + 1);
       if (newMax - globalMin > 1) {
         // Find a surplus 12h doctor with a shift on an overstaffed day and remove it
         const surplusExtras = computeExtraShifts(ctx, shifts);

@@ -47,7 +47,9 @@ export class SchedulingEngine implements EngineContext {
   private idCounter = 0;
 
   constructor(options: ScheduleGenerationOptions) {
-    this.doctors = options.doctors;
+    this.doctors = [...options.doctors].sort((a, b) =>
+      (a.display_order ?? 0) - (b.display_order ?? 0) || a.name.localeCompare(b.name)
+    );
     this.teams = options.teams.sort((a, b) => a.order - b.order);
     this.month = options.month;
     this.year = options.year;

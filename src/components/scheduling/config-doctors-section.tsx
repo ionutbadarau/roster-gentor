@@ -86,12 +86,14 @@ export default function ConfigDoctorsSection({
 
     setAddingDoctor(true);
     try {
+      const maxOrder = doctors.reduce((max, d) => Math.max(max, d.display_order ?? 0), 0);
       const { error } = await supabase.from('doctors').insert({
         name: newDoctorName,
         email: null,
         team_id: selectedTeamId || null,
         is_floating: !selectedTeamId,
         user_id: userId,
+        display_order: maxOrder + 1,
       });
       if (error) throw error;
 

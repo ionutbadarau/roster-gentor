@@ -1883,6 +1883,57 @@ describe('SchedulingEngine', () => {
       expect(understaffedDays.length).toBe(0);
     });
 
+    it('no duplicate doctor+date shifts (DB constraint: one shift per doctor per date)', { timeout: 90_000 }, () => {
+      const engine = new SchedulingEngine({
+        month: MARCH,
+        year: YEAR,
+        doctors: allDoctors,
+        teams: allTeams,
+        shiftsPerDay: 4,
+        shiftsPerNight: 4,
+        leaveDays,
+      });
+
+      const result = engine.generateSchedule();
+
+      // Simulate the browser's dedup: keep last shift per doctor+date
+      // (mirrors shift-grid-calendar.tsx save pipeline)
+      const deduped = new Map<string, typeof result.shifts[0]>();
+      for (const shift of result.shifts) {
+        deduped.set(`${shift.doctor_id}:${shift.shift_date}`, shift);
+      }
+
+      // Check that dedup didn't lose any coverage
+      const understaffedAfterDedup: string[] = [];
+      const dedupedShifts = Array.from(deduped.values());
+      for (let d = 1; d <= 31; d++) {
+        const dateStr = formatDate(YEAR, MARCH, d);
+        const dayCount = dedupedShifts.filter(s => s.shift_date === dateStr && (s.shift_type === 'day' || s.shift_type === '24h')).length;
+        const nightCount = dedupedShifts.filter(s => s.shift_date === dateStr && (s.shift_type === 'night' || s.shift_type === '24h')).length;
+        if (dayCount < 4 || nightCount < 4) {
+          understaffedAfterDedup.push(`Mar ${d}: day=${dayCount}/4 night=${nightCount}/4`);
+        }
+      }
+
+      // Engine must never produce two shifts for the same doctor on the same date.
+      // If this fails, a repair step is assigning both day+night to a 12h doctor.
+      const duplicates = result.shifts.length - deduped.size;
+      if (duplicates > 0) {
+        const seen = new Map<string, string[]>();
+        for (const s of result.shifts) {
+          const key = `${s.doctor_id}:${s.shift_date}`;
+          if (!seen.has(key)) seen.set(key, []);
+          seen.get(key)!.push(s.shift_type);
+        }
+        const dups = Array.from(seen.entries())
+          .filter(([, types]) => types.length > 1)
+          .map(([key, types]) => `${key} → [${types.join(', ')}]`);
+        console.log(`Duplicate doctor+date entries (${duplicates}):`, dups);
+      }
+      expect(duplicates, 'Engine produced multiple shifts for same doctor+date').toBe(0);
+      expect(understaffedAfterDedup, 'Coverage lost after dedup').toHaveLength(0);
+    });
+
     it('extra shifts equalized — max 1-shift gap', { timeout: 90_000 }, () => {
       const engine = new SchedulingEngine({
         month: MARCH,
@@ -1896,6 +1947,44 @@ describe('SchedulingEngine', () => {
 
       const result = engine.generateSchedule();
       expectExtraShiftsEqualized(result, allDoctors);
+    });
+
+    it('full coverage regardless of doctor input order', { timeout: 90_000 }, () => {
+      // Test with multiple shuffled orders to catch order-dependent bugs.
+      // The engine sorts by display_order then name, but with display_order=0
+      // for all and different name prefixes, iteration differs.
+      const orders = [
+        [...allDoctors].reverse(),
+        // Interleave team and floating doctors
+        allDoctors.flatMap((_, i) => [teamDoctors[i], floatingDoctors24h[i]].filter(Boolean)),
+        // Floating first, then team doctors reversed
+        [...floatingDoctors24h, ...teamDoctors.reverse()],
+      ];
+
+      for (let oi = 0; oi < orders.length; oi++) {
+        const engine = new SchedulingEngine({
+          month: MARCH,
+          year: YEAR,
+          doctors: orders[oi],
+          teams: allTeams,
+          shiftsPerDay: 4,
+          shiftsPerNight: 4,
+          leaveDays,
+        });
+
+        const result = engine.generateSchedule();
+
+        const understaffedDays: string[] = [];
+        for (let d = 1; d <= 31; d++) {
+          const dateStr = formatDate(YEAR, MARCH, d);
+          const dayShifts = result.shifts.filter(s => s.shift_date === dateStr && (s.shift_type === 'day' || s.shift_type === '24h'));
+          const nightShifts = result.shifts.filter(s => s.shift_date === dateStr && (s.shift_type === 'night' || s.shift_type === '24h'));
+          if (dayShifts.length < 4 || nightShifts.length < 4) {
+            understaffedDays.push(`Mar ${d}: day=${dayShifts.length} night=${nightShifts.length}`);
+          }
+        }
+        expect(understaffedDays, `Order ${oi} has understaffed days`).toHaveLength(0);
+      }
     });
   });
 
