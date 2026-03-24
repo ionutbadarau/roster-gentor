@@ -10,7 +10,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Loader2 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
-import { formatDateString, getMonthPrefix, getMonthBoundary, groupShiftsByDoctor } from '@/lib/scheduling/shift-utils';
+import { formatDateString, getMonthPrefix, getMonthBoundary, groupShiftsByDoctor, getShiftStartMs, getShiftEndMs, getRestHours } from '@/lib/scheduling/shift-utils';
 import { upsertShift, createLeaveDay, deleteRecord, deleteMonthShifts, deleteMonthLeaveDays } from '@/lib/scheduling/shift-data-service';
 import ShiftGridHeader from './shift-grid-header';
 import ShiftGridDoctorRow from './shift-grid-doctor-row';
@@ -156,7 +156,7 @@ export default function ShiftGridCalendar({
     return result;
   }, [shifts, doctors, leaveDays, monthPrefix, currentMonth, currentYear, nationalHolidays, hasGeneratedForMonth]);
 
-  // Reactive rest violation warnings: recompute from current shifts
+  // Reactive rest violation warnings: recompute from current shifts using actual shift times
   const restViolationWarnings = useMemo(() => {
     if (!hasGeneratedForMonth) return [];
     const result: string[] = [];
@@ -166,18 +166,20 @@ export default function ShiftGridCalendar({
     byDoctor.forEach((doctorShifts, doctorId) => {
       const doctor = doctors.find(d => d.id === doctorId);
       if (!doctor) return;
-      const sorted = [...doctorShifts].sort((a, b) =>
-        new Date(a.shift_date).getTime() - new Date(b.shift_date).getTime()
+      const workShifts = doctorShifts.filter(s => s.shift_type === 'day' || s.shift_type === 'night' || s.shift_type === '24h');
+      const sorted = [...workShifts].sort((a, b) =>
+        getShiftStartMs(a.shift_date, a.shift_type as 'day' | 'night' | '24h') -
+        getShiftStartMs(b.shift_date, b.shift_type as 'day' | 'night' | '24h')
       );
       for (let i = 1; i < sorted.length; i++) {
         const prev = sorted[i - 1];
         const curr = sorted[i];
-        const hoursBetween = (new Date(curr.shift_date).getTime() - new Date(prev.shift_date).getTime()) / (1000 * 60 * 60);
-        const minRest = prev.shift_type === '24h' ? SCHEDULING_CONSTANTS.SHIFT_24H_REST
-          : prev.shift_type === 'night' ? SCHEDULING_CONSTANTS.NIGHT_SHIFT_REST
-          : SCHEDULING_CONSTANTS.DAY_SHIFT_REST;
-        if (hoursBetween < minRest) {
-          result.push(`scheduling.engine.restViolation::${JSON.stringify({ name: doctor.name, date: curr.shift_date, hours: hoursBetween, required: minRest })}`);
+        const prevType = prev.shift_type as 'day' | 'night' | '24h';
+        const currType = curr.shift_type as 'day' | 'night' | '24h';
+        const gapHours = (getShiftStartMs(curr.shift_date, currType) - getShiftEndMs(prev.shift_date, prevType)) / 3_600_000;
+        const minRest = getRestHours(prevType);
+        if (gapHours < minRest) {
+          result.push(`scheduling.engine.restViolation::${JSON.stringify({ name: doctor.name, date: curr.shift_date, hours: gapHours, required: minRest })}`);
         }
       }
     });
@@ -296,6 +298,11 @@ export default function ShiftGridCalendar({
     return shifts.find(s => s.doctor_id === doctorId && s.shift_date === dateStr);
   };
 
+  const getShiftsForDoctorAndDay = (doctorId: string, day: number): Shift[] => {
+    const dateStr = formatDateString(currentYear, currentMonth, day);
+    return shifts.filter(s => s.doctor_id === doctorId && s.shift_date === dateStr);
+  };
+
   const isLeaveDay = (doctorId: string, day: number): boolean => {
     const dateStr = formatDateString(currentYear, currentMonth, day);
     return leaveDays.some(l => l.doctor_id === doctorId && l.leave_date === dateStr && l.leave_type !== 'bridge');
@@ -383,24 +390,28 @@ export default function ShiftGridCalendar({
     return { dayShifts, nightShifts, totalHours, baseNorm };
   };
 
-  // --- Rest violations ---
+  // --- Rest violations (using actual shift start/end times) ---
   const restViolations = useMemo(() => {
     const violations = new Set<string>();
     const monthShifts = shifts.filter(s => s.shift_date.startsWith(monthPrefix));
     const byDoctor = groupShiftsByDoctor(monthShifts);
 
     byDoctor.forEach((doctorShifts, doctorId) => {
-      const sorted = doctorShifts.sort((a, b) =>
-        new Date(a.shift_date).getTime() - new Date(b.shift_date).getTime()
+      const workShifts = doctorShifts.filter(s => s.shift_type === 'day' || s.shift_type === 'night' || s.shift_type === '24h');
+      const sorted = workShifts.sort((a, b) =>
+        getShiftStartMs(a.shift_date, a.shift_type as 'day' | 'night' | '24h') -
+        getShiftStartMs(b.shift_date, b.shift_type as 'day' | 'night' | '24h')
       );
 
       for (let i = 1; i < sorted.length; i++) {
         const prev = sorted[i - 1];
         const curr = sorted[i];
-        const hoursBetween = (new Date(curr.shift_date).getTime() - new Date(prev.shift_date).getTime()) / (1000 * 60 * 60);
-        const minRest = prev.shift_type === '24h' ? SCHEDULING_CONSTANTS.SHIFT_24H_REST : prev.shift_type === 'night' ? SCHEDULING_CONSTANTS.NIGHT_SHIFT_REST : SCHEDULING_CONSTANTS.DAY_SHIFT_REST;
+        const prevType = prev.shift_type as 'day' | 'night' | '24h';
+        const currType = curr.shift_type as 'day' | 'night' | '24h';
+        const gapHours = (getShiftStartMs(curr.shift_date, currType) - getShiftEndMs(prev.shift_date, prevType)) / 3_600_000;
+        const minRest = getRestHours(prevType);
 
-        if (hoursBetween < minRest) {
+        if (gapHours < minRest) {
           violations.add(`${doctorId}:${prev.shift_date}`);
           violations.add(`${doctorId}:${curr.shift_date}`);
         }
@@ -703,6 +714,7 @@ export default function ShiftGridCalendar({
                   leaveLetter={leaveLetter}
                   shift24hLetter={shift24hLetter}
                   getShiftForDay={(day) => getShiftForDoctorAndDay(doctor.id, day)}
+                  getShiftsForDay={(day) => getShiftsForDoctorAndDay(doctor.id, day)}
                   isLeaveDay={(day) => isLeaveDay(doctor.id, day)}
                   isCellSelected={(day) => isCellSelected(doctor.id, day)}
                   hasRestViolation={(day) => hasRestViolation(doctor.id, day)}

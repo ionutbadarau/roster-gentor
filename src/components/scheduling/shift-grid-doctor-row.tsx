@@ -20,6 +20,7 @@ interface ShiftGridDoctorRowProps {
   leaveLetter: string;
   shift24hLetter: string;
   getShiftForDay: (day: number) => Shift | undefined;
+  getShiftsForDay: (day: number) => Shift[];
   isLeaveDay: (day: number) => boolean;
   isCellSelected: (day: number) => boolean;
   hasRestViolation: (day: number) => boolean;
@@ -86,6 +87,7 @@ function ShiftGridDoctorRow({
   leaveLetter,
   shift24hLetter,
   getShiftForDay,
+  getShiftsForDay,
   isLeaveDay,
   isCellSelected,
   hasRestViolation,
@@ -121,11 +123,28 @@ function ShiftGridDoctorRow({
       </div>
       {days.map(day => {
         const shift = getShiftForDay(day);
+        const allShifts = getShiftsForDay(day);
+        const hasMultipleShifts = allShifts.length > 1;
         const leave = isLeaveDay(day);
         const selected = isCellSelected(day);
         const violation = hasRestViolation(day);
         const bridge = isBridgeDay(day);
         const nonWorking = isNonWorkingDay(day);
+
+        // Build cell label: show combined types when multiple shifts on same day
+        let cellLabel = '';
+        if (bridge) {
+          cellLabel = '·';
+        } else if (leave) {
+          cellLabel = leaveLetter;
+        } else if (hasMultipleShifts) {
+          const types = allShifts.map(s => s.shift_type);
+          const hasDay = types.includes('day');
+          const hasNight = types.includes('night');
+          cellLabel = hasDay && hasNight ? `${dayShiftLetter}${nightShiftLetter}` : shift?.shift_type === '24h' ? shift24hLetter : shift?.shift_type === 'day' ? dayShiftLetter : shift?.shift_type === 'night' ? nightShiftLetter : '';
+        } else {
+          cellLabel = shift?.shift_type === '24h' ? shift24hLetter : shift?.shift_type === 'day' ? dayShiftLetter : shift?.shift_type === 'night' ? nightShiftLetter : '';
+        }
 
         return (
           <div
@@ -140,7 +159,7 @@ function ShiftGridDoctorRow({
               onMouseDown={(e) => onCellMouseDown(day, e)}
               onMouseEnter={() => onCellMouseEnter(day)}
             >
-              {bridge ? '·' : leave ? leaveLetter : shift?.shift_type === '24h' ? shift24hLetter : shift?.shift_type === 'day' ? dayShiftLetter : shift?.shift_type === 'night' ? nightShiftLetter : ''}
+              {cellLabel}
             </button>
           </div>
         );
