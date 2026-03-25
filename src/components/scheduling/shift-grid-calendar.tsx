@@ -13,6 +13,7 @@ import { useTranslation } from '@/lib/i18n';
 import { formatDateString, getMonthPrefix, getMonthBoundary, groupShiftsByDoctor, getShiftStartMs, getShiftEndMs, getRestHours } from '@/lib/scheduling/shift-utils';
 import { assignDispatch } from '@/lib/scheduling/dispatch-assignment';
 import { upsertShift, createLeaveDay, deleteRecord, deleteMonthShifts, deleteMonthLeaveDays } from '@/lib/scheduling/shift-data-service';
+import { exportSchedulePdf } from '@/lib/scheduling/export-pdf';
 import ShiftGridHeader from './shift-grid-header';
 import ShiftGridDoctorRow from './shift-grid-doctor-row';
 import ShiftSelectionPopup, { type SelectionPopupData } from './shift-selection-popup';
@@ -707,6 +708,28 @@ export default function ShiftGridCalendar({
   const leaveLetter = extractCellLetter(t('scheduling.grid.leaveLabel'), 'C');
   const shift24hLetter = extractCellLetter(t('scheduling.grid.shift24hLabel'), 'DN');
 
+  const handleExportPdf = () => {
+    exportSchedulePdf({
+      doctors,
+      teams,
+      shifts,
+      leaveDays,
+      nationalHolidays,
+      currentMonth,
+      currentYear,
+      monthName: monthNames[currentMonth],
+      dayNames: tArray('daysShort'),
+      labels: {
+        dayShiftLetter,
+        nightShiftLetter,
+        leaveLetter,
+        shift24hLetter,
+        doctorColumn: t('scheduling.grid.doctorColumn'),
+        title: t('scheduling.grid.title'),
+      },
+    });
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -723,6 +746,7 @@ export default function ShiftGridCalendar({
           onGenerate={handleGenerateSchedule}
           onClearMonth={handleClearMonth}
           onAssignDispatch={handleAssignDispatch}
+          onExportPdf={handleExportPdf}
         />
         <CardContent className="relative">
           {generating && (

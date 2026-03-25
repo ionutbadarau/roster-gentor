@@ -76,7 +76,8 @@
       "dispatchAssignedSuccess": "Dispatch assigned for {{month}} {{year}}",
       "dispatchAssignError": "Could not assign dispatch",
       "dispatchDayLegend": "Day Dispatch (X)",
-      "dispatchNightLegend": "Night Dispatch (Y)"
+      "dispatchNightLegend": "Night Dispatch (Y)",
+      "exportPdf": "Export PDF"
     },
     "config": {
       "teamsTitle": "Team Configuration",

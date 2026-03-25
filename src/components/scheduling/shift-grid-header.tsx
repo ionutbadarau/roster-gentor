@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles, Trash2, Loader2, Phone } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles, Trash2, Loader2, Phone, FileDown } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 
 interface ShiftGridHeaderProps {
@@ -17,6 +17,7 @@ interface ShiftGridHeaderProps {
   onGenerate: () => void;
   onClearMonth: () => void;
   onAssignDispatch: () => void;
+  onExportPdf: () => void;
 }
 
 export default function ShiftGridHeader({
@@ -32,6 +33,7 @@ export default function ShiftGridHeader({
   onGenerate,
   onClearMonth,
   onAssignDispatch,
+  onExportPdf,
 }: ShiftGridHeaderProps) {
   const { t, tArray } = useTranslation();
   const monthNames = tArray('months');
@@ -77,6 +79,10 @@ export default function ShiftGridHeader({
             <Button variant="outline" onClick={onAssignDispatch} disabled={dispatchAssigning || !hasGeneratedSchedule}>
               {dispatchAssigning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Phone className="h-4 w-4 mr-2" />}
               {dispatchAssigning ? t('scheduling.grid.assigningDispatch') : t('scheduling.grid.assignDispatch')}
+            </Button>
+            <Button variant="outline" onClick={onExportPdf} disabled={!hasGeneratedSchedule}>
+              <FileDown className="h-4 w-4 mr-2" />
+              {t('scheduling.grid.exportPdf')}
             </Button>
           </div>
         </div>
