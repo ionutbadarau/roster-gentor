@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles, Trash2, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles, Trash2, Loader2, Phone } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 
 interface ShiftGridHeaderProps {
@@ -10,10 +10,13 @@ interface ShiftGridHeaderProps {
   currentLeaveDaysCount: number;
   totalBridgeDaysCount: number;
   generating: boolean;
+  dispatchAssigning: boolean;
+  hasGeneratedSchedule: boolean;
   onPreviousMonth: () => void;
   onNextMonth: () => void;
   onGenerate: () => void;
   onClearMonth: () => void;
+  onAssignDispatch: () => void;
 }
 
 export default function ShiftGridHeader({
@@ -22,10 +25,13 @@ export default function ShiftGridHeader({
   currentLeaveDaysCount,
   totalBridgeDaysCount,
   generating,
+  dispatchAssigning,
+  hasGeneratedSchedule,
   onPreviousMonth,
   onNextMonth,
   onGenerate,
   onClearMonth,
+  onAssignDispatch,
 }: ShiftGridHeaderProps) {
   const { t, tArray } = useTranslation();
   const monthNames = tArray('months');
@@ -67,6 +73,10 @@ export default function ShiftGridHeader({
             <Button onClick={onGenerate} disabled={generating}>
               {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
               {generating ? t('scheduling.grid.generating') : t('scheduling.grid.generate')}
+            </Button>
+            <Button variant="outline" onClick={onAssignDispatch} disabled={dispatchAssigning || !hasGeneratedSchedule}>
+              {dispatchAssigning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Phone className="h-4 w-4 mr-2" />}
+              {dispatchAssigning ? t('scheduling.grid.assigningDispatch') : t('scheduling.grid.assignDispatch')}
             </Button>
           </div>
         </div>

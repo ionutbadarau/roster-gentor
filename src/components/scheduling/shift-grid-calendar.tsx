@@ -11,6 +11,7 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Loader2 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 import { formatDateString, getMonthPrefix, getMonthBoundary, groupShiftsByDoctor, getShiftStartMs, getShiftEndMs, getRestHours } from '@/lib/scheduling/shift-utils';
+import { assignDispatch } from '@/lib/scheduling/dispatch-assignment';
 import { upsertShift, createLeaveDay, deleteRecord, deleteMonthShifts, deleteMonthLeaveDays } from '@/lib/scheduling/shift-data-service';
 import ShiftGridHeader from './shift-grid-header';
 import ShiftGridDoctorRow from './shift-grid-doctor-row';
@@ -52,6 +53,7 @@ export default function ShiftGridCalendar({
   onNationalHolidaysUpdate,
 }: ShiftGridCalendarProps) {
   const [generating, setGenerating] = useState(false);
+  const [dispatchAssigning, setDispatchAssigning] = useState(false);
   const { generate: generateInWorker } = useSchedulingWorker();
   const [generationWarnings, setGenerationWarnings] = useState<string[]>([]);
   const [dragState, setDragState] = useState<{
@@ -192,7 +194,6 @@ export default function ShiftGridCalendar({
     const result: string[] = [
       ...generationWarnings,
       ...normWarnings,
-      ...restViolationWarnings,
     ];
 
     shiftShortfallDays.forEach(({ dayCount, nightCount }, day) => {
@@ -290,6 +291,52 @@ export default function ShiftGridCalendar({
       toast({ title: t('common.error'), description: t('scheduling.grid.toastGenerateError'), variant: 'destructive' });
     } finally {
       setGenerating(false);
+    }
+  };
+
+  // --- Dispatch assignment ---
+  const handleAssignDispatch = async () => {
+    setDispatchAssigning(true);
+    const { start: monthStart, end: monthEnd } = getMonthBoundary(currentYear, currentMonth, daysInMonth);
+
+    try {
+      const monthShifts = shifts.filter(s => s.shift_date >= monthStart && s.shift_date <= monthEnd);
+      const assignments = assignDispatch(monthShifts, doctors, currentMonth, currentYear);
+
+      // Clear existing dispatch for this month
+      await supabase
+        .from('shifts')
+        .update({ dispatch_type: null })
+        .gte('shift_date', monthStart)
+        .lte('shift_date', monthEnd);
+
+      // Batch-apply new assignments: one query per dispatch_type
+      const dayIds = assignments.filter(a => a.dispatchType === 'day').map(a => a.shiftId);
+      const nightIds = assignments.filter(a => a.dispatchType === 'night').map(a => a.shiftId);
+      await Promise.all([
+        dayIds.length > 0 ? supabase.from('shifts').update({ dispatch_type: 'day' }).in('id', dayIds) : Promise.resolve(),
+        nightIds.length > 0 ? supabase.from('shifts').update({ dispatch_type: 'night' }).in('id', nightIds) : Promise.resolve(),
+      ]);
+
+      // Update local state
+      const assignmentMap = new Map(assignments.map(a => [a.shiftId, a.dispatchType]));
+      const updatedShifts = shifts.map(s => {
+        if (s.shift_date >= monthStart && s.shift_date <= monthEnd) {
+          return { ...s, dispatch_type: assignmentMap.get(s.id) ?? null };
+        }
+        return s;
+      });
+      onShiftsUpdate(updatedShifts);
+
+      toast({
+        title: t('common.success'),
+        description: t('scheduling.grid.dispatchAssignedSuccess', { month: monthNames[currentMonth], year: currentYear }),
+      });
+    } catch (error) {
+      console.error('Error assigning dispatch:', error);
+      toast({ title: t('common.error'), description: t('scheduling.grid.dispatchAssignError'), variant: 'destructive' });
+    } finally {
+      setDispatchAssigning(false);
     }
   };
 
@@ -669,10 +716,13 @@ export default function ShiftGridCalendar({
           currentLeaveDaysCount={currentLeaveDaysCount}
           totalBridgeDaysCount={totalBridgeDaysCount}
           generating={generating}
+          dispatchAssigning={dispatchAssigning}
+          hasGeneratedSchedule={hasGeneratedForMonth}
           onPreviousMonth={handlePreviousMonth}
           onNextMonth={handleNextMonth}
           onGenerate={handleGenerateSchedule}
           onClearMonth={handleClearMonth}
+          onAssignDispatch={handleAssignDispatch}
         />
         <CardContent className="relative">
           {generating && (

@@ -70,7 +70,13 @@
       "holidayRemovedDesc": "{{day}} {{month}} is no longer a national holiday",
       "holidayToggleError": "Could not toggle holiday",
       "understaffedWarning": "Day {{day}}: only {{available}} doctors available but {{required}} needed for shifts. Consider removing some leave days.",
-      "understaffedDaysTitle": "Understaffed days detected"
+      "understaffedDaysTitle": "Understaffed days detected",
+      "assignDispatch": "Assign Dispatch",
+      "assigningDispatch": "Assigning...",
+      "dispatchAssignedSuccess": "Dispatch assigned for {{month}} {{year}}",
+      "dispatchAssignError": "Could not assign dispatch",
+      "dispatchDayLegend": "Day Dispatch (X)",
+      "dispatchNightLegend": "Night Dispatch (Y)"
     },
     "config": {
       "teamsTitle": "Team Configuration",
@@ -120,6 +126,9 @@
       "optionalLabel": "Optional",
       "optionalChangedSuccess": "Doctor optional status updated",
       "optionalChangeError": "Could not update optional status",
+      "dispatchLabel": "Dispatch",
+      "dispatchChangedSuccess": "Doctor dispatch eligibility updated",
+      "dispatchChangeError": "Could not update dispatch eligibility",
       "reorderError": "Could not reorder doctors",
       "doctorRenamedSuccess": "Doctor renamed successfully",
       "doctorRenameError": "Could not rename doctor",

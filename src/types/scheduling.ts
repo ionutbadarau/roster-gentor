@@ -6,6 +6,7 @@ export interface Doctor {
   team_id?: string;
   is_floating: boolean;
   is_optional?: boolean;
+  can_dispatch?: boolean;
   shift_mode?: '12h' | '24h';
   display_order?: number;
   preferences: Record<string, any>;
@@ -55,6 +56,7 @@ export interface Shift {
   end_time?: string;
   is_manual?: boolean;
   is_forced_coverage?: boolean;
+  dispatch_type?: 'day' | 'night' | null;
   created_at?: string;
   updated_at?: string;
 }

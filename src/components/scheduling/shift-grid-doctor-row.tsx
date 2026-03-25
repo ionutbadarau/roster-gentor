@@ -146,6 +146,13 @@ function ShiftGridDoctorRow({
           cellLabel = shift?.shift_type === '24h' ? shift24hLetter : shift?.shift_type === 'day' ? dayShiftLetter : shift?.shift_type === 'night' ? nightShiftLetter : '';
         }
 
+        // Append dispatch indicator
+        if (shift?.dispatch_type === 'day') {
+          cellLabel += '(X)';
+        } else if (shift?.dispatch_type === 'night') {
+          cellLabel += '(Y)';
+        }
+
         return (
           <div
             key={day}

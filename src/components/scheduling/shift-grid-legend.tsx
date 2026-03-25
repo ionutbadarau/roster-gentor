@@ -42,6 +42,14 @@ export default function ShiftGridLegend({ dayShiftLetter, nightShiftLetter, leav
         <span className="text-muted-foreground">{t('scheduling.grid.floatingBadge')}</span>
       </div>
       <div className="flex items-center gap-2">
+        <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900 rounded flex items-center justify-center text-blue-700 dark:text-blue-300 text-[9px] font-bold">{dayShiftLetter}(X)</div>
+        <span className="text-muted-foreground">{t('scheduling.grid.dispatchDayLegend')}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="w-6 h-6 bg-indigo-100 dark:bg-indigo-900 rounded flex items-center justify-center text-indigo-700 dark:text-indigo-300 text-[9px] font-bold">{nightShiftLetter}(Y)</div>
+        <span className="text-muted-foreground">{t('scheduling.grid.dispatchNightLegend')}</span>
+      </div>
+      <div className="flex items-center gap-2">
         <div className="w-6 h-6 bg-red-200 dark:bg-red-900/60 rounded ring-2 ring-red-500 flex items-center justify-center text-red-800 dark:text-red-200 text-xs font-bold">!</div>
         <span className="text-muted-foreground">{t('scheduling.grid.insufficientRest')}</span>
       </div>

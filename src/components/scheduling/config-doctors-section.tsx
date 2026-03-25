@@ -156,6 +156,22 @@ export default function ConfigDoctorsSection({
     }
   };
 
+  const handleToggleDispatch = async (doctorId: string, canDispatch: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('doctors')
+        .update({ can_dispatch: canDispatch })
+        .eq('id', doctorId);
+      if (error) throw error;
+
+      toast({ title: t('common.success'), description: t('scheduling.config.dispatchChangedSuccess') });
+      await onUpdate();
+    } catch (error) {
+      console.error('Error toggling dispatch:', error);
+      toast({ title: t('common.error'), description: t('scheduling.config.dispatchChangeError'), variant: 'destructive' });
+    }
+  };
+
   const handleDeleteDoctor = async (doctorId: string) => {
     onSetDeletingId(doctorId);
     try {
@@ -306,6 +322,15 @@ export default function ConfigDoctorsSection({
                           className="rounded border-input"
                         />
                         {t('scheduling.config.optionalLabel')}
+                      </label>
+                      <label className="flex items-center gap-1 text-xs cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={doctor.can_dispatch ?? false}
+                          onChange={(e) => handleToggleDispatch(doctor.id, e.target.checked)}
+                          className="rounded border-input"
+                        />
+                        {t('scheduling.config.dispatchLabel')}
                       </label>
                     </div>
                   }
