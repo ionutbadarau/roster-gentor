@@ -82,7 +82,7 @@ export const signInAction = async (formData: FormData) => {
     return encodedRedirect("error", "/sign-in", error.message);
   }
 
-  return redirect("/dashboard");
+  return redirect("/grid");
 };
 
 export const forgotPasswordAction = async (formData: FormData) => {
@@ -136,7 +136,7 @@ export const resetPasswordAction = async (formData: FormData) => {
   if (password !== confirmPassword) {
     encodedRedirect(
       "error",
-      "/dashboard/reset-password",
+      "/reset-password",
       "Passwords do not match",
     );
   }
@@ -148,7 +148,7 @@ export const resetPasswordAction = async (formData: FormData) => {
   if (error) {
     encodedRedirect(
       "error",
-      "/dashboard/reset-password",
+      "/reset-password",
       "Password update failed",
     );
   }

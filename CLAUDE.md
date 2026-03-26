@@ -2,6 +2,18 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Post-Change Cleanup
+
+After any deletion or removal of components, pages, modules, or significant code:
+
+1. **Orphaned files** — grep for imports of the removed item; if nothing imports it, delete it. Recurse (a deleted file may have been the sole consumer of another).
+2. **Translation keys** — remove unused keys from both `src/lib/i18n/en.json` and `src/lib/i18n/ro.json`.
+3. **Navigation / routes** — remove links, tabs, or redirects pointing to deleted pages.
+4. **Documentation** — update architecture tables and references in this file.
+5. **Type-check** — run `npx tsc --noEmit` to confirm nothing is broken.
+
+Do all of this as part of the same change, without being asked.
+
 ## Commands
 
 ```bash
@@ -59,8 +71,6 @@ The scheduling engine lives in **`src/lib/scheduling/`** (re-exported from `src/
 | File                      | Role                                               |
 | ------------------------- | -------------------------------------------------- |
 | `configuration-panel.tsx` | CRUD for teams and doctors via Supabase            |
-| `doctor-view.tsx`         | Per-doctor schedule filtered from the grid         |
-| `summary-dashboard.tsx`   | Coverage stats, conflict alerts, quick-start guide |
 | `monthly-calendar.tsx`    | Alternative calendar view                          |
 
 ### Data Model (`src/types/scheduling.ts`)

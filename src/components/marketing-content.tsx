@@ -58,7 +58,7 @@ export default function MarketingContent() {
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-3xl font-bold mb-4">{t('marketing.ctaTitle')}</h2>
           <p className="text-gray-600 mb-8 max-w-2xl mx-auto">{t('marketing.ctaDesc')}</p>
-          <a href="/dashboard" className="inline-flex items-center px-6 py-3 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+          <a href="/grid" className="inline-flex items-center px-6 py-3 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
             {t('marketing.getStartedNow')}
             <ArrowUpRight className="ml-2 w-4 h-4" />
           </a>

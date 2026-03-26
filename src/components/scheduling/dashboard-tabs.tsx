@@ -2,15 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Settings, Users, BarChart3, Grid3X3 } from 'lucide-react';
+import { Settings, Grid3X3 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 const tabs = [
-  { href: '/dashboard/summary', key: 'tabDashboard', icon: BarChart3 },
-  { href: '/dashboard/grid', key: 'tabGrid', icon: Grid3X3 },
-  { href: '/dashboard/doctors', key: 'tabDoctors', icon: Users },
-  { href: '/dashboard/config', key: 'tabConfig', icon: Settings },
+  { href: '/grid', key: 'tabGrid', icon: Grid3X3 },
+  { href: '/config', key: 'tabConfig', icon: Settings },
 ] as const;
 
 export default function DashboardTabs() {
@@ -18,9 +16,9 @@ export default function DashboardTabs() {
   const { t } = useTranslation();
 
   return (
-    <div className="grid w-full grid-cols-4 mb-6 bg-muted p-1 rounded-lg">
+    <div className="grid w-full grid-cols-2 mb-6 bg-muted p-1 rounded-lg">
       {tabs.map(({ href, key, icon: Icon }) => {
-        const isActive = pathname === href || (href === '/dashboard/grid' && pathname === '/dashboard');
+        const isActive = pathname === href;
         return (
           <Link
             key={href}
