@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles, Trash2, Loader2, Phone, FileDown } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles, Trash2, Loader2, Phone, FileDown, Undo2, Redo2 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 
 interface ShiftGridHeaderProps {
@@ -18,6 +18,10 @@ interface ShiftGridHeaderProps {
   onClearMonth: () => void;
   onAssignDispatch: () => void;
   onExportPdf: () => void;
+  canUndo?: boolean;
+  onUndo?: () => void;
+  canRedo?: boolean;
+  onRedo?: () => void;
 }
 
 export default function ShiftGridHeader({
@@ -34,6 +38,10 @@ export default function ShiftGridHeader({
   onClearMonth,
   onAssignDispatch,
   onExportPdf,
+  canUndo,
+  onUndo,
+  canRedo,
+  onRedo,
 }: ShiftGridHeaderProps) {
   const { t, tArray } = useTranslation();
   const monthNames = tArray('months');
@@ -67,6 +75,14 @@ export default function ShiftGridHeader({
                   </Badge>
                 </span>
               )}
+            </div>
+            <div className="flex">
+              <Button variant="outline" size="icon" className="rounded-r-none border-r-0" onClick={onUndo} disabled={!canUndo} title={t('scheduling.grid.undo') + ' (Ctrl+Z)'}>
+                <Undo2 className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon" className="rounded-l-none" onClick={onRedo} disabled={!canRedo} title={t('scheduling.grid.redo') + ' (Ctrl+Y)'}>
+                <Redo2 className="h-4 w-4" />
+              </Button>
             </div>
             <Button variant="outline" onClick={onClearMonth}>
               <Trash2 className="h-4 w-4 mr-2" />

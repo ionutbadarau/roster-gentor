@@ -82,3 +82,47 @@ export async function deleteMonthLeaveDays(
     .lte('leave_date', monthEnd);
   if (error) throw error;
 }
+
+export async function restoreShift(
+  supabase: SupabaseClient,
+  shift: Shift,
+): Promise<Shift> {
+  const { data, error } = await supabase
+    .from('shifts')
+    .upsert(
+      {
+        doctor_id: shift.doctor_id,
+        shift_date: shift.shift_date,
+        shift_type: shift.shift_type,
+        start_time: shift.start_time,
+        end_time: shift.end_time,
+        is_manual: shift.is_manual ?? true,
+        dispatch_type: shift.dispatch_type ?? null,
+      },
+      { onConflict: 'doctor_id,shift_date' },
+    )
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function restoreLeaveDay(
+  supabase: SupabaseClient,
+  leave: LeaveDay,
+): Promise<LeaveDay> {
+  const { data, error } = await supabase
+    .from('leave_days')
+    .upsert(
+      {
+        doctor_id: leave.doctor_id,
+        leave_date: leave.leave_date,
+        leave_type: leave.leave_type ?? 'regular',
+      },
+      { onConflict: 'doctor_id,leave_date' },
+    )
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}

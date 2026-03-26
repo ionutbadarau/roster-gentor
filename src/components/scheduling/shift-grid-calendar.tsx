@@ -12,7 +12,8 @@ import { Loader2 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 import { formatDateString, getMonthPrefix, getMonthBoundary, groupShiftsByDoctor, getShiftStartMs, getShiftEndMs, getRestHours } from '@/lib/scheduling/shift-utils';
 import { assignDispatch } from '@/lib/scheduling/dispatch-assignment';
-import { upsertShift, createLeaveDay, deleteRecord, deleteMonthShifts, deleteMonthLeaveDays } from '@/lib/scheduling/shift-data-service';
+import { upsertShift, createLeaveDay, deleteRecord, deleteMonthShifts, deleteMonthLeaveDays, restoreShift, restoreLeaveDay } from '@/lib/scheduling/shift-data-service';
+import { useUndoHistory, type UndoEntry } from '@/lib/scheduling/use-undo-history';
 import { exportSchedulePdf } from '@/lib/scheduling/export-pdf';
 import ShiftGridHeader from './shift-grid-header';
 import ShiftGridDoctorRow from './shift-grid-doctor-row';
@@ -68,6 +69,9 @@ export default function ShiftGridCalendar({
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
   const { toast } = useToast();
+  const history = useUndoHistory();
+  // Destructure stable callbacks for use in deps; canUndo/canRedo are derived in render
+  const { push: historyPush, undo: historyUndo, redo: historyRedo, clear: historyClear, canUndo, canRedo } = history;
 
   const { t, tArray } = useTranslation();
   const monthNames = tArray('months');
@@ -595,6 +599,10 @@ export default function ShiftGridCalendar({
     try {
       let updatedShifts = [...shifts];
       let updatedLeaveDays = [...leaveDays];
+      const snapshotShifts: Shift[] = [];
+      const snapshotLeaves: LeaveDay[] = [];
+      const createdShifts: Shift[] = [];
+      const createdLeaves: LeaveDay[] = [];
 
       for (const day of selectedDays) {
         const dateStr = formatDateString(currentYear, currentMonth, day);
@@ -606,6 +614,7 @@ export default function ShiftGridCalendar({
 
         if (existingShift) {
           if (action !== 'leave' && action !== 'bridge' && action === existingShift.shift_type) continue;
+          snapshotShifts.push(existingShift);
           await deleteRecord(supabase, 'shifts', existingShift.id);
           updatedShifts = updatedShifts.filter(s => s.id !== existingShift.id);
         }
@@ -614,6 +623,7 @@ export default function ShiftGridCalendar({
           const existingType = existingLeave.leave_type || 'regular';
           const targetType = action === 'bridge' ? 'bridge' : 'regular';
           if ((action === 'leave' || action === 'bridge') && existingType === targetType) continue;
+          snapshotLeaves.push(existingLeave);
           await deleteRecord(supabase, 'leave_days', existingLeave.id);
           updatedLeaveDays = updatedLeaveDays.filter(l => l.id !== existingLeave.id);
         }
@@ -621,13 +631,16 @@ export default function ShiftGridCalendar({
         if (action === 'leave' || action === 'bridge') {
           const leaveType = action === 'bridge' ? 'bridge' : 'regular';
           const data = await createLeaveDay(supabase, doctorId, dateStr, leaveType);
+          createdLeaves.push(data);
           updatedLeaveDays = [...updatedLeaveDays, data];
         } else {
           const data = await upsertShift(supabase, doctorId, dateStr, action);
+          createdShifts.push(data);
           updatedShifts = [...updatedShifts, data];
         }
       }
 
+      historyPush({ previousShifts: snapshotShifts, previousLeaveDays: snapshotLeaves, createdShifts, createdLeaveDays: createdLeaves });
       onShiftsUpdate(updatedShifts);
       onLeaveDaysUpdate(updatedLeaveDays);
 
@@ -651,6 +664,8 @@ export default function ShiftGridCalendar({
     try {
       let updatedShifts = [...shifts];
       let updatedLeaveDays = [...leaveDays];
+      const snapshotShifts: Shift[] = [];
+      const snapshotLeaves: LeaveDay[] = [];
 
       for (const day of selectedDays) {
         const dateStr = formatDateString(currentYear, currentMonth, day);
@@ -658,15 +673,18 @@ export default function ShiftGridCalendar({
         const existingLeave = updatedLeaveDays.find(l => l.doctor_id === doctorId && l.leave_date === dateStr);
 
         if (existingShift) {
+          snapshotShifts.push(existingShift);
           await deleteRecord(supabase, 'shifts', existingShift.id);
           updatedShifts = updatedShifts.filter(s => s.id !== existingShift.id);
         }
         if (existingLeave) {
+          snapshotLeaves.push(existingLeave);
           await deleteRecord(supabase, 'leave_days', existingLeave.id);
           updatedLeaveDays = updatedLeaveDays.filter(l => l.id !== existingLeave.id);
         }
       }
 
+      historyPush({ previousShifts: snapshotShifts, previousLeaveDays: snapshotLeaves, createdShifts: [], createdLeaveDays: [] });
       onShiftsUpdate(updatedShifts);
       onLeaveDaysUpdate(updatedLeaveDays);
 
@@ -684,8 +702,10 @@ export default function ShiftGridCalendar({
     const { start: monthStart, end: monthEnd } = getMonthBoundary(currentYear, currentMonth, daysInMonth);
 
     try {
+      const snapshotShifts = shifts.filter(s => s.shift_date >= monthStart && s.shift_date <= monthEnd);
       await deleteMonthShifts(supabase, monthStart, monthEnd);
 
+      historyPush({ previousShifts: snapshotShifts, previousLeaveDays: [], createdShifts: [], createdLeaveDays: [] });
       onShiftsUpdate(shifts.filter(s => s.shift_date < monthStart || s.shift_date > monthEnd));
 
       toast({
@@ -697,6 +717,96 @@ export default function ShiftGridCalendar({
       toast({ title: t('common.error'), description: t('scheduling.grid.toastClearMonthError'), variant: 'destructive' });
     }
   };
+
+  // --- Undo / Redo ---
+  const shiftsRef = useRef(shifts);
+  shiftsRef.current = shifts;
+  const leaveDaysRef = useRef(leaveDays);
+  leaveDaysRef.current = leaveDays;
+
+  const handleUndo = useCallback(async () => {
+    const entry = historyUndo();
+    if (!entry) return;
+
+    try {
+      // Delete what the action created
+      await Promise.all([
+        ...entry.createdShifts.map(s => deleteRecord(supabase, 'shifts', s.id)),
+        ...entry.createdLeaveDays.map(l => deleteRecord(supabase, 'leave_days', l.id)),
+      ]);
+
+      // Restore what existed before
+      const restoredShifts = await Promise.all(entry.previousShifts.map(s => restoreShift(supabase, s)));
+      const restoredLeaves = await Promise.all(entry.previousLeaveDays.map(l => restoreLeaveDay(supabase, l)));
+
+      // Update local state
+      const createdShiftSet = new Set(entry.createdShifts.map(s => s.id));
+      const createdLeaveSet = new Set(entry.createdLeaveDays.map(l => l.id));
+      onShiftsUpdate([...shiftsRef.current.filter(s => !createdShiftSet.has(s.id)), ...restoredShifts]);
+      onLeaveDaysUpdate([...leaveDaysRef.current.filter(l => !createdLeaveSet.has(l.id)), ...restoredLeaves]);
+
+      // Mutate entry in-place so redo picks up the new DB IDs
+      entry.previousShifts = restoredShifts;
+      entry.previousLeaveDays = restoredLeaves;
+
+      toast({ title: t('scheduling.grid.undone'), description: t('scheduling.grid.undoneDesc') });
+    } catch (error) {
+      console.error('Error undoing action:', error);
+      toast({ title: t('common.error'), description: t('scheduling.grid.undoError'), variant: 'destructive' });
+    }
+  }, [historyUndo, supabase, onShiftsUpdate, onLeaveDaysUpdate, toast, t]);
+
+  const handleRedo = useCallback(async () => {
+    const entry = historyRedo();
+    if (!entry) return;
+
+    try {
+      // Delete what undo restored
+      await Promise.all([
+        ...entry.previousShifts.map(s => deleteRecord(supabase, 'shifts', s.id)),
+        ...entry.previousLeaveDays.map(l => deleteRecord(supabase, 'leave_days', l.id)),
+      ]);
+
+      // Re-create what the original action created
+      const reCreatedShifts = await Promise.all(entry.createdShifts.map(s => restoreShift(supabase, s)));
+      const reCreatedLeaves = await Promise.all(entry.createdLeaveDays.map(l => restoreLeaveDay(supabase, l)));
+
+      // Update local state
+      const prevShiftSet = new Set(entry.previousShifts.map(s => s.id));
+      const prevLeaveSet = new Set(entry.previousLeaveDays.map(l => l.id));
+      onShiftsUpdate([...shiftsRef.current.filter(s => !prevShiftSet.has(s.id)), ...reCreatedShifts]);
+      onLeaveDaysUpdate([...leaveDaysRef.current.filter(l => !prevLeaveSet.has(l.id)), ...reCreatedLeaves]);
+
+      // Mutate entry in-place so next undo picks up the new DB IDs
+      entry.createdShifts = reCreatedShifts;
+      entry.createdLeaveDays = reCreatedLeaves;
+
+      toast({ title: t('scheduling.grid.redone'), description: t('scheduling.grid.redoneDesc') });
+    } catch (error) {
+      console.error('Error redoing action:', error);
+      toast({ title: t('common.error'), description: t('scheduling.grid.redoError'), variant: 'destructive' });
+    }
+  }, [historyRedo, supabase, onShiftsUpdate, onLeaveDaysUpdate, toast, t]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [handleUndo, handleRedo]);
+
+  // Clear history on month change
+  useEffect(() => {
+    historyClear();
+  }, [currentMonth, currentYear, historyClear]);
 
   // --- Cell letter extraction ---
   const extractCellLetter = (label: string, fallback: string): string => {
@@ -747,6 +857,10 @@ export default function ShiftGridCalendar({
           onClearMonth={handleClearMonth}
           onAssignDispatch={handleAssignDispatch}
           onExportPdf={handleExportPdf}
+          canUndo={canUndo}
+          onUndo={handleUndo}
+          canRedo={canRedo}
+          onRedo={handleRedo}
         />
         <CardContent className="relative">
           {generating && (
