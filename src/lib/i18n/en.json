@@ -76,7 +76,7 @@
       "holidayRemovedTitle": "Holiday removed",
       "holidayRemovedDesc": "{{day}} {{month}} is no longer a national holiday",
       "holidayToggleError": "Could not toggle holiday",
-      "understaffedWarning": "Day {{day}}: only {{available}} doctors available but {{required}} needed for shifts. Consider removing some leave days.",
+      "understaffedWarning": "Day {{day}}: only {{available}} doctors available but {{required}} needed for shifts.",
       "understaffedDaysTitle": "Understaffed days detected",
       "assignDispatch": "Assign Dispatch",
       "assigningDispatch": "Assigning...",
@@ -148,15 +148,15 @@
       "maxPerShiftError": "Could not update max doctors per shift"
     },
     "engine": {
-      "normWarning": "Base norm cannot be met for {{name}}. Select at least {{days}} leave days to generate the schedule.",
+      "normWarning": "Base norm cannot be met for {{name}}.",
       "tooManyLeaveDays": "Too many leave days selected. Maximum allowed: {{max}} days.",
-      "understaffedDay": "{{date}}: Day shift has {{count}}/{{required}} doctors. Consider removing leave days.",
-      "understaffedNight": "{{date}}: Night shift has {{count}}/{{required}} doctors. Consider removing leave days.",
+      "understaffedDay": "{{date}}: Day shift has {{count}}/{{required}} doctors.",
+      "understaffedNight": "{{date}}: Night shift has {{count}}/{{required}} doctors.",
       "restViolationDay": "Rest violation: Less than {{hours}} hours after day shift",
       "restViolationNight": "Rest violation: Less than {{hours}} hours after night shift",
       "restViolation24h": "Rest violation: Less than {{hours}} hours after 24h shift",
       "restViolation": "{{date}}: Rest violation for {{name}} — only {{hours}}h rest ({{required}}h required)",
-      "extraShiftImbalance": "Extra shift imbalance: {{gap}}-shift gap between doctors. Some doctors may be over/under-scheduled."
+      "extraShiftImbalance": "Extra shift imbalance: {{gap}}-shift gap between doctors."
     }
   },
   "auth": {

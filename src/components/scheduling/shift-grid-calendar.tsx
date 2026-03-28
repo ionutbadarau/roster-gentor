@@ -915,10 +915,11 @@ export default function ShiftGridCalendar({
           <ScrollArea className="w-full" ref={bodyScrollRef}>
             <div className="min-w-max">
               {/* Doctor rows */}
-              {sortedDoctors.map(doctor => (
+              {sortedDoctors.map((doctor, idx) => (
                 <ShiftGridDoctorRow
                   key={doctor.id}
                   doctor={doctor}
+                  isTeamBoundary={idx > 0 && doctor.team_id !== sortedDoctors[idx - 1].team_id}
                   teamColor={getTeamColor(doctor)}
                   stats={getDoctorStats(doctor.id)}
                   days={days}

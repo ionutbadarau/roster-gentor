@@ -32,6 +32,7 @@ interface ShiftGridDoctorRowProps {
   onCellMouseDown: (day: number, e: React.MouseEvent) => void;
   onCellMouseEnter: (day: number) => void;
   hasGenerated: boolean;
+  isTeamBoundary?: boolean;
 }
 
 function getCellClassName(
@@ -99,11 +100,12 @@ function ShiftGridDoctorRow({
   onCellMouseDown,
   onCellMouseEnter,
   hasGenerated,
+  isTeamBoundary,
 }: ShiftGridDoctorRowProps) {
   const { t } = useTranslation();
 
   return (
-    <div className={`flex border-b ${
+    <div className={`flex ${isTeamBoundary ? 'border-t-2 border-t-foreground/30 border-b' : 'border-b'} ${
       hasGenerated && !doctor.is_optional && stats.totalHours < stats.baseNorm
         ? 'bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40'
         : 'hover:bg-accent/30'
@@ -162,6 +164,7 @@ function ShiftGridDoctorRow({
           >
             <button
               className={getCellClassName(selected, violation, bridge, leave, shift, nonWorking, !!shift?.is_manual)}
+
               title={shift?.is_manual ? t('scheduling.grid.manualShiftTooltip') : violation ? t('scheduling.grid.insufficientRestTooltip') : bridge ? t('scheduling.grid.bridgeDayTooltip') : t('scheduling.grid.multiSelectTooltip')}
               onMouseDown={(e) => onCellMouseDown(day, e)}
               onMouseEnter={() => onCellMouseEnter(day)}
