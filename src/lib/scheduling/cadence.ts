@@ -14,19 +14,26 @@ import { getShiftStartMs, getShiftEndMs, getRestHours, formatDateString } from '
  * Compute the cadence position for each team on each day.
  *
  * position = (day - 1 + offset) % CADENCE_CYCLE_LENGTH
- *   offset = (team.order - 1) % CADENCE_CYCLE_LENGTH
  *   position 0 = Day shift, 1 = Night shift, 2/3 = Rest
+ *
+ * Default (V1): offset = (team.order - 1) % cycle
+ * Sequential (V2): offset = (cycle - (team.order - 1) % cycle) % cycle
+ *   — team with order N starts its Day shift on day N.
  */
 export function computeTeamCadenceGrid(
   teams: Team[],
   daysInMonth: number,
+  options?: { sequential?: boolean },
 ): Map<string, Map<number, 'day' | 'night' | null>> {
   const cycle = SCHEDULING_CONSTANTS.CADENCE_CYCLE_LENGTH;
   const grid = new Map<string, Map<number, 'day' | 'night' | null>>();
 
   for (const team of teams) {
     // Safe modulo: JS % can return negative for negative operands
-    const offset = ((team.order - 1) % cycle + cycle) % cycle;
+    const rawOffset = ((team.order - 1) % cycle + cycle) % cycle;
+    const offset = options?.sequential
+      ? (cycle - rawOffset) % cycle
+      : rawOffset;
     const dayMap = new Map<number, 'day' | 'night' | null>();
 
     for (let day = 1; day <= daysInMonth; day++) {

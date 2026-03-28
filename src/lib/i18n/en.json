@@ -17,6 +17,7 @@
       "title": "Monthly Schedule",
       "description": "View and edit shifts for each doctor",
       "generate": "Generate Schedule",
+      "generateV2": "Cadence-First",
       "generating": "Generating...",
       "generatingMessage": "Generation might take up to 90 seconds, please wait...",
       "clearMonth": "Clear Month",
@@ -140,7 +141,11 @@
       "doctorRenamedSuccess": "Doctor renamed successfully",
       "doctorRenameError": "Could not rename doctor",
       "teamRenamedSuccess": "Team renamed successfully",
-      "teamRenameError": "Could not rename team"
+      "teamRenameError": "Could not rename team",
+      "maxPerShiftLabel": "1 per shift",
+      "maxPerShiftTooltip": "Only 1 doctor from this team works per day/night shift",
+      "maxPerShiftChanged": "Max doctors per shift updated",
+      "maxPerShiftError": "Could not update max doctors per shift"
     },
     "engine": {
       "normWarning": "Base norm cannot be met for {{name}}. Select at least {{days}} leave days to generate the schedule.",

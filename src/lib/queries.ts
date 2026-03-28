@@ -29,7 +29,7 @@ export function useTeams() {
   return useQuery({
     queryKey: queryKeys.teams,
     queryFn: async () => {
-      const { data, error } = await supabase.from('teams').select('*');
+      const { data, error } = await supabase.from('teams').select('*').order('order', { ascending: true });
       if (error) throw error;
       return (data ?? []) as Team[];
     },

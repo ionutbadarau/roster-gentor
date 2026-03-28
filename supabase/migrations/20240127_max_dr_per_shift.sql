@@ -1,0 +1,1 @@
+ALTER TABLE teams ADD COLUMN max_doctors_per_shift integer;

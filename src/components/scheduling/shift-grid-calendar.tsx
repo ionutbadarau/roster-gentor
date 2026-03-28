@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Doctor, Team, Shift, LeaveDay, NationalHoliday } from '@/types/scheduling';
 import { SchedulingEngine, SCHEDULING_CONSTANTS } from '@/lib/scheduling-engine';
 import { useSchedulingWorker } from '@/lib/scheduling/use-scheduling-worker';
+import { useSchedulingWorkerV2 } from '@/lib/scheduling/v2/use-scheduling-worker-v2';
 import { createClient } from '../../../supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -57,6 +58,7 @@ export default function ShiftGridCalendar({
   const [generating, setGenerating] = useState(false);
   const [dispatchAssigning, setDispatchAssigning] = useState(false);
   const { generate: generateInWorker } = useSchedulingWorker();
+  const { generate: generateInWorkerV2 } = useSchedulingWorkerV2();
   const [generationWarnings, setGenerationWarnings] = useState<string[]>([]);
   const [dragState, setDragState] = useState<{
     doctorId: string;
@@ -230,8 +232,8 @@ export default function ShiftGridCalendar({
     else onMonthChange(currentMonth + 1, currentYear);
   };
 
-  // --- Schedule generation ---
-  const handleGenerateSchedule = async () => {
+  // --- Schedule generation (shared logic) ---
+  const runGeneration = async (workerFn: typeof generateInWorker) => {
     if (doctors.length === 0) {
       toast({ title: t('common.error'), description: t('scheduling.grid.toastNoDoctors'), variant: 'destructive' });
       return;
@@ -252,7 +254,7 @@ export default function ShiftGridCalendar({
       const prevMonthLookback = formatDateString(prevMonthDate.getFullYear(), prevMonthDate.getMonth(), prevLookbackDay);
       const previousMonthShifts = shifts.filter(s => s.shift_date >= prevMonthLookback && s.shift_date <= prevMonthEnd);
 
-      const result = await generateInWorker({
+      const result = await workerFn({
         month: currentMonth,
         year: currentYear,
         doctors, teams, shiftsPerDay, shiftsPerNight, leaveDays, nationalHolidays,
@@ -298,6 +300,8 @@ export default function ShiftGridCalendar({
       setGenerating(false);
     }
   };
+  const handleGenerateSchedule = () => runGeneration(generateInWorker);
+  const handleGenerateScheduleV2 = () => runGeneration(generateInWorkerV2);
 
   // --- Dispatch assignment ---
   const handleAssignDispatch = async () => {
@@ -854,6 +858,7 @@ export default function ShiftGridCalendar({
           onPreviousMonth={handlePreviousMonth}
           onNextMonth={handleNextMonth}
           onGenerate={handleGenerateSchedule}
+          onGenerateV2={handleGenerateScheduleV2}
           onClearMonth={handleClearMonth}
           onAssignDispatch={handleAssignDispatch}
           onExportPdf={handleExportPdf}

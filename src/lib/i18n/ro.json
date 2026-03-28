@@ -17,6 +17,7 @@
       "title": "Program Lunar",
       "description": "Vizualizeaz\u0103 \u0219i editeaz\u0103 turele pentru fiecare doctor",
       "generate": "Genereaz\u0103 Program",
+      "generateV2": "Prioritate Caden\u021b\u0103",
       "generating": "Se genereaz\u0103...",
       "generatingMessage": "Generarea poate dura p\u00e2n\u0103 la 90 de secunde, v\u0103 rug\u0103m a\u0219tepta\u021bi...",
       "clearMonth": "Gole\u0219te Luna",
@@ -140,7 +141,11 @@
       "doctorRenamedSuccess": "Doctorul a fost redenumit cu succes",
       "doctorRenameError": "Nu s-a putut redenumi doctorul",
       "teamRenamedSuccess": "Echipa a fost redenumită cu succes",
-      "teamRenameError": "Nu s-a putut redenumi echipa"
+      "teamRenameError": "Nu s-a putut redenumi echipa",
+      "maxPerShiftLabel": "1 per tură",
+      "maxPerShiftTooltip": "Doar 1 doctor din această echipă lucrează pe tură de zi/noapte",
+      "maxPerShiftChanged": "Numărul maxim de doctori pe tură a fost actualizat",
+      "maxPerShiftError": "Nu s-a putut actualiza numărul maxim de doctori pe tură"
     },
     "engine": {
       "normWarning": "Norma de baza nu poate fi indeplinita pentru {{name}}. Alege cel putin {{days}} zile de concediu pentru a genera tabelul.",

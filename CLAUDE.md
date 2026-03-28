@@ -38,7 +38,9 @@ This is a **doctor shift scheduling SaaS** built with Next.js 14 App Router + Su
 
 ### Scheduling System (Core Domain)
 
-The scheduling engine lives in **`src/lib/scheduling/`** (re-exported from `src/lib/scheduling-engine.ts` for backward compatibility). See [`src/lib/scheduling/ALGORITHM.md`](src/lib/scheduling/ALGORITHM.md) for the full algorithm description, data flow, and tuning parameters.
+The scheduling engine lives in **`src/lib/scheduling/`** (re-exported from `src/lib/scheduling-engine.ts` for backward compatibility). See [`src/lib/scheduling/ALGORITHM.md`](src/lib/scheduling/ALGORITHM.md) for the V1 algorithm description, data flow, and tuning parameters.
+
+The **V2 cadence-first engine** lives in **`src/lib/scheduling/v2/`**. See [`src/lib/scheduling/v2/ALGORITHM.md`](src/lib/scheduling/v2/ALGORITHM.md) for the V2 algorithm description.
 
 **Module structure:**
 

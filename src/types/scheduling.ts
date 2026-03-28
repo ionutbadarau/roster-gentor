@@ -43,6 +43,7 @@ export interface Team {
   name: string;
   color: string;
   order: number;
+  max_doctors_per_shift?: number;
   created_at?: string;
   updated_at?: string;
 }
