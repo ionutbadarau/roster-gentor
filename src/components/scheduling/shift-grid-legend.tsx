@@ -30,10 +30,6 @@ export default function ShiftGridLegend({ dayShiftLetter, nightShiftLetter, leav
         <span className="text-muted-foreground">{t('scheduling.grid.leaveLegend')}</span>
       </div>
       <div className="flex items-center gap-2">
-        <div className="w-6 h-6 bg-rose-200 dark:bg-rose-900 rounded flex items-center justify-center text-rose-800 dark:text-rose-200 text-xs font-bold">H</div>
-        <span className="text-muted-foreground">{t('scheduling.grid.holidayLegend')}</span>
-      </div>
-      <div className="flex items-center gap-2">
         <div className="w-6 h-6 bg-amber-50 dark:bg-amber-900/30 rounded flex items-center justify-center text-amber-500 dark:text-amber-400 text-xs font-bold">·</div>
         <span className="text-muted-foreground">{t('scheduling.grid.bridgeDayLegend')}</span>
       </div>
@@ -42,11 +38,11 @@ export default function ShiftGridLegend({ dayShiftLetter, nightShiftLetter, leav
         <span className="text-muted-foreground">{t('scheduling.grid.floatingBadge')}</span>
       </div>
       <div className="flex items-center gap-2">
-        <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900 rounded flex items-center justify-center text-blue-700 dark:text-blue-300 text-[9px] font-bold">{dayShiftLetter}(X)</div>
+        <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900 rounded flex items-center justify-center text-blue-700 dark:text-blue-300 text-xs font-bold">X</div>
         <span className="text-muted-foreground">{t('scheduling.grid.dispatchDayLegend')}</span>
       </div>
       <div className="flex items-center gap-2">
-        <div className="w-6 h-6 bg-indigo-100 dark:bg-indigo-900 rounded flex items-center justify-center text-indigo-700 dark:text-indigo-300 text-[9px] font-bold">{nightShiftLetter}(Y)</div>
+        <div className="w-6 h-6 bg-indigo-100 dark:bg-indigo-900 rounded flex items-center justify-center text-indigo-700 dark:text-indigo-300 text-xs font-bold">Y</div>
         <span className="text-muted-foreground">{t('scheduling.grid.dispatchNightLegend')}</span>
       </div>
       <div className="flex items-center gap-2">

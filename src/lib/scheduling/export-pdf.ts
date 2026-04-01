@@ -101,12 +101,15 @@ export function exportSchedulePdf(options: ExportPdfOptions): void {
 
       if (shift) {
         let text = '';
-        if (shift.shift_type === 'day') text = labels.dayShiftLetter;
-        else if (shift.shift_type === 'night') text = labels.nightShiftLetter;
-        else if (shift.shift_type === '24h') text = labels.shift24hLetter;
-
-        if (shift.dispatch_type === 'day') text += '(X)';
-        else if (shift.dispatch_type === 'night') text += '(Y)';
+        if (shift.shift_type === '24h') {
+          if (shift.dispatch_type === 'day') text = `X${labels.nightShiftLetter}`;
+          else if (shift.dispatch_type === 'night') text = `${labels.dayShiftLetter}Y`;
+          else text = labels.shift24hLetter;
+        } else if (shift.shift_type === 'day') {
+          text = shift.dispatch_type === 'day' ? 'X' : labels.dayShiftLetter;
+        } else if (shift.shift_type === 'night') {
+          text = shift.dispatch_type === 'night' ? 'Y' : labels.nightShiftLetter;
+        }
 
         return text;
       }
@@ -174,14 +177,22 @@ export function exportSchedulePdf(options: ExportPdfOptions): void {
           const day = days[colIdx - 1];
           const cellText = String(data.cell.raw || '');
 
-          if (cellText.startsWith(labels.dayShiftLetter) && !cellText.startsWith(labels.shift24hLetter)) {
+          // Dispatch on 24h shifts: XN or ZY (day/night dispatch letters combined)
+          const is24hDispatch = cellText === `X${labels.nightShiftLetter}` || cellText === `${labels.dayShiftLetter}Y`;
+          if (is24hDispatch || cellText === labels.shift24hLetter) {
+            data.cell.styles.textColor = COLORS.shift24h;
+            data.cell.styles.fontStyle = 'bold';
+          } else if (cellText === 'X') {
+            data.cell.styles.textColor = COLORS.dayShift;
+            data.cell.styles.fontStyle = 'bold';
+          } else if (cellText === 'Y') {
+            data.cell.styles.textColor = COLORS.nightShift;
+            data.cell.styles.fontStyle = 'bold';
+          } else if (cellText.startsWith(labels.dayShiftLetter) && !cellText.startsWith(labels.shift24hLetter)) {
             data.cell.styles.textColor = COLORS.dayShift;
             data.cell.styles.fontStyle = 'bold';
           } else if (cellText.startsWith(labels.nightShiftLetter)) {
             data.cell.styles.textColor = COLORS.nightShift;
-            data.cell.styles.fontStyle = 'bold';
-          } else if (cellText.startsWith(labels.shift24hLetter)) {
-            data.cell.styles.textColor = COLORS.shift24h;
             data.cell.styles.fontStyle = 'bold';
           } else if (cellText === labels.leaveLetter) {
             data.cell.styles.textColor = COLORS.leave;

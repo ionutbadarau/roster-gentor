@@ -1030,6 +1030,11 @@ export default function ShiftGridCalendar({
 
           <ShiftGridWarnings warnings={warnings} understaffedDays={understaffedDays} />
           <ShiftGridLegend dayShiftLetter={dayShiftLetter} nightShiftLetter={nightShiftLetter} leaveLetter={leaveLetter} shift24hLetter={shift24hLetter} />
+          {process.env.NODE_ENV === 'development' && restViolations.size > 0 && (
+            <div className="text-xs text-muted-foreground mt-2">
+              Violations: {restViolations.size}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

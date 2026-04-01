@@ -150,9 +150,9 @@ function ShiftGridDoctorRow({
 
         // Override label with dispatch indicator
         if (shift?.dispatch_type === 'day') {
-          cellLabel = 'X';
+          cellLabel = shift.shift_type === '24h' ? `X${nightShiftLetter}` : 'X';
         } else if (shift?.dispatch_type === 'night') {
-          cellLabel = 'Y';
+          cellLabel = shift.shift_type === '24h' ? `${dayShiftLetter}Y` : 'Y';
         }
 
         return (
