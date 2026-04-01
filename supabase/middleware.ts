@@ -23,7 +23,7 @@ export const updateSession = async (request: NextRequest) => {
               value,
             }));
           },
-          setAll(cookiesToSet) {
+          setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
             cookiesToSet.forEach(({ name, value, options }) => {
               request.cookies.set(name, value);
               response = NextResponse.next({
