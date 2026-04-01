@@ -84,6 +84,9 @@
       "dispatchAssignError": "Could not assign dispatch",
       "dispatchDayLegend": "Day Dispatch (X)",
       "dispatchNightLegend": "Night Dispatch (Y)",
+      "manualDispatchDay": "Dispatch Day (X)",
+      "manualDispatchNight": "Dispatch Night (Y)",
+      "manualDispatchApplied": "Dispatch assigned manually",
       "exportPdf": "Export PDF"
     },
     "config": {

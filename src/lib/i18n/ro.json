@@ -82,6 +82,9 @@
       "dispatchAssignError": "Nu s-a putut atribui dispeceratul",
       "dispatchDayLegend": "Dispecerat Zi (X)",
       "dispatchNightLegend": "Dispecerat Noapte (Y)",
+      "manualDispatchDay": "Dispecerat Zi (X)",
+      "manualDispatchNight": "Dispecerat Noapte (Y)",
+      "manualDispatchApplied": "Dispecerat atribuit manual",
       "exportPdf": "Export PDF",
       "manualShiftTooltip": "Selecție manuală — păstrată la regenerare",
       "manualShiftLegend": "Manual (fixat)"

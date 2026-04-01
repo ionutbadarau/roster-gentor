@@ -1,5 +1,5 @@
 import { forwardRef } from 'react';
-import { X } from 'lucide-react';
+import { X, Phone } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 
 interface SelectionPopupData {
@@ -13,17 +13,24 @@ interface ShiftSelectionPopupProps {
   popup: SelectionPopupData;
   hasAssignments: boolean;
   hasBridgeCandidates: boolean;
+  hasDispatch: boolean;
+  shiftTypes: Set<string>;
   onBatchAction: (action: 'day' | 'night' | '24h' | 'leave' | 'bridge') => void;
+  onDispatchAction: (dispatchType: 'day' | 'night') => void;
   onBatchClear: () => void;
 }
 
 const ShiftSelectionPopup = forwardRef<HTMLDivElement, ShiftSelectionPopupProps>(
-  ({ popup, hasAssignments, hasBridgeCandidates, onBatchAction, onBatchClear }, ref) => {
+  ({ popup, hasAssignments, hasBridgeCandidates, hasDispatch, shiftTypes, onBatchAction, onDispatchAction, onBatchClear }, ref) => {
     const { t } = useTranslation();
 
+    const canDispatchDay = hasAssignments && !hasDispatch && (shiftTypes.has('day') || shiftTypes.has('24h'));
+    const canDispatchNight = hasAssignments && !hasDispatch && (shiftTypes.has('night') || shiftTypes.has('24h'));
+    const dispatchCount = (canDispatchDay ? 1 : 0) + (canDispatchNight ? 1 : 0);
     const POPUP_W = 190;
     let baseH = 196;
     if (hasBridgeCandidates) baseH += 36;
+    if (dispatchCount > 0) baseH += 4 + dispatchCount * 36; // separator + buttons
     if (hasAssignments) baseH += 40;
     const POPUP_H = baseH;
     const finalLeft = popup.x + POPUP_W > window.innerWidth ? popup.x - POPUP_W : popup.x;
@@ -74,6 +81,29 @@ const ShiftSelectionPopup = forwardRef<HTMLDivElement, ShiftSelectionPopupProps>
             <span className="w-4 h-4 rounded bg-amber-500 flex-shrink-0" />
             {t('scheduling.grid.bridgeDayLabel')}
           </button>
+        )}
+        {dispatchCount > 0 && (
+          <>
+            <div className="border-t my-1" />
+            {canDispatchDay && (
+              <button
+                className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
+                onClick={() => onDispatchAction('day')}
+              >
+                <Phone className="w-4 h-4 flex-shrink-0 text-green-600" />
+                {t('scheduling.grid.manualDispatchDay')}
+              </button>
+            )}
+            {canDispatchNight && (
+              <button
+                className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
+                onClick={() => onDispatchAction('night')}
+              >
+                <Phone className="w-4 h-4 flex-shrink-0 text-teal-600" />
+                {t('scheduling.grid.manualDispatchNight')}
+              </button>
+            )}
+          </>
         )}
         {hasAssignments && (
           <>

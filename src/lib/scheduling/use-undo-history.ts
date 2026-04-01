@@ -3,6 +3,12 @@
 import { useRef, useState, useCallback } from 'react';
 import type { Shift, LeaveDay } from '@/types/scheduling';
 
+export type DispatchChange = {
+  shiftId: string;
+  previousDispatchType: 'day' | 'night' | null;
+  newDispatchType: 'day' | 'night' | null;
+};
+
 export type UndoEntry = {
   /** Records that existed before the action (to restore on undo) */
   previousShifts: Shift[];
@@ -10,6 +16,8 @@ export type UndoEntry = {
   /** Full records created by the action (to delete on undo, re-create on redo) */
   createdShifts: Shift[];
   createdLeaveDays: LeaveDay[];
+  /** In-place dispatch_type changes (for manual dispatch assignment) */
+  dispatchChanges?: DispatchChange[];
 };
 
 /**

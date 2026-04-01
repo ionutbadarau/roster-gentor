@@ -14,7 +14,7 @@ import { useTranslation } from '@/lib/i18n';
 import { formatDateString, getMonthPrefix, getMonthBoundary, groupShiftsByDoctor, getShiftStartMs, getShiftEndMs, getRestHours } from '@/lib/scheduling/shift-utils';
 import { assignDispatch } from '@/lib/scheduling/dispatch-assignment';
 import { upsertShift, createLeaveDay, deleteRecord, deleteMonthShifts, deleteMonthLeaveDays, restoreShift, restoreLeaveDay } from '@/lib/scheduling/shift-data-service';
-import { useUndoHistory, type UndoEntry } from '@/lib/scheduling/use-undo-history';
+import { useUndoHistory, type UndoEntry, type DispatchChange } from '@/lib/scheduling/use-undo-history';
 import { exportSchedulePdf } from '@/lib/scheduling/export-pdf';
 import ShiftGridHeader from './shift-grid-header';
 import ShiftGridDoctorRow from './shift-grid-doctor-row';
@@ -555,43 +555,32 @@ export default function ShiftGridCalendar({
     });
   }, [selectionPopup, shifts, leaveDays, currentYear, currentMonth]);
 
-  const selectionHasBridgeCandidates = useMemo(() => {
+  const selectionHasDispatch = useMemo(() => {
     if (!selectionPopup) return false;
     const { doctorId, days: selectedDays } = selectionPopup;
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const monthPrefix = getMonthPrefix(currentYear, currentMonth);
-    const doctorLeaves = new Set(
-      leaveDays
-        .filter(l => l.doctor_id === doctorId && l.leave_date.startsWith(monthPrefix))
-        .map(l => l.leave_date)
-    );
-    const holidaySet = new Set(nationalHolidays.map(h => h.holiday_date));
+    return selectedDays.some(day => {
+      const dateStr = formatDateString(currentYear, currentMonth, day);
+      return shifts.some(s => s.doctor_id === doctorId && s.shift_date === dateStr && s.dispatch_type);
+    });
+  }, [selectionPopup, shifts, currentYear, currentMonth]);
 
-    const isNonWorkingDate = (d: number) => {
-      const date = new Date(currentYear, currentMonth, d);
-      const dow = date.getDay();
-      return dow === 0 || dow === 6 || holidaySet.has(formatDateString(currentYear, currentMonth, d));
-    };
+  const selectionShiftTypes = useMemo(() => {
+    if (!selectionPopup) return new Set<string>();
+    const { doctorId, days: selectedDays } = selectionPopup;
+    const types = new Set<string>();
+    for (const day of selectedDays) {
+      const dateStr = formatDateString(currentYear, currentMonth, day);
+      const shift = shifts.find(s => s.doctor_id === doctorId && s.shift_date === dateStr);
+      if (shift) types.add(shift.shift_type);
+    }
+    return types;
+  }, [selectionPopup, shifts, currentYear, currentMonth]);
 
-    // Check if a non-working day has leave adjacent on at least one side
-    const hasAdjacentLeave = (day: number): boolean => {
-      // Look backward through consecutive non-working days for a leave day
-      for (let d = day - 1; d >= 1; d--) {
-        const ds = formatDateString(currentYear, currentMonth, d);
-        if (doctorLeaves.has(ds)) return true;
-        if (!isNonWorkingDate(d)) break;
-      }
-      // Look forward
-      for (let d = day + 1; d <= daysInMonth; d++) {
-        const ds = formatDateString(currentYear, currentMonth, d);
-        if (doctorLeaves.has(ds)) return true;
-        if (!isNonWorkingDate(d)) break;
-      }
-      return false;
-    };
-
-    return selectedDays.some(day => isNonWorkingDay(day) && hasAdjacentLeave(day));
-  }, [selectionPopup, currentYear, currentMonth, nationalHolidays, leaveDays]);
+  const selectionHasBridgeCandidates = useMemo(() => {
+    if (!selectionPopup) return false;
+    const { days: selectedDays } = selectionPopup;
+    return selectedDays.some(day => isNonWorkingDay(day));
+  }, [selectionPopup, currentYear, currentMonth, nationalHolidays]);
 
   // --- Batch actions ---
   const handleBatchAction = async (action: 'day' | 'night' | '24h' | 'leave' | 'bridge') => {
@@ -702,6 +691,61 @@ export default function ShiftGridCalendar({
     }
   };
 
+  const handleDispatchAction = async (dispatchType: 'day' | 'night') => {
+    if (!selectionPopup) return;
+    const { doctorId, days: selectedDays } = selectionPopup;
+    setSelectionPopup(null);
+    setDragState(null);
+
+    try {
+      let updatedShifts = [...shifts];
+      const dispatchChanges: DispatchChange[] = [];
+
+      for (const day of selectedDays) {
+        const dateStr = formatDateString(currentYear, currentMonth, day);
+        const targetShift = updatedShifts.find(s => s.doctor_id === doctorId && s.shift_date === dateStr);
+        if (!targetShift) continue;
+
+        // Remove existing dispatch of the same type on this day from any other doctor
+        const existingDispatch = updatedShifts.find(
+          s => s.shift_date === dateStr && s.dispatch_type === dispatchType && s.id !== targetShift.id
+        );
+        if (existingDispatch) {
+          dispatchChanges.push({
+            shiftId: existingDispatch.id,
+            previousDispatchType: existingDispatch.dispatch_type as 'day' | 'night',
+            newDispatchType: null,
+          });
+          await supabase.from('shifts').update({ dispatch_type: null }).eq('id', existingDispatch.id);
+          updatedShifts = updatedShifts.map(s =>
+            s.id === existingDispatch.id ? { ...s, dispatch_type: null } : s
+          );
+        }
+
+        // Set dispatch on the target shift
+        dispatchChanges.push({
+          shiftId: targetShift.id,
+          previousDispatchType: (targetShift.dispatch_type as 'day' | 'night' | null) ?? null,
+          newDispatchType: dispatchType,
+        });
+        await supabase.from('shifts').update({ dispatch_type: dispatchType }).eq('id', targetShift.id);
+        updatedShifts = updatedShifts.map(s =>
+          s.id === targetShift.id ? { ...s, dispatch_type: dispatchType } : s
+        );
+      }
+
+      historyPush({ previousShifts: [], previousLeaveDays: [], createdShifts: [], createdLeaveDays: [], dispatchChanges });
+      onShiftsUpdate(updatedShifts);
+      toast({
+        title: t('common.success'),
+        description: t('scheduling.grid.manualDispatchApplied'),
+      });
+    } catch (error) {
+      console.error('Error assigning dispatch manually:', error);
+      toast({ title: t('common.error'), description: t('scheduling.grid.dispatchAssignError'), variant: 'destructive' });
+    }
+  };
+
   const handleClearMonth = async () => {
     const { start: monthStart, end: monthEnd } = getMonthBoundary(currentYear, currentMonth, daysInMonth);
 
@@ -743,10 +787,22 @@ export default function ShiftGridCalendar({
       const restoredShifts = await Promise.all(entry.previousShifts.map(s => restoreShift(supabase, s)));
       const restoredLeaves = await Promise.all(entry.previousLeaveDays.map(l => restoreLeaveDay(supabase, l)));
 
+      // Reverse dispatch changes (set each shift back to its previous dispatch_type)
+      let currentShifts = shiftsRef.current;
+      if (entry.dispatchChanges?.length) {
+        await Promise.all(
+          entry.dispatchChanges.map(dc =>
+            supabase.from('shifts').update({ dispatch_type: dc.previousDispatchType }).eq('id', dc.shiftId)
+          )
+        );
+        const dcMap = new Map(entry.dispatchChanges.map(dc => [dc.shiftId, dc.previousDispatchType]));
+        currentShifts = currentShifts.map(s => dcMap.has(s.id) ? { ...s, dispatch_type: dcMap.get(s.id) ?? null } : s);
+      }
+
       // Update local state
       const createdShiftSet = new Set(entry.createdShifts.map(s => s.id));
       const createdLeaveSet = new Set(entry.createdLeaveDays.map(l => l.id));
-      onShiftsUpdate([...shiftsRef.current.filter(s => !createdShiftSet.has(s.id)), ...restoredShifts]);
+      onShiftsUpdate([...currentShifts.filter(s => !createdShiftSet.has(s.id)), ...restoredShifts]);
       onLeaveDaysUpdate([...leaveDaysRef.current.filter(l => !createdLeaveSet.has(l.id)), ...restoredLeaves]);
 
       // Mutate entry in-place so redo picks up the new DB IDs
@@ -775,10 +831,22 @@ export default function ShiftGridCalendar({
       const reCreatedShifts = await Promise.all(entry.createdShifts.map(s => restoreShift(supabase, s)));
       const reCreatedLeaves = await Promise.all(entry.createdLeaveDays.map(l => restoreLeaveDay(supabase, l)));
 
+      // Re-apply dispatch changes (set each shift to its new dispatch_type)
+      let currentShifts = shiftsRef.current;
+      if (entry.dispatchChanges?.length) {
+        await Promise.all(
+          entry.dispatchChanges.map(dc =>
+            supabase.from('shifts').update({ dispatch_type: dc.newDispatchType }).eq('id', dc.shiftId)
+          )
+        );
+        const dcMap = new Map(entry.dispatchChanges.map(dc => [dc.shiftId, dc.newDispatchType]));
+        currentShifts = currentShifts.map(s => dcMap.has(s.id) ? { ...s, dispatch_type: dcMap.get(s.id) ?? null } : s);
+      }
+
       // Update local state
       const prevShiftSet = new Set(entry.previousShifts.map(s => s.id));
       const prevLeaveSet = new Set(entry.previousLeaveDays.map(l => l.id));
-      onShiftsUpdate([...shiftsRef.current.filter(s => !prevShiftSet.has(s.id)), ...reCreatedShifts]);
+      onShiftsUpdate([...currentShifts.filter(s => !prevShiftSet.has(s.id)), ...reCreatedShifts]);
       onLeaveDaysUpdate([...leaveDaysRef.current.filter(l => !prevLeaveSet.has(l.id)), ...reCreatedLeaves]);
 
       // Mutate entry in-place so next undo picks up the new DB IDs
@@ -952,7 +1020,10 @@ export default function ShiftGridCalendar({
               popup={selectionPopup}
               hasAssignments={selectionHasAssignments}
               hasBridgeCandidates={selectionHasBridgeCandidates}
+              hasDispatch={selectionHasDispatch}
+              shiftTypes={selectionShiftTypes}
               onBatchAction={handleBatchAction}
+              onDispatchAction={handleDispatchAction}
               onBatchClear={handleBatchClear}
             />
           )}
