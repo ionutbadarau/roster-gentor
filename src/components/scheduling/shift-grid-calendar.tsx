@@ -5,7 +5,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Doctor, Team, Shift, LeaveDay, NationalHoliday } from '@/types/scheduling';
 import { SchedulingEngine, SCHEDULING_CONSTANTS } from '@/lib/scheduling-engine';
 import { useSchedulingWorker } from '@/lib/scheduling/use-scheduling-worker';
-import { useSchedulingWorkerV2 } from '@/lib/scheduling/v2/use-scheduling-worker-v2';
 import { createClient } from '../../../supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -58,7 +57,6 @@ export default function ShiftGridCalendar({
   const [generating, setGenerating] = useState(false);
   const [dispatchAssigning, setDispatchAssigning] = useState(false);
   const { generate: generateInWorker } = useSchedulingWorker();
-  const { generate: generateInWorkerV2 } = useSchedulingWorkerV2();
   const [generationWarnings, setGenerationWarnings] = useState<string[]>([]);
   const [dragState, setDragState] = useState<{
     doctorId: string;
@@ -301,7 +299,6 @@ export default function ShiftGridCalendar({
     }
   };
   const handleGenerateSchedule = () => runGeneration(generateInWorker);
-  const handleGenerateScheduleV2 = () => runGeneration(generateInWorkerV2);
 
   // --- Dispatch assignment ---
   const handleAssignDispatch = async () => {
@@ -926,7 +923,6 @@ export default function ShiftGridCalendar({
           onPreviousMonth={handlePreviousMonth}
           onNextMonth={handleNextMonth}
           onGenerate={handleGenerateSchedule}
-          onGenerateV2={handleGenerateScheduleV2}
           onClearMonth={handleClearMonth}
           onAssignDispatch={handleAssignDispatch}
           onExportPdf={handleExportPdf}

@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { SchedulingEngineV2 } from '@/lib/scheduling/v2/scheduling-engine-v2';
-import { SCHEDULING_CONSTANTS } from '@/lib/scheduling-engine';
+import { SchedulingEngine, SCHEDULING_CONSTANTS } from '@/lib/scheduling-engine';
 import type { DoctorWithTeam, Team, LeaveDay, Shift } from '@/types/scheduling';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -42,7 +41,7 @@ function formatDate(year: number, month: number, day: number): string {
 
 // ── Real-world scenario: March 2026 ─────────────────────────────────────────
 
-describe('SchedulingEngineV2 — Cadence-first algorithm', () => {
+describe('SchedulingEngine — Cadence-first algorithm', () => {
   beforeEach(() => { idCounter = 0; });
   const MARCH = 2; // 0-indexed
   const YEAR = 2026;
@@ -107,7 +106,7 @@ describe('SchedulingEngineV2 — Cadence-first algorithm', () => {
   ];
 
   function generateV2() {
-    const engine = new SchedulingEngineV2({
+    const engine = new SchedulingEngine({
       month: MARCH,
       year: YEAR,
       doctors: allDoctors,
@@ -269,7 +268,7 @@ describe('SchedulingEngineV2 — Cadence-first algorithm', () => {
     ];
 
     function generateConstrained() {
-      const engine = new SchedulingEngineV2({
+      const engine = new SchedulingEngine({
         month: MARCH,
         year: YEAR,
         doctors: constrainedDoctors,
@@ -371,7 +370,7 @@ describe('SchedulingEngineV2 — Cadence-first algorithm', () => {
     ];
 
     function generateWithTeam5() {
-      const engine = new SchedulingEngineV2({
+      const engine = new SchedulingEngine({
         month: MARCH,
         year: YEAR,
         doctors: allDoctors5,
@@ -476,7 +475,7 @@ describe('SchedulingEngineV2 — Cadence-first algorithm', () => {
     ];
 
     function generateWithFloating12h() {
-      const engine = new SchedulingEngineV2({
+      const engine = new SchedulingEngine({
         month: MARCH,
         year: YEAR,
         doctors: allDoctors6,

@@ -38,21 +38,17 @@ This is a **doctor shift scheduling SaaS** built with Next.js 14 App Router + Su
 
 ### Scheduling System (Core Domain)
 
-The scheduling engine lives in **`src/lib/scheduling/`** (re-exported from `src/lib/scheduling-engine.ts` for backward compatibility). See [`src/lib/scheduling/ALGORITHM.md`](src/lib/scheduling/ALGORITHM.md) for the V1 algorithm description, data flow, and tuning parameters.
-
-The **V2 cadence-first engine** lives in **`src/lib/scheduling/v2/`**. See [`src/lib/scheduling/v2/ALGORITHM.md`](src/lib/scheduling/v2/ALGORITHM.md) for the V2 algorithm description.
+The scheduling engine lives in **`src/lib/scheduling/`** (re-exported from `src/lib/scheduling-engine.ts` for backward compatibility). It uses a cadence-first algorithm. See [`src/lib/scheduling/ALGORITHM.md`](src/lib/scheduling/ALGORITHM.md) for the algorithm description, data flow, and tuning parameters.
 
 **Module structure:**
 
 | File | Responsibility |
 |------|---------------|
-| `scheduling-engine.ts` | Thin orchestrator: constructor, `generateSchedule()`, static method delegates |
+| `scheduling-engine.ts` | Cadence-first engine: constructor, `generateSchedule()`, static method delegates |
 | `constants.ts` | `SCHEDULING_CONSTANTS`, `ScheduleGenerationOptions`, `EngineContext` interface |
 | `calendar-utils.ts` | Pure date/time helpers: `formatDate`, `utcMs`, `getDaysInMonth`, etc. |
 | `bridge-days.ts` | Bridge day computation (weekends/holidays between leave periods) |
 | `constraints.ts` | `canDoctorWork`, `canDoctorWorkWithTimeline` — all constraint checking |
-| `doctor-selection.ts` | Pace-aware team-preferring greedy selection + lookahead penalty |
-| `repair.ts` | Backtracking solver for unfilled slots after greedy pass |
 | `stats.ts` | Shift recording, counter management, per-doctor statistics |
 | `validation.ts` | Static utilities: `detectConflicts`, `validateLeaveDays`, `computeUnderstaffedDays` |
 
@@ -63,7 +59,7 @@ The **V2 cadence-first engine** lives in **`src/lib/scheduling/v2/`**. See [`src
 - Max 48h/week per doctor
 - The min nr of working hours each doctor needs to have each month is 7h \* nr of working days for that month
 - Teams rotate by their `order` field; floating doctors fill gaps
-- Pace-aware equalization: doctors behind schedule get priority, with lookahead to avoid rest cascades
+- Cadence-first: D-N-R-R per team, staggered by order; gap-filling with norm rebalancing
 - Returns `{ shifts, conflicts, warnings, doctorStats }` — never writes to DB directly
 
 **`src/components/scheduling/shift-grid-calendar.tsx`** — Grid calendar where rows = doctors, columns = days. Calls `SchedulingEngine`, displays results, and allows manual edits. Tracks remaining leave days with validation.

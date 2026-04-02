@@ -17,7 +17,6 @@
       "title": "Monthly Schedule",
       "description": "View and edit shifts for each doctor",
       "generate": "Generate Schedule",
-      "generateV2": "Cadence-First",
       "generating": "Generating...",
       "generatingMessage": "Generation might take up to 90 seconds, please wait...",
       "clearMonth": "Clear Month",

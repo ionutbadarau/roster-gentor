@@ -15,7 +15,6 @@ interface ShiftGridHeaderProps {
   onPreviousMonth: () => void;
   onNextMonth: () => void;
   onGenerate: () => void;
-  onGenerateV2: () => void;
   onClearMonth: () => void;
   onAssignDispatch: () => void;
   onExportPdf: () => void;
@@ -36,7 +35,6 @@ export default function ShiftGridHeader({
   onPreviousMonth,
   onNextMonth,
   onGenerate,
-  onGenerateV2,
   onClearMonth,
   onAssignDispatch,
   onExportPdf,
@@ -93,10 +91,6 @@ export default function ShiftGridHeader({
             <Button onClick={onGenerate} disabled={generating}>
               {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
               {generating ? t('scheduling.grid.generating') : t('scheduling.grid.generate')}
-            </Button>
-            <Button variant="secondary" onClick={onGenerateV2} disabled={generating}>
-              {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
-              {generating ? t('scheduling.grid.generating') : t('scheduling.grid.generateV2')}
             </Button>
             <Button variant="outline" onClick={onAssignDispatch} disabled={dispatchAssigning || !hasGeneratedSchedule}>
               {dispatchAssigning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Phone className="h-4 w-4 mr-2" />}

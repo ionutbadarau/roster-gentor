@@ -1,138 +1,139 @@
-# Scheduling Algorithm
+# Scheduling Algorithm V2 — Cadence-First
 
 ## Problem
 
-Generate a monthly schedule assigning doctors to 12h shifts (day 08:00–20:00, night 20:00–08:00) or 24h shifts (08:00–08:00+1). Two doctor classes: **team doctors** (12h, grouped in teams with rotation order) and **floating 24h doctors**.
+Generate a monthly schedule assigning doctors to 12h shifts (day 08:00–20:00, night 20:00–08:00) or 24h shifts (08:00–08:00+1). Three doctor classes: **team doctors** (12h, grouped in teams with rotation order), **floating 12h doctors** (no team, fill gaps and receive rebalanced shifts), and **floating/team 24h doctors** (rigid 72h cadence).
 
 ### Hard Constraints
-- **Rest (12h doctors)**: 24h after day, 48h after night (may be broken by forced-coverage shifts in Phase 2b — marked `is_forced_coverage`)
-- **Rest (24h doctors)**: exactly 72h after each 24h shift — no more, no less. 24h doctors follow a rigid every-4-day cadence set in Phase 0. Their shifts are never added, removed, or moved by any repair or forced-coverage step. Leave/bridge days are the only exception that may cause a gap.
-- **Weekly limit**: max 48h/week per doctor
-- **Leave/bridge days**: no shifts on leave or bridge days (weekends/holidays between two leave periods). Bridge days block scheduling but don't reduce base norm
+- **Leave/bridge days**: no shifts on leave or bridge days
 - **Coverage**: each day needs `shiftsPerDay` day + `shiftsPerNight` night doctors
-- **Base norm**: each doctor works ≥ 7h × (working days − leave days)
-- **Optional doctors**: doctors marked `is_optional` are excluded from all automatic scheduling — they receive shifts only via manual assignment
+- **24h rest**: 72h between 24h shifts (rigid every-4-day cadence)
+- **Optional doctors**: excluded from all automatic scheduling
 
 ### Soft Goals
-- **Extra-shift equalization (hard constraint)**: extra shifts beyond norm have ≤1-shift gap between all non-optional 12h doctors. 24h doctors are excluded from equalization (their schedule is fixed by cadence). Enforced via: extra-shift gap in multi-attempt selection and repair transfers.
-- Team cohesion (prefer same-team doctors on the same day)
-- Day→night continuation bonus
-- Cadence following (D-N-R-R rotation per team, staggered by team order)
+- **Cadence adherence**: team doctors follow D-N-R-R rotation strictly
+- **Basic fairness**: gap-fill candidates sorted by fewest shifts
+- **Norm equalization**: all non-optional doctors should meet their base norm (7h × working days minus leave)
+
+### Key Difference from V1
+
+V2 prioritizes **cadence strictness** over constraint satisfaction. V1 uses a multi-attempt greedy algorithm with 8-stage repair and equalization. V2 assigns cadence shifts unconditionally in Phase 1, then fills remaining gaps in Phase 2 — rest violations are allowed and flagged rather than avoided.
 
 ### Determinism
 
-The algorithm is fully deterministic — identical inputs always produce identical output. All randomness uses a seeded PRNG (mulberry32, `prng.ts`). Default seed: `year * 100 + month`. Time budgets replaced with iteration/node caps so results don't vary across machines.
+Fully deterministic — identical inputs always produce identical output. Seeded PRNG (mulberry32), default seed: `year * 100 + month`.
 
 ## Algorithm Overview
 
 ### Pre-filter: Optional Doctors
 
-At the start of `generateSchedule()`, doctors with `is_optional = true` are filtered out of the active doctor list. This filtered list is used throughout all scheduling phases (24h allocation, greedy, repair, norm checks). The full doctor list (including optional) is restored only before stats computation and conflict detection, so optional doctors still appear in the output with `baseNorm: 0` and `meetsBaseNorm: true`. Optional doctors can still have manual shifts added to them — these are included in conflict detection and counter rebuilds.
+Doctors with `is_optional = true` are filtered out before scheduling. Restored before stats/conflict detection so they appear in output with `baseNorm: 0`.
 
-### Phase 0: 24h Allocation
+### Phase 0: Compute Cadence Grids
 
-Assigns 24h floating doctors to a strict every-4-day cadence (72h rest — no more, no less). Two sub-phases:
+Each team follows a 4-day cycle: **Day, Night, Rest, Rest** (D-N-R-R).
 
-1. **Optimal offset permutation**: For the first `minGap` (=4) doctors, brute-force all doctor→offset assignments (C(n,4)×4! combos) to maximize total shifts + tightness coverage. Each offset produces shifts every 4 days.
-2. **Swing doctor offset assignment**: Remaining doctors are each assigned the offset (1–4) that maximizes their shift count and tightness coverage, then placed on a strict every-4-day cadence from that offset.
-
-Once placed, 24h shifts are immutable — no repair, equalization, or forced-coverage step may add, remove, or move them. Leave/bridge days are the only reason a cadence slot may be skipped.
-
-### Phase 1: Multi-Attempt Greedy (30 attempts)
-
-Each attempt uses a different 24h allocation variant + seeded PRNG score perturbation. Best attempt (fewest unfilled slots, then fewest norm-deficit doctors) is kept.
-
-Per attempt, iterates day-by-day:
+Teams are staggered sequentially by their `order` field so that team N starts its Day shift on day N:
 
 ```
-for each day:
-  emit pre-allocated 24h shifts
-  for each shift type (day, night):
-    selectDoctorsForShift(slotsNeeded)
+offset = (cycle - (order - 1) % cycle) % cycle
+position = (day - 1 + offset) % cycle
+  position 0 = Day, 1 = Night, 2-3 = Rest
 ```
 
-**Doctor selection scoring** (`doctor-selection.ts`):
-
+Example with 4 teams:
 ```
-score = paceGap - lookaheadPenalty + continuationBonus
-      - extraShiftPenalty + restOverlapBonus
-      + cadenceOnDutyBonus - cadenceBreakPenalty + perturbation
+         Day1  Day2  Day3  Day4  Day5  Day6  Day7  Day8
+Team 1:   D     N     R     R     D     N     R     R
+Team 2:   R     D     N     R     R     D     N     R
+Team 3:   R     R     D     N     R     R     D     N
+Team 4:   N     R     R     D     N     R     R     D
 ```
 
-- **paceGap**: how far behind schedule (target × elapsed/total − current shifts)
-- **lookaheadPenalty**: penalizes if rest would block a tight future day (1-3 days ahead)
-- **cadenceOnDutyBonus/BreakPenalty**: follow D-N-R-R cadence, **scaled to 30% on tight days** (when available doctors < shiftsPerDay + shiftsPerNight + 2)
-- **restOverlapBonus**: prefer doctors whose rest falls on leave/bridge/month-end
-- **extraShiftPenalty**: `(current − avgShifts) × weight` — active even for under-target doctors
-- **Hard partition**: under-target doctors always before met-target; team cohesion within 1.5 paceGap threshold
+On any given day, exactly one team is on Day, one on Night, and two are resting.
 
-### Phase 2: Repair (8 stages)
+Uses `computeTeamCadenceGrid()` from `../cadence.ts` with `{ sequential: true }`.
 
-Fills gaps left by the greedy pass. Skipped if >15% of slots unfilled.
+### Phase 1: Fill Cadence Shifts Strictly
 
-1. **Small-window backtracking**: Per unfilled slot, radius 2-3 DFS re-solve (5K nodes, 30 slots max)
-2. **Swap-based repair**: Find doctors blocked by rest from adjacent shifts; reassign blockers via swap chains (up to 3 levels)
-3. **Sliding-window FC solver**: Per unfilled day, ±3 day window re-solve with MRV ordering, symmetry breaking, 20 random restarts (200K nodes)
-4. **ILS (Iterated Local Search)**: Remove random 12h shifts near unfilled days, greedy re-fill with MRV day ordering (tightest first). 5s budget, 80 shifts perturbed per iteration.
-5. **Norm equalization**: Swap shifts from surplus→deficit doctors (200 iterations max)
-6. **Extra-shift equalization (iterative)**: Direct + chain transfers to equalize extra shifts among 12h doctors only (target ≤1 gap, 200ms budget). 24h doctors are excluded — their shifts are immutable.
-7. **Extra-shift equalization (hard enforcement)**: Removes 12h shifts from surplus doctors until gap ≤1. Uses a **coverage guard** (`coverageGuard=true` via `enforceExtraShiftEqualizationSafe`): skips removal when it would drop a day below required staffing (coverage < required). This prevents equalization from *creating* new understaffed days — shifts are only removed from overstaffed slots.
-8. **Post-equalization coverage repair** (`repairPostEqualizationCoverage`): Fills understaffed slots that remain after equalization enforcement, using two strategies:
-   - *Strategy 1 (swap)*: Move a 12h shift from an overstaffed slot to an understaffed one for the same doctor — perfectly preserves equalization since the doctor's shift count is unchanged.
-   - *Strategy 2 (add)*: Assign a new shift to a doctor whose extra-shift count is strictly below the current max (`extra < maxExtra`), preserving gap ≤1. Candidates sorted by lowest extra first.
+For each day (1..N), for each team:
+1. Look up cadence type for the team on this day (Day, Night, or Rest)
+2. If Rest → skip
+3. For each doctor in the team:
+   - Skip if already assigned (manual/fixed shift)
+   - Skip if on leave or bridge day
+   - Assign the cadence shift (Day or Night)
 
-### Phase 2b: Forced Coverage (second pass)
+**No rest constraint checking** — the D-N-R-R cycle naturally satisfies 24h/48h rest requirements. Cross-month boundary violations are acceptable.
 
-After all repair stages, fills **every remaining understaffed slot** — the schedule must have zero understaffed days. This pass MAY break rest constraints when necessary; such shifts are marked `is_forced_coverage = true` so the UI renders them with an amber warning ring.
+### Phase 1b: 24h Doctor Allocation
 
-**Equalization invariant (non-negotiable):** the max extra-shift gap between any two non-optional 12h doctors remains ≤ 1 after this phase. 24h doctors are excluded (rigid cadence).
+Assigns 24h doctors to a strict every-4-day cadence (72h rest). Doctors are split into two groups:
 
-**24h doctors are never involved in forced coverage.** Their shifts are immutable after Phase 0.
+**Constrained teams** (teams with `max_doctors_per_shift`): Use round-robin distribution. All cadence days across all offsets are collected and sorted chronologically. For each day, the available doctor with the fewest shifts so far is assigned.
 
-**Candidate ranking (all strategies):** When multiple doctors can fill a forced-coverage slot, the algorithm picks the **most rested** candidate (longest time since their last shift ended). This minimizes the severity of any rest violation. Additionally, assignments that would create an effective 24h shift (day + night on the same date) for a 12h-configured doctor are deprioritized.
+**Unconstrained 24h doctors** (floating or teams without the constraint):
+1. **Optimal offset permutation**: For the first 4 doctors, brute-force all doctor→offset assignments to maximize total shifts
+2. **Swing doctors**: Remaining 24h doctors are assigned the offset that maximizes their shift count
 
-Three strategies for 12h doctors, tried in order of preference:
+Shifts are placed unconditionally (no capacity check) — 24h doctors may push coverage above `shiftsPerDay`/`shiftsPerNight` on some days. Leave/bridge days are the only reason a cadence slot may be skipped.
 
-1. **Strategy A — Swap (same doctor):** Move a 12h shift from an overstaffed slot to an understaffed slot for the same doctor. Shift count unchanged → equalization perfectly preserved. Rest violations allowed (marked `is_forced_coverage`). Among valid swaps, picks the one where the doctor is most rested on the target date and avoids creating 24h for 12h doctors.
+24h shifts are immutable after placement.
 
-2. **Strategy B — Reassign (cross-doctor):** Take a 12h shift from a surplus-extra doctor on an overstaffed day and give it to a deficit-extra doctor on the understaffed day. Deficit candidates sorted by: avoid 24h creation for 12h doctors, then most rested. Rest violations allowed.
+### Phase 2: Identify & Fill Uncovered Slots
 
-3. **Strategy C — Add 12h shift + immediate rebalance:** Add a new 12h shift to a doctor at min-extra among 12h doctors. Candidates sorted by: rest-safe first, then avoid 24h for 12h doctors, then most rested, then team cohesion. If this breaks the global gap (>1), immediately rebalance by reassigning a surplus doctor's shift from an overstaffed day or removing it.
+After cadence assignment, count coverage per day per shift type. For each slot below the required staffing level:
 
-**Conflict propagation:** `detectConflicts` in `validation.ts` marks rest violations involving forced-coverage shifts with `is_forced_coverage: true`, allowing the UI and tests to distinguish intentional violations from bugs.
+1. Collect candidates: all 12h doctors (floating + team) not already assigned that day, not on leave/bridge
+2. Sort by fewest total shifts (basic fairness)
+3. Assign shifts to fill the gap
+
+**Rest violations are allowed** in this phase — these are marked `is_forced_coverage = true` so the UI renders them with a warning indicator.
+
+### Phase 2c: Norm Equalization (Shift Rebalancing)
+
+After gap-filling, floating 12h doctors may still be below their base norm if cadence + 24h doctors already covered all slots. This phase steals 12h shifts from over-norm donors and reassigns them to under-norm recipients.
+
+Loop (up to 200 iterations):
+1. Find the non-optional, non-24h doctor with the **largest deficit** (baseNorm − currentHours)
+2. If no one is below norm → done
+3. Scan all 12h shifts for the best one to steal:
+   - **Donor must have surplus ≥ 12h** above their own base norm (so stealing doesn't push them below)
+   - Recipient must not be on leave or bridge day
+   - Recipient must not already have a shift that day
+   - Recipient must not get rest violations from the new shift
+   - Prefer the donor with the **highest surplus**
+4. If no stealable shift found → done (some doctors may remain below norm)
+5. Reassign the shift (`doctor_id` → recipient), rebuild counters, repeat
+
+**Key property**: slot coverage is unchanged — one doctor replaces another on the same shift. Only hours move from over-norm to under-norm doctors. 24h shifts are never stolen (they follow rigid cadence).
 
 ### Phase 3: Validation & Output
 
-Rebuild counters → check norms (warnings, skipping optional doctors) → restore full doctor list (including optional) → rebuild counters again → detect conflicts (understaffing, rest violations — forced-coverage violations tagged) → compute per-doctor stats (optional doctors get `baseNorm: 0`) → return `{ shifts, conflicts, warnings, doctorStats }`.
+1. Rebuild counters from final shift list
+2. Check doctor norms (warnings for doctors below minimum hours)
+3. Apply shift rounding for stats
+4. Restore full doctor list (including optional)
+5. Detect conflicts (understaffing, rest violations — forced-coverage tagged)
+6. Compute per-doctor stats
+
+Returns `{ shifts, conflicts, warnings, doctorStats }`.
 
 ## Module Map
 
 ```
-scheduling-engine.ts  ← Orchestrator: 24h alloc, multi-attempt greedy, repair pipeline
-  ├── prng.ts             ← Seeded PRNG (mulberry32), shuffleArray helper
-  ├── constants.ts        ← SCHEDULING_CONSTANTS, EngineContext
-  ├── calendar-utils.ts   ← formatDate, utcMs, getDaysInMonth, getWeekNumber
-  ├── bridge-days.ts      ← computeDoctorBridgeDays, computeAllBridgeDays
-  ├── cadence.ts          ← computeTeamCadenceGrid, computeDoctorCadenceSchedule
-  ├── constraints.ts      ← canDoctorWork, canDoctorWorkWithTimeline
-  ├── doctor-selection.ts ← selectDoctorsForShift, getLookaheadPenalty
-  ├── repair.ts           ← repairUnfilledSlots, repairNormDeficits, repairExtraShiftEqualization, enforceExtraShiftEqualizationSafe, repairPostEqualizationCoverage, repairWithLocalSearch, repairForcedCoverage
-  ├── shift-utils.ts      ← getShiftStartMs/EndMs, getRestHours, hasActualTimeRestConflict
-  ├── stats.ts            ← recordShift, rebuildCounters, calculateBaseNorm, calculateDoctorStats
-  └── validation.ts       ← detectConflicts, validateLeaveDays, computeUnderstaffedDays
+v2/
+  scheduling-engine-v2.ts   ← Orchestrator: cadence assignment, 24h alloc, gap-fill
+  scheduling-v2.worker.ts   ← Web Worker wrapper
+  use-scheduling-worker-v2.ts ← React hook for worker communication
+
+Shared modules (../):
+  ├── cadence.ts             ← computeTeamCadenceGrid (sequential mode), computeDoctorCadenceSchedule
+  ├── constants.ts           ← SCHEDULING_CONSTANTS, EngineContext
+  ├── calendar-utils.ts      ← formatDate, utcMs, getDaysInMonth
+  ├── bridge-days.ts         ← computeAllBridgeDays
+  ├── constraints.ts         ← isDoctorOnLeave, isDoctorOnBridgeDay
+  ├── prng.ts                ← Seeded PRNG (mulberry32)
+  ├── stats.ts               ← recordShift, rebuildCounters, calculateBaseNorm, calculateDoctorStats
+  └── validation.ts          ← detectConflicts
 ```
-
-## Key Tuning Parameters
-
-| Constant | Value | File |
-|----------|:-----:|------|
-| `CADENCE_ON_DUTY_BONUS` | 8 (×0.3 on tight days) | doctor-selection.ts |
-| `CADENCE_BREAK_PENALTY` | 8 (×0.3 on tight days) | doctor-selection.ts |
-| `LOOKAHEAD_PENALTY_WEIGHT` | 5 | doctor-selection.ts |
-| `CONTINUATION_BONUS` | 3 | doctor-selection.ts |
-| `EXTRA_SHIFT_EQUALIZATION_WEIGHT` | 5 | doctor-selection.ts |
-| `REST_OVERLAP_WEIGHT` | 3 | doctor-selection.ts |
-| `TEAM_GAP_THRESHOLD` | 1.5 | doctor-selection.ts |
-| `NUM_ATTEMPTS` | 30 | scheduling-engine.ts |
-| `MAX_REPAIRABLE_RATIO` | 0.15 | repair.ts |
-| `PERTURB_COUNT` (ILS) | 80 | repair.ts |

@@ -1,26 +1,25 @@
 /**
- * SchedulingEngine — thin orchestrator that coordinates the scheduling modules.
+ * SchedulingEngine — Cadence-First Algorithm
  *
- * Algorithm overview (see ALGORITHM.md for full details):
- * 1. Compute cadence grid (D-N-R-R per team, staggered by order)
- * 2. Cadence assignment: team doctors follow their cadence
- * 3. 24h floating stagger: one 24h doctor per day
- * 4. Gap-filling: remaining slots from off-cadence team doctors + floating
- * 5. Repair pass: backtracking solver for unfilled slots
- * 6. Validation: check norms, detect conflicts, compute stats
+ * Phase 1: Fill cadence shifts strictly (D-N-R-R per team + 24h rigid cadence),
+ *          chronologically day 1..N. Skip doctors on leave/bridge.
+ * Phase 2: Fill remaining uncovered slots chronologically, using any available
+ *          doctor. Allows rest violations if needed to meet minimum staffing.
+ *          Sorts candidates by fewest shifts so far (basic fairness).
+ *
+ * Rest violations are shown in the UI (red markers).
  */
 
-import type { DoctorWithTeam, Shift, LeaveDay, NationalHoliday, ScheduleConflict, ScheduleGenerationResult, DoctorMonthlyStats, ScheduleValidation, Doctor } from '@/types/scheduling';
+import type { DoctorWithTeam, Shift, LeaveDay, NationalHoliday, ScheduleConflict, ScheduleGenerationResult, ScheduleValidation, Doctor } from '@/types/scheduling';
 import { SCHEDULING_CONSTANTS, type ScheduleGenerationOptions, type EngineContext } from './constants';
-import { formatDate, utcMs, getDaysInMonth, getWorkingDaysInMonth } from './calendar-utils';
+import { formatDate, utcMs, getDaysInMonth } from './calendar-utils';
 import { computeAllBridgeDays, computeDoctorBridgeDays } from './bridge-days';
 import { isDoctorOnLeave, isDoctorOnBridgeDay } from './constraints';
-import { selectDoctorsForShift } from './doctor-selection';
-import { repairUnfilledSlots, repairNormDeficits, repairExtraShiftEqualization, enforceExtraShiftEqualizationSafe, repairPostEqualizationCoverage, repairWithLocalSearch, repairForcedCoverage } from './repair';
-import { recordShift, recordShift24h, rebuildCounters, checkDoctorNorms, applyShiftRounding, calculateDoctorStats, calculateBaseNorm, computeExtraShifts } from './stats';
+import { rebuildCounters, checkDoctorNorms, applyShiftRounding, calculateDoctorStats, calculateBaseNorm, recordShift, recordShift24h } from './stats';
 import { createPRNG } from './prng';
 import { detectConflicts, validateLeaveDays, calculatePossibleLeaveDays, getWorkingDaysInMonthStatic, computeUnderstaffedDays } from './validation';
 import { computeTeamCadenceGrid, computeDoctorCadenceSchedule } from './cadence';
+
 
 export class SchedulingEngine implements EngineContext {
   doctors: DoctorWithTeam[];
@@ -60,13 +59,12 @@ export class SchedulingEngine implements EngineContext {
     this.fixedShifts = options.fixedShifts || [];
     this.previousMonthShifts = options.previousMonthShifts || [];
 
-    // Build per-doctor lookup of fixed shift start times for forward rest checks
     for (const fs of this.fixedShifts) {
       if (fs.shift_type !== 'day' && fs.shift_type !== 'night' && fs.shift_type !== '24h') continue;
       const parts = fs.shift_date.split('-').map(Number);
       const startMs = fs.shift_type === 'night'
         ? utcMs(parts[0], parts[1] - 1, parts[2], 20)
-        : utcMs(parts[0], parts[1] - 1, parts[2], 8); // day and 24h both start at 08:00
+        : utcMs(parts[0], parts[1] - 1, parts[2], 8);
       if (!this.fixedShiftsByDoctor.has(fs.doctor_id)) {
         this.fixedShiftsByDoctor.set(fs.doctor_id, []);
       }
@@ -77,7 +75,6 @@ export class SchedulingEngine implements EngineContext {
     this.holidayDateSet = new Set(this.nationalHolidays.map(h => h.holiday_date));
     this.doctorBridgeDays = computeAllBridgeDays(this.doctors, this.leaveDays, this.month, this.year, this.nationalHolidays);
 
-    // Deterministic PRNG — same seed always produces the same schedule
     const seed = options.seed ?? (this.year * 100 + this.month);
     this.random = createPRNG(seed);
     this.generateId = () => `shift-${++this.idCounter}`;
@@ -88,7 +85,6 @@ export class SchedulingEngine implements EngineContext {
     const shifts: Shift[] = [];
     const warnings: string[] = [];
 
-    // Filter out optional doctors — they only get shifts manually
     const allDoctors = this.doctors;
     this.doctors = allDoctors.filter(d => !d.is_optional);
 
@@ -101,7 +97,7 @@ export class SchedulingEngine implements EngineContext {
     });
 
     this.doctors.forEach(doctor => {
-      if (doctor.shift_mode === '24h') return; // handled separately
+      if (doctor.shift_mode === '24h') return;
       if (doctor.is_floating) {
         floatingDoctors.push(doctor);
       } else if (doctor.team_id) {
@@ -119,44 +115,7 @@ export class SchedulingEngine implements EngineContext {
       this.doctorWeeklyHours.set(d.id, new Map());
     });
 
-    // Compute each doctor's base norm target (minimum shifts).
-    const doctorBaseTargets = new Map<string, number>();
-    this.doctors.forEach(d => {
-      const baseNorm = calculateBaseNorm(this, d.id);
-      doctorBaseTargets.set(d.id, Math.ceil(baseNorm / SCHEDULING_CONSTANTS.SHIFT_DURATION));
-    });
-
-    // Equalize: distribute extra shifts (beyond sum of base norms) fairly.
-    const totalSlots = daysInMonth * (this.shiftsPerDay + this.shiftsPerNight);
-    let sumBaseTargets = 0;
-    doctorBaseTargets.forEach(t => { sumBaseTargets += t; });
-    const totalExtraShifts = Math.max(0, totalSlots - sumBaseTargets);
-    const fairExtraPerDoctor = totalExtraShifts / this.doctors.length;
-
-    const doctorTargetShifts = new Map<string, number>();
-    for (const d of this.doctors) {
-      const base = doctorBaseTargets.get(d.id) || 0;
-      doctorTargetShifts.set(d.id, base + fairExtraPerDoctor);
-    }
-
-    // Pre-compute total available days per doctor.
-    const doctorTotalAvailDays = new Map<string, number>();
-    for (const doc of this.doctors) {
-      let count = 0;
-      for (let d = 1; d <= daysInMonth; d++) {
-        const date = new Date(this.year, this.month, d);
-        if (!isDoctorOnLeave(this, doc.id, date) && !isDoctorOnBridgeDay(this, doc.id, date)) count++;
-      }
-      doctorTotalAvailDays.set(doc.id, count);
-    }
-
-    // Track elapsed available days per doctor (updated day by day).
-    const doctorElapsedAvailDays = new Map<string, number>();
-    this.doctors.forEach(d => doctorElapsedAvailDays.set(d.id, 0));
-
-    const teamIds = this.teams.map(t => t.id);
-
-    // Seed rest constraints from the last shifts of the previous month.
+    // Seed rest constraints from previous month
     for (const ps of this.previousMonthShifts) {
       if (ps.shift_type !== 'day' && ps.shift_type !== 'night' && ps.shift_type !== '24h') continue;
       const doctor = this.doctors.find(d => d.id === ps.doctor_id);
@@ -173,7 +132,7 @@ export class SchedulingEngine implements EngineContext {
       }
     }
 
-    // Build a lookup of fixed (manual) shifts by date+type.
+    // Build fixed shift lookup
     const fixedShiftsByDateType = new Map<string, Shift[]>();
     for (const fs of this.fixedShifts) {
       if (fs.shift_type === '24h') {
@@ -190,62 +149,79 @@ export class SchedulingEngine implements EngineContext {
     }
 
     // ── Phase 0: Compute cadence grids ──
-    const teamCadence = computeTeamCadenceGrid(this.teams, daysInMonth);
+    const teamCadence = computeTeamCadenceGrid(this.teams, daysInMonth, { sequential: true });
     this.doctorCadence = computeDoctorCadenceSchedule(this.doctors, teamCadence);
 
-    const restDays24h = Math.ceil(SCHEDULING_CONSTANTS.SHIFT_24H_REST / 24); // 3
+    // ── Phase 1: Fill cadence shifts strictly ──
+    // For each day, assign ALL team doctors to their cadence slot (day/night).
+    // Only skip doctors on leave or bridge. Cadence takes absolute priority —
+    // rest constraints are NOT checked here (D-N-R-R naturally satisfies rest,
+    // and cross-month boundary violations are acceptable).
+    const assignedByDay = new Map<number, Set<string>>();
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const currentDate = new Date(this.year, this.month, day);
+      const dateStr = formatDate(currentDate);
+      const assigned = new Set<string>();
+      assignedByDay.set(day, assigned);
+
+      // Register fixed (manual) shifts
+      const fixed24hOnDate = new Set<string>();
+      for (const fs of this.fixedShifts) {
+        if (fs.shift_date !== dateStr) continue;
+        const doctor = this.doctors.find(d => d.id === fs.doctor_id);
+        if (!doctor) continue;
+        assigned.add(doctor.id);
+        if (fs.shift_type === '24h') {
+          if (!fixed24hOnDate.has(doctor.id)) {
+            fixed24hOnDate.add(doctor.id);
+            recordShift24h(this, doctor, currentDate);
+          }
+        } else if (fs.shift_type === 'day' || fs.shift_type === 'night') {
+          recordShift(this, doctor, currentDate, fs.shift_type);
+        }
+      }
+
+      // Assign cadence shifts for each team
+      for (const [teamId, dayMap] of Array.from(teamCadence)) {
+        const cadenceType = dayMap.get(day); // 'day', 'night', or null (rest)
+        if (!cadenceType) continue;
+
+        const team = this.teams.find(t => t.id === teamId);
+        const maxPerShift = team?.max_doctors_per_shift;
+        let teamShiftCount = 0;
+
+        const teamDocs = doctorsByTeam.get(teamId) || [];
+        for (const doc of teamDocs) {
+          if (assigned.has(doc.id)) continue;
+          if (isDoctorOnLeave(this, doc.id, currentDate)) continue;
+          if (isDoctorOnBridgeDay(this, doc.id, currentDate)) continue;
+          if (maxPerShift && teamShiftCount >= maxPerShift) continue;
+
+          shifts.push({
+            id: this.generateId(),
+            doctor_id: doc.id,
+            shift_date: dateStr,
+            shift_type: cadenceType,
+            start_time: cadenceType === 'day' ? '08:00' : '20:00',
+            end_time: cadenceType === 'day' ? '20:00' : '08:00',
+          });
+          recordShift(this, doc, currentDate, cadenceType);
+          assigned.add(doc.id);
+          teamShiftCount++;
+        }
+      }
+    }
+
+    // ── Phase 1b: 24h doctor cadence (rigid 72h cycle) ──
+    const teamById = new Map(this.teams.map(t => [t.id, t]));
+    const restDays24h = Math.ceil(SCHEDULING_CONSTANTS.SHIFT_24H_REST / 24);
     const minGap = restDays24h + 1; // 4
 
-    // ── 24h allocation helper ──
-    // Phase 1: Optimal offset permutation search for primary doctors
-    // Phase 2: Greedy day-by-day fill for swing doctors
-    // Phase 3: Extra coverage on tight days
-    const compute24hAlloc = (_perturbSeed: number): Map<number, string[]> => {
-      const alloc = new Map<number, string[]>();
-      const workDays = new Map<string, number[]>();
-      for (const doc of doctors24h) workDays.set(doc.id, []);
+    if (doctors24h.length > 0) {
+      const offsets = Array.from({ length: minGap }, (_, i) => i + 1);
 
-      // Per-doctor cap: max 24h shifts so extra shifts stay fair.
-      // Each 24h shift fills 2 slots, so max24hShifts = floor(maxSlotFills / 2).
-      // +1 headroom so the cap doesn't starve coverage; repair equalizes later.
-      const max24hShifts = new Map<string, number>();
-      for (const doc of doctors24h) {
-        const base = doctorBaseTargets.get(doc.id) || 0;
-        const maxSlots = base + Math.ceil(fairExtraPerDoctor) + 1;
-        max24hShifts.set(doc.id, Math.floor(maxSlots / 2));
-      }
-
-      const canAssign = (docId: string, day: number, checkCap = true): boolean => {
-        const wd = workDays.get(docId) || [];
-        if (checkCap && wd.length >= (max24hShifts.get(docId) || 0)) return false;
-        for (const w of wd) {
-          if (Math.abs(day - w) <= restDays24h) return false;
-        }
-        const date = new Date(this.year, this.month, day);
-        if (isDoctorOnLeave(this, docId, date)) return false;
-        if (isDoctorOnBridgeDay(this, docId, date)) return false;
-        return true;
-      };
-      const assignDoc = (docId: string, day: number) => {
-        if (!alloc.has(day)) alloc.set(day, []);
-        alloc.get(day)!.push(docId);
-        workDays.get(docId)!.push(day);
-      };
-
-      // Pre-compute per-day 12h availability
-      const docs12h = this.doctors.filter(d => d.shift_mode !== '24h');
-      const dayAvail = new Map<number, number>();
-      for (let day = 1; day <= daysInMonth; day++) {
-        const date = new Date(this.year, this.month, day);
-        let avail = 0;
-        for (const doc of docs12h) {
-          if (!isDoctorOnLeave(this, doc.id, date) && !isDoctorOnBridgeDay(this, doc.id, date)) avail++;
-        }
-        dayAvail.set(day, avail);
-      }
-      const maxAvail = Math.max(...Array.from(dayAvail.values()));
-
-      // Pre-compute per-doctor available days for stagger scoring
+      // Per-doctor available days
       const doctorAvailDays = new Map<string, Set<number>>();
       for (const doc of doctors24h) {
         const avail = new Set<number>();
@@ -258,7 +234,6 @@ export class SchedulingEngine implements EngineContext {
         doctorAvailDays.set(doc.id, avail);
       }
 
-      // Count how many shifts a doctor gets on a given offset (every minGap days)
       const countShiftsOnOffset = (docId: string, offset: number): number => {
         const avail = doctorAvailDays.get(docId)!;
         let count = 0;
@@ -268,333 +243,385 @@ export class SchedulingEngine implements EngineContext {
         return count;
       };
 
-      // Tightness score for an offset: sum of (maxAvail - avail) for each day
-      const tightnessOnOffset = (docId: string, offset: number): number => {
-        const avail = doctorAvailDays.get(docId)!;
-        let score = 0;
-        for (let day = offset; day <= daysInMonth; day += minGap) {
-          if (avail.has(day)) {
-            score += Math.max(0, maxAvail - (dayAvail.get(day) || 0));
+      const workDays24h = new Map<string, number[]>();
+      for (const doc of doctors24h) workDays24h.set(doc.id, []);
+
+      // Track per-team per-day 24h assignments for max_doctors_per_shift constraint
+      const teamDayCount24h = new Map<string, Map<number, number>>(); // teamId → day → count
+
+      const canAssign24h = (doc: DoctorWithTeam, day: number): boolean => {
+        const wd = workDays24h.get(doc.id) || [];
+        for (const w of wd) {
+          if (Math.abs(day - w) <= restDays24h) return false;
+        }
+        const avail = doctorAvailDays.get(doc.id);
+        if (!avail || !avail.has(day)) return false;
+        // Enforce max_doctors_per_shift for team doctors
+        if (doc.team_id) {
+          const team = teamById.get(doc.team_id);
+          if (team?.max_doctors_per_shift) {
+            const dayMap = teamDayCount24h.get(doc.team_id);
+            const count = dayMap?.get(day) || 0;
+            if (count >= team.max_doctors_per_shift) return false;
           }
         }
-        return score;
+        return true;
       };
 
-      // ── Phase 1: Find best doctor→offset assignment via permutation search ──
-      // With ≤6 doctors and 4 offsets, try all combinations to maximize total shifts.
-      const numPrimary = Math.min(doctors24h.length, minGap);
-      const offsets = Array.from({ length: minGap }, (_, i) => i + 1);
+      const place24hShift = (doc: DoctorWithTeam, day: number) => {
+        const assigned = assignedByDay.get(day)!;
+        const dateStr = formatDate(new Date(this.year, this.month, day));
+        const currentDate = new Date(this.year, this.month, day);
 
-      // Generate all permutations of offsets for primary doctor slots
-      const permute = (arr: number[]): number[][] => {
-        if (arr.length <= 1) return [arr];
-        const result: number[][] = [];
-        for (let i = 0; i < arr.length; i++) {
-          const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
-          for (const perm of permute(rest)) {
-            result.push([arr[i], ...perm]);
+        shifts.push({
+          id: this.generateId(),
+          doctor_id: doc.id,
+          shift_date: dateStr,
+          shift_type: '24h',
+          start_time: '08:00',
+          end_time: '08:00',
+        });
+        recordShift24h(this, doc, currentDate);
+        assigned.add(doc.id);
+        workDays24h.get(doc.id)!.push(day);
+        // Track team constraint
+        if (doc.team_id) {
+          if (!teamDayCount24h.has(doc.team_id)) teamDayCount24h.set(doc.team_id, new Map());
+          const dayMap = teamDayCount24h.get(doc.team_id)!;
+          dayMap.set(day, (dayMap.get(day) || 0) + 1);
+        }
+      };
+
+      // Split 24h doctors into constrained (team with max_doctors_per_shift) and unconstrained
+      const constrained24hByTeam = new Map<string, DoctorWithTeam[]>();
+      const unconstrained24h: DoctorWithTeam[] = [];
+
+      for (const doc of doctors24h) {
+        if (doc.team_id) {
+          const team = teamById.get(doc.team_id);
+          if (team?.max_doctors_per_shift) {
+            if (!constrained24hByTeam.has(doc.team_id)) constrained24hByTeam.set(doc.team_id, []);
+            constrained24hByTeam.get(doc.team_id)!.push(doc);
+            continue;
           }
         }
-        return result;
-      };
+        unconstrained24h.push(doc);
+      }
 
-      // Generate all C(n,k) combinations of choosing k doctors from n
-      const combinations = (items: number[], k: number): number[][] => {
-        if (k === 0) return [[]];
-        if (items.length < k) return [];
-        const result: number[][] = [];
-        for (let i = 0; i <= items.length - k; i++) {
-          for (const combo of combinations(items.slice(i + 1), k - 1)) {
-            result.push([items[i], ...combo]);
+      // ── Constrained teams: round-robin distribution ──
+      // Instead of primary/swing (which gives all days on an offset to one doctor),
+      // distribute cadence days across all team doctors by picking the one with
+      // fewest shifts on each day. This ensures all doctors get shifts.
+      for (const [, teamDocs] of Array.from(constrained24hByTeam)) {
+        // Collect all cadence days across all offsets
+        const allCadenceDays: number[] = [];
+        for (const offset of offsets) {
+          for (let day = offset; day <= daysInMonth; day += minGap) {
+            allCadenceDays.push(day);
           }
         }
-        return result;
-      };
+        allCadenceDays.sort((a, b) => a - b);
 
-      const doctorIndices = Array.from({ length: doctors24h.length }, (_, i) => i);
-      const primaryCombos = combinations(doctorIndices, numPrimary);
-      const offsetPerms = permute(offsets);
-
-      let bestAssignment: { docIdx: number; offset: number }[] = [];
-      let bestTotalShifts = -1;
-      let bestTightness = -1;
-
-      for (const combo of primaryCombos) {
-        for (const perm of offsetPerms) {
-          let totalShifts = 0;
-          let totalTightness = 0;
-          for (let i = 0; i < numPrimary; i++) {
-            const doc = doctors24h[combo[i]];
-            const shifts = countShiftsOnOffset(doc.id, perm[i]);
-            totalShifts += shifts;
-            totalTightness += tightnessOnOffset(doc.id, perm[i]);
-          }
-          if (totalShifts > bestTotalShifts ||
-              (totalShifts === bestTotalShifts && totalTightness > bestTightness)) {
-            bestTotalShifts = totalShifts;
-            bestTightness = totalTightness;
-            bestAssignment = combo.map((docIdx, i) => ({ docIdx, offset: perm[i] }));
-          }
+        for (const day of allCadenceDays) {
+          // Find available doctors, sorted by fewest shifts
+          const available = teamDocs
+            .filter((doc: DoctorWithTeam) => canAssign24h(doc, day))
+            .sort((a: DoctorWithTeam, b: DoctorWithTeam) =>
+              (workDays24h.get(a.id)?.length || 0) - (workDays24h.get(b.id)?.length || 0)
+            );
+          if (available.length === 0) continue;
+          place24hShift(available[0], day);
         }
       }
 
-      // Apply best primary assignment
-      const primaryDocIds = new Set<string>();
-      for (const { docIdx, offset } of bestAssignment) {
-        const doc = doctors24h[docIdx];
-        primaryDocIds.add(doc.id);
-        for (let day = offset; day <= daysInMonth; day += minGap) {
-          if (canAssign(doc.id, day)) {
-            assignDoc(doc.id, day);
+      // ── Unconstrained 24h doctors: primary/swing offset assignment ──
+      if (unconstrained24h.length > 0) {
+        const numPrimary = Math.min(unconstrained24h.length, minGap);
+        const permute = (arr: number[]): number[][] => {
+          if (arr.length <= 1) return [arr];
+          const result: number[][] = [];
+          for (let i = 0; i < arr.length; i++) {
+            const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
+            for (const perm of permute(rest)) result.push([arr[i], ...perm]);
           }
-        }
-      }
+          return result;
+        };
+        const combinations = (items: number[], k: number): number[][] => {
+          if (k === 0) return [[]];
+          if (items.length < k) return [];
+          const result: number[][] = [];
+          for (let i = 0; i <= items.length - k; i++) {
+            for (const combo of combinations(items.slice(i + 1), k - 1)) result.push([items[i], ...combo]);
+          }
+          return result;
+        };
 
-      // ── Phase 2: Swing doctors — strict offset-based cadence ──
-      // 24h doctors follow a rigid 72h cadence (no more, no less).
-      // Each swing doctor gets the offset that maximizes their shifts.
-      const swingDocs = doctors24h.filter(d => !primaryDocIds.has(d.id));
-      for (const doc of swingDocs) {
-        let bestOffset = -1;
-        let bestShifts = -1;
-        let bestTightness = -1;
-        for (const off of offsets) {
-          const shiftCount = countShiftsOnOffset(doc.id, off);
-          const tight = tightnessOnOffset(doc.id, off);
-          if (shiftCount > bestShifts || (shiftCount === bestShifts && tight > bestTightness)) {
-            bestShifts = shiftCount;
-            bestTightness = tight;
-            bestOffset = off;
+        const doctorIndices = Array.from({ length: unconstrained24h.length }, (_, i) => i);
+        const primaryCombos = combinations(doctorIndices, numPrimary);
+        const offsetPerms = permute(offsets);
+
+        let bestAssignment: { docIdx: number; offset: number }[] = [];
+        let bestTotalShifts = -1;
+
+        for (const combo of primaryCombos) {
+          for (const perm of offsetPerms) {
+            let totalShifts = 0;
+            for (let i = 0; i < numPrimary; i++) {
+              totalShifts += countShiftsOnOffset(unconstrained24h[combo[i]].id, perm[i]);
+            }
+            if (totalShifts > bestTotalShifts) {
+              bestTotalShifts = totalShifts;
+              bestAssignment = combo.map((docIdx, i) => ({ docIdx, offset: perm[i] }));
+            }
           }
         }
-        if (bestOffset > 0) {
-          for (let day = bestOffset; day <= daysInMonth; day += minGap) {
-            if (canAssign(doc.id, day)) {
-              assignDoc(doc.id, day);
+
+        // Place primary doctors
+        const primaryDocIds = new Set<string>();
+        for (const { docIdx, offset } of bestAssignment) {
+          const doc = unconstrained24h[docIdx];
+          primaryDocIds.add(doc.id);
+          for (let day = offset; day <= daysInMonth; day += minGap) {
+            if (canAssign24h(doc, day)) {
+              place24hShift(doc, day);
+            }
+          }
+        }
+
+        // Swing doctors
+        const swingDocs = unconstrained24h.filter(d => !primaryDocIds.has(d.id));
+        for (const doc of swingDocs) {
+          let bestOffset = -1;
+          let bestShifts = -1;
+          for (const off of offsets) {
+            const sc = countShiftsOnOffset(doc.id, off);
+            if (sc > bestShifts) { bestShifts = sc; bestOffset = off; }
+          }
+          if (bestOffset > 0) {
+            for (let day = bestOffset; day <= daysInMonth; day += minGap) {
+              if (canAssign24h(doc, day)) {
+                place24hShift(doc, day);
+              }
             }
           }
         }
       }
+    }
 
-      // Phase 3 removed: 24h doctors follow a rigid cadence — no extra off-cadence shifts.
+    // ── Phase 2: Identify uncovered slots ──
+    interface UncoveredSlot {
+      day: number;
+      dateStr: string;
+      shiftType: 'day' | 'night';
+      needed: number;
+    }
+    const uncoveredSlots: UncoveredSlot[] = [];
 
-      return alloc;
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = formatDate(new Date(this.year, this.month, day));
+
+      for (const shiftType of ['day', 'night'] as const) {
+        const required = shiftType === 'day' ? this.shiftsPerDay : this.shiftsPerNight;
+        const fixedCount = fixedShiftsByDateType.get(`${dateStr}:${shiftType}`)?.length || 0;
+        const genCount = shifts.filter(s => s.shift_date === dateStr && s.shift_type === shiftType).length;
+        const gen24h = shifts.filter(s => s.shift_date === dateStr && s.shift_type === '24h').length;
+        const total = fixedCount + genCount + gen24h;
+
+        if (total < required) {
+          uncoveredSlots.push({ day, dateStr, shiftType, needed: required - total });
+        }
+      }
+    }
+
+    // ── Phase 2b: Fill uncovered slots ──
+    // Single pass: fill all gaps using any available doctor (floating + off-cadence).
+    // Rest violations are allowed up to MAX_VIOLATIONS_PER_DOCTOR per doctor.
+    // Once a doctor has accumulated that many violations, skip them — leave
+    // the slot understaffed rather than pile on more violations.
+    // Sort candidates by fewest shifts for basic fairness.
+
+    const MAX_VIOLATIONS_PER_DOCTOR = 2;
+
+    rebuildCounters(this, shifts);
+
+    const getShiftCount = (docId: string): number =>
+      this.doctorShiftCount.get(docId) || 0;
+
+    // All 12h doctors available for gap-filling (floating + team doctors)
+    const gapFillers = [...floatingDoctors];
+    for (const [, teamDocs] of Array.from(doctorsByTeam)) {
+      gapFillers.push(...teamDocs);
+    }
+
+    // Track rest-violation count per doctor during gap-fill
+    const doctorViolationCount = new Map<string, number>();
+
+    // Check whether placing a shift would violate rest constraints
+    const wouldViolateRest = (docId: string, dateStr: string, shiftType: 'day' | 'night'): boolean => {
+      const dp = dateStr.split('-').map(Number);
+      const newStartMs = shiftType === 'day'
+        ? utcMs(dp[0], dp[1] - 1, dp[2], 8)
+        : utcMs(dp[0], dp[1] - 1, dp[2], 20);
+      const newEndMs = shiftType === 'day'
+        ? utcMs(dp[0], dp[1] - 1, dp[2], 20)
+        : utcMs(dp[0], dp[1] - 1, dp[2] + 1, 8);
+
+      const allShifts = [...this.fixedShifts, ...shifts];
+      for (const s of allShifts) {
+        if (s.doctor_id !== docId || s.shift_type === 'rest') continue;
+        const sp = s.shift_date.split('-').map(Number);
+        const sStartMs = s.shift_type === 'night'
+          ? utcMs(sp[0], sp[1] - 1, sp[2], 20)
+          : utcMs(sp[0], sp[1] - 1, sp[2], 8);
+        const sEndMs = s.shift_type === 'day'
+          ? utcMs(sp[0], sp[1] - 1, sp[2], 20)
+          : utcMs(sp[0], sp[1] - 1, sp[2] + 1, 8); // night & 24h end next day 08:00
+
+        // New shift is after existing shift
+        if (newStartMs >= sEndMs) {
+          const gapH = (newStartMs - sEndMs) / 3_600_000;
+          const reqRest = s.shift_type === 'night' ? 48 : s.shift_type === '24h' ? 72 : 24;
+          if (gapH < reqRest) return true;
+        }
+        // New shift is before existing shift
+        if (sStartMs >= newEndMs) {
+          const gapH = (sStartMs - newEndMs) / 3_600_000;
+          const reqRest = shiftType === 'night' ? 48 : 24;
+          if (gapH < reqRest) return true;
+        }
+      }
+      return false;
     };
 
-    // Pre-compute 24h allocation variants for multi-attempt diversity.
-    const alloc24hVariants: Map<number, string[]>[] = [];
-    // Generate several variants with different perturbation seeds
-    const numVariants = Math.max(minGap, 6);
-    for (let seed = 0; seed < numVariants; seed++) {
-      alloc24hVariants.push(compute24hAlloc(seed));
+    for (const slot of uncoveredSlots) {
+      const currentDate = new Date(this.year, this.month, slot.day);
+      const assigned = assignedByDay.get(slot.day)!;
+
+      const candidates = gapFillers
+        .filter(doc => {
+          if (assigned.has(doc.id)) return false;
+          if (isDoctorOnLeave(this, doc.id, currentDate)) return false;
+          if (isDoctorOnBridgeDay(this, doc.id, currentDate)) return false;
+          // Prevent double-assignment on same day (already has shift from Phase 1)
+          const hasShiftToday = shifts.some(s =>
+            s.doctor_id === doc.id && s.shift_date === slot.dateStr
+          );
+          if (hasShiftToday) return false;
+          return true;
+        })
+        .sort((a, b) => getShiftCount(a.id) - getShiftCount(b.id));
+
+      let filled = 0;
+      for (const doc of candidates) {
+        if (filled >= slot.needed) break;
+        // Enforce max_doctors_per_shift (checked here so count updates as doctors are placed)
+        if (doc.team_id) {
+          const team = teamById.get(doc.team_id);
+          if (team?.max_doctors_per_shift) {
+            const allTeamDocIds = new Set(this.doctors.filter(d => d.team_id === doc.team_id).map(d => d.id));
+            // Count both same-type shifts AND 24h shifts (which cover both day and night)
+            const teamCountOnSlot = shifts.filter(s =>
+              s.shift_date === slot.dateStr &&
+              (s.shift_type === slot.shiftType || s.shift_type === '24h') &&
+              allTeamDocIds.has(s.doctor_id)
+            ).length;
+            if (teamCountOnSlot >= team.max_doctors_per_shift) continue;
+          }
+        }
+        // Cap rest violations per doctor: skip if this would create a new violation
+        // and the doctor already has too many
+        const causesViolation = wouldViolateRest(doc.id, slot.dateStr, slot.shiftType);
+        if (causesViolation) {
+          const existing = doctorViolationCount.get(doc.id) || 0;
+          if (existing >= MAX_VIOLATIONS_PER_DOCTOR) continue;
+          doctorViolationCount.set(doc.id, existing + 1);
+        }
+        shifts.push({
+          id: this.generateId(),
+          doctor_id: doc.id,
+          shift_date: slot.dateStr,
+          shift_type: slot.shiftType,
+          start_time: slot.shiftType === 'day' ? '08:00' : '20:00',
+          end_time: slot.shiftType === 'day' ? '20:00' : '08:00',
+          is_forced_coverage: true,
+        });
+        recordShift(this, doc, currentDate, slot.shiftType);
+        assigned.add(doc.id);
+        filled++;
+      }
     }
 
-    // ── Multi-attempt greedy with cadence-aware scoring ──
-    // Each attempt uses a different 24h allocation (cycling through swing
-    // offsets) combined with random score perturbation for search diversity.
-    const NUM_ATTEMPTS = 30;
-    let bestShifts: Shift[] = [];
-    let bestUnfilled = Infinity;
-    let bestNormDeficit = Infinity;
-    let bestExtraGap = Infinity;
+    // ── Phase 2c: Norm equalization (shift rebalancing) ──
+    // Floating 12h doctors may get zero/few shifts because cadence + 24h
+    // doctors covered all slots. Steal 12h shifts from over-norm donors
+    // and reassign to under-norm recipients, respecting rest constraints.
+    rebuildCounters(this, shifts);
 
-    // Save state that the greedy mutates so we can reset between attempts.
-    const savedLastShift = new Map(this.doctorLastShift);
+    const MAX_REBALANCE_ITERATIONS = 200;
+    const nonOptional12h = this.doctors.filter(d => !d.is_optional && d.shift_mode !== '24h');
 
-    for (let attempt = 0; attempt < NUM_ATTEMPTS; attempt++) {
-      // Select 24h allocation: cycle through variants
-      const preAlloc24h = alloc24hVariants[attempt % alloc24hVariants.length];
-      const attemptShifts: Shift[] = [];
+    for (let iter = 0; iter < MAX_REBALANCE_ITERATIONS; iter++) {
+      // Find the doctor with the largest deficit
+      let worstDoctor: DoctorWithTeam | null = null;
+      let worstDeficit = 0;
 
-      // Reset mutable state for each attempt.
-      this.doctorShiftCount = new Map();
-      this.doctorHours = new Map();
-      this.doctorWeeklyHours = new Map();
-      this.doctorLastShift = new Map(savedLastShift);
-      this.doctors.forEach(d => {
-        this.doctorShiftCount.set(d.id, 0);
-        this.doctorHours.set(d.id, 0);
-        this.doctorWeeklyHours.set(d.id, new Map());
-      });
-      const attemptElapsed = new Map<string, number>();
-      this.doctors.forEach(d => attemptElapsed.set(d.id, 0));
-
-      // Random perturbation (attempt 0 = no perturbation for determinism).
-      this.scorePerturbation = new Map();
-      if (attempt > 0) {
-        // Score perturbation for diversity. First alloc24hVariants.length attempts
-        // use small perturbation; later attempts use larger perturbation.
-        const scale = attempt < alloc24hVariants.length ? 4 : 12;
-        for (const doc of this.doctors) {
-          this.scorePerturbation.set(doc.id, (this.random() - 0.5) * scale);
-        }
-      }
-
-      for (let day = 1; day <= daysInMonth; day++) {
-        const currentDate = new Date(this.year, this.month, day);
-        const dateStr = formatDate(currentDate);
-
-        // Register fixed (manual) shifts for this day.
-        const fixed24hOnDate = new Set<string>();
-        for (const fs of this.fixedShifts) {
-          if (fs.shift_date !== dateStr) continue;
-          const doctor = this.doctors.find(d => d.id === fs.doctor_id);
-          if (!doctor) continue;
-          if (fs.shift_type === '24h') {
-            if (!fixed24hOnDate.has(doctor.id)) {
-              fixed24hOnDate.add(doctor.id);
-              recordShift24h(this, doctor, currentDate);
-            }
-          } else if (fs.shift_type === 'day' || fs.shift_type === 'night') {
-            recordShift(this, doctor, currentDate, fs.shift_type);
-          }
-        }
-
-        // Update elapsed available days for each doctor.
-        for (const doc of this.doctors) {
-          if (!isDoctorOnLeave(this, doc.id, currentDate) && !isDoctorOnBridgeDay(this, doc.id, currentDate)) {
-            attemptElapsed.set(doc.id, (attemptElapsed.get(doc.id) || 0) + 1);
-          }
-        }
-
-        // Count remaining slots (after fixed shifts).
-        const fixedDayCount = fixedShiftsByDateType.get(`${dateStr}:day`)?.length || 0;
-        const fixedNightCount = fixedShiftsByDateType.get(`${dateStr}:night`)?.length || 0;
-        let remainDaySlots = Math.max(0, this.shiftsPerDay - fixedDayCount);
-        let remainNightSlots = Math.max(0, this.shiftsPerNight - fixedNightCount);
-
-        // Track who is assigned today (to avoid double-assignment).
-        const assignedToday = new Set<string>();
-
-        // ── Emit pre-allocated 24h shifts ──
-        const allocated24h = preAlloc24h.get(day) || [];
-        for (const docId of allocated24h) {
-          if (remainDaySlots <= 0 || remainNightSlots <= 0) break;
-          const doctor = doctors24h.find(d => d.id === docId)!;
-          attemptShifts.push({
-            id: this.generateId(),
-            doctor_id: doctor.id,
-            shift_date: dateStr,
-            shift_type: '24h',
-            start_time: '08:00',
-            end_time: '08:00',
-          });
-          recordShift24h(this, doctor, currentDate);
-          assignedToday.add(doctor.id);
-          remainDaySlots--;
-          remainNightSlots--;
-        }
-
-        // ── Greedy assignment with cadence-aware scoring ──
-        for (const shiftType of ['day', 'night'] as const) {
-          const slotsNeeded = shiftType === 'day' ? remainDaySlots : remainNightSlots;
-          if (slotsNeeded <= 0) continue;
-
-          const selected = selectDoctorsForShift(
-            this, doctorsByTeam, floatingDoctors, teamIds, currentDate, shiftType,
-            slotsNeeded, doctorTargetShifts, doctorTotalAvailDays, attemptElapsed,
-            assignedToday, daysInMonth
-          );
-
-          for (const doctor of selected) {
-            attemptShifts.push({
-              id: this.generateId(),
-              doctor_id: doctor.id,
-              shift_date: dateStr,
-              shift_type: shiftType,
-              start_time: shiftType === 'day' ? '08:00' : '20:00',
-              end_time: shiftType === 'day' ? '20:00' : '08:00',
-            });
-            recordShift(this, doctor, currentDate, shiftType);
-            assignedToday.add(doctor.id);
-            if (shiftType === 'day') remainDaySlots--;
-            else remainNightSlots--;
-          }
-        }
-      }
-
-      // Count unfilled slots for this attempt.
-      let unfilled = 0;
-      for (let day = 1; day <= daysInMonth; day++) {
-        const dateStr = formatDate(new Date(this.year, this.month, day));
-        for (const st of ['day', 'night'] as const) {
-          const required = st === 'day' ? this.shiftsPerDay : this.shiftsPerNight;
-          const fixedKey = `${dateStr}:${st}`;
-          const fixedCount = fixedShiftsByDateType.get(fixedKey)?.length || 0;
-          const genCount = attemptShifts.filter(s => s.shift_date === dateStr && s.shift_type === st).length;
-          const gen24h = attemptShifts.filter(s => s.shift_date === dateStr && s.shift_type === '24h').length;
-          if (fixedCount + genCount + gen24h < required) unfilled++;
-        }
-      }
-
-      // Count norm-deficit doctors for this attempt.
-      let normDeficit = 0;
-      for (const doc of this.doctors) {
+      for (const doc of nonOptional12h) {
         const norm = calculateBaseNorm(this, doc.id);
         const hours = this.doctorHours.get(doc.id) || 0;
-        if (hours < norm) normDeficit++;
+        const deficit = norm - hours;
+        if (deficit > 0 && deficit > worstDeficit) {
+          worstDeficit = deficit;
+          worstDoctor = doc;
+        }
       }
 
-      // Compute extra-shift gap for this attempt.
-      let extraGap = 0;
-      const extras = computeExtraShifts(this, attemptShifts);
-      if (extras.length > 0) {
-        extraGap = Math.max(...extras.map(e => e.extra)) - Math.min(...extras.map(e => e.extra));
+      if (!worstDoctor) break;
+
+      // Find the best shift to steal
+      let bestShiftIdx = -1;
+      let bestDonorSurplus = -1;
+
+      for (let i = 0; i < shifts.length; i++) {
+        const s = shifts[i];
+        if (s.shift_type !== 'day' && s.shift_type !== 'night') continue;
+        if (s.doctor_id === worstDoctor.id) continue;
+
+        // Donor must have surplus >= 12h above their own norm
+        const donorNorm = calculateBaseNorm(this, s.doctor_id);
+        const donorHours = this.doctorHours.get(s.doctor_id) || 0;
+        const donorSurplus = donorHours - donorNorm;
+        if (donorSurplus < SCHEDULING_CONSTANTS.SHIFT_DURATION) continue;
+
+        // Recipient constraints
+        const dp = s.shift_date.split('-').map(Number);
+        const shiftDate = new Date(dp[0], dp[1] - 1, dp[2]);
+        if (isDoctorOnLeave(this, worstDoctor.id, shiftDate)) continue;
+        if (isDoctorOnBridgeDay(this, worstDoctor.id, shiftDate)) continue;
+
+        // Must not already have a shift that day
+        const alreadyHasShift = shifts.some(
+          other => other.doctor_id === worstDoctor!.id && other.shift_date === s.shift_date
+        );
+        if (alreadyHasShift) continue;
+
+        // Must not cause rest violations for recipient
+        if (wouldViolateRest(worstDoctor.id, s.shift_date, s.shift_type as 'day' | 'night')) continue;
+
+        if (donorSurplus > bestDonorSurplus) {
+          bestDonorSurplus = donorSurplus;
+          bestShiftIdx = i;
+        }
       }
 
-      if (unfilled < bestUnfilled ||
-          (unfilled === bestUnfilled && normDeficit < bestNormDeficit) ||
-          (unfilled === bestUnfilled && normDeficit === bestNormDeficit && extraGap < bestExtraGap)) {
-        bestUnfilled = unfilled;
-        bestNormDeficit = normDeficit;
-        bestExtraGap = extraGap;
-        bestShifts = attemptShifts;
-      }
-      if (bestUnfilled === 0 && bestNormDeficit === 0 && bestExtraGap <= 1) break;
+      if (bestShiftIdx < 0) break;
+
+      // Reassign the shift
+      shifts[bestShiftIdx] = { ...shifts[bestShiftIdx], doctor_id: worstDoctor.id };
+      rebuildCounters(this, shifts);
     }
 
-    // Use best attempt's shifts.
-    shifts.push(...bestShifts);
-
-    // Restore counters from best shifts.
+    // ── Final: Validation & warnings ──
     rebuildCounters(this, shifts);
-
-    // ── Repair pass (includes full-month solver if greedy left gaps) ──
-    repairUnfilledSlots(this, shifts, fixedShiftsByDateType);
-
-    // ── ILS repair for remaining unfilled slots ──
-    repairWithLocalSearch(this, shifts, fixedShiftsByDateType, 500);
-
-    // Rebuild counters from final shifts (greedy-pass counters are stale after repair)
-    rebuildCounters(this, shifts);
-
-    // ── Norm equalization repair ──
-    repairNormDeficits(this, shifts);
-    rebuildCounters(this, shifts);
-
-    // ── Extra-shift equalization ──
-    // Quick iterative equalization for simple cases (200ms budget)
-    repairExtraShiftEqualization(this, shifts);
-    enforceExtraShiftEqualizationSafe(this, shifts);
-    repairPostEqualizationCoverage(this, shifts, fixedShiftsByDateType);
-    rebuildCounters(this, shifts);
-
-    // ── Forced coverage: fill ALL remaining understaffed slots ──
-    // May break rest violations when necessary; marks such shifts with
-    // is_forced_coverage=true for warning display. Maintains equalization ≤1
-    // internally (strategies A/B preserve it; strategy C rebalances after).
-    repairForcedCoverage(this, shifts, fixedShiftsByDateType);
-    rebuildCounters(this, shifts);
-
-    // Warn if extra-shift gap exceeds 1 after all repairs (safety net).
-    const finalExtras = computeExtraShifts(this, shifts);
-    if (finalExtras.length > 0) {
-      const maxE = Math.max(...finalExtras.map(e => e.extra));
-      const minE = Math.min(...finalExtras.map(e => e.extra));
-      if (maxE - minE > 1) {
-        warnings.push(`scheduling.engine.extraShiftImbalance::${JSON.stringify({ gap: maxE - minE })}`);
-      }
-    }
 
     const normWarnings = checkDoctorNorms(this);
     if (normWarnings.length > 0) {
@@ -603,16 +630,14 @@ export class SchedulingEngine implements EngineContext {
 
     applyShiftRounding(this, shifts);
 
-    // Restore full doctor list (including optional) for stats and conflict detection
+    // Restore full doctor list for stats and conflict detection
     this.doctors = allDoctors;
     rebuildCounters(this, shifts);
 
-    // Include fixed (manual) shifts when checking for conflicts
     const allShifts = [...this.fixedShifts, ...shifts];
-    const conflicts = SchedulingEngine.detectConflicts(allShifts, this.doctors, this.shiftsPerDay, this.shiftsPerNight);
+    const conflicts = detectConflicts(allShifts, this.doctors, this.shiftsPerDay, this.shiftsPerNight);
     const doctorStats = calculateDoctorStats(this, shifts);
 
-    // Surface understaffed conflicts as warnings
     for (const c of conflicts) {
       if (c.type === 'understaffed') {
         warnings.push(c.message);
@@ -622,7 +647,7 @@ export class SchedulingEngine implements EngineContext {
     return { shifts, conflicts, warnings, doctorStats };
   }
 
-  // ── Static methods (delegated to validation module) ──
+  // ── Static methods (same as v1, delegated to validation module) ──
 
   static calculatePossibleLeaveDays(
     month: number, year: number, totalDoctors: number,
