@@ -416,4 +416,86 @@ describe('SchedulingEngineV2 — Cadence-first algorithm', () => {
       }
     });
   });
+
+  describe('Real-world — floating 12h doctors with constrained team 5', () => {
+    const teamBlue6   = makeTeam('tb', 'Blue',   1, '#00f');
+    const teamRed6    = makeTeam('tr', 'Red',    2, '#f00');
+    const teamGreen6  = makeTeam('tg', 'Green',  3, '#0f0');
+    const teamYellow6 = makeTeam('ty', 'Yellow', 4, '#ff0');
+    const team5_6     = { ...makeTeam('t5', 'Team5', 5, '#888'), max_doctors_per_shift: 1 };
+    const allTeams6 = [teamBlue6, teamRed6, teamGreen6, teamYellow6, team5_6];
+
+    // Same 12 team doctors
+    const teamDoctors6: DoctorWithTeam[] = [
+      makeDoctor('d1',  'doctor 1',  'tb', false, teamBlue6),
+      makeDoctor('d2',  'doctor 2',  'tb', false, teamBlue6),
+      makeDoctor('d3',  'doctor 3',  'tb', false, teamBlue6),
+      makeDoctor('d4',  'doctor 4',  'tr', false, teamRed6),
+      makeDoctor('d5',  'doctor 5',  'tr', false, teamRed6),
+      makeDoctor('d6',  'dr 6',      'tr', false, teamRed6),
+      makeDoctor('d7',  'dr 7',      'tg', false, teamGreen6),
+      makeDoctor('d8',  'dr 8',      'tg', false, teamGreen6),
+      makeDoctor('d9',  'dr 9',      'tg', false, teamGreen6),
+      makeDoctor('d10', 'dr 10',     'ty', false, teamYellow6),
+      makeDoctor('d11', 'dr 11',     'ty', false, teamYellow6),
+      makeDoctor('d12', 'dr 12',     'ty', false, teamYellow6),
+    ];
+
+    // df1 and df2 are floating 12h doctors (NOT in team5, NOT 24h)
+    const floatingDoctors12h: DoctorWithTeam[] = [
+      makeDoctor('df1', 'dr flotant 1', undefined, true),
+      makeDoctor('df2', 'dr flotant 2', undefined, true),
+    ];
+
+    // df3-df6 remain team5 24h doctors
+    const team5Doctors24h6: DoctorWithTeam[] = [
+      { ...makeDoctor('df3', 'dr flotant 3', 't5', false, team5_6), shift_mode: '24h' },
+      { ...makeDoctor('df4', 'dr flotant 4', 't5', false, team5_6), shift_mode: '24h' },
+      { ...makeDoctor('df5', 'dr flotant 5', 't5', false, team5_6), shift_mode: '24h' },
+      { ...makeDoctor('df6', 'dr flotant 6', 't5', false, team5_6), shift_mode: '24h' },
+    ];
+
+    const allDoctors6 = [...teamDoctors6, ...floatingDoctors12h, ...team5Doctors24h6];
+
+    // Same leave days as the team5 suite
+    const leaveDays6: LeaveDay[] = [
+      ...([1] as number[]).map(d => makeLeaveDay('d1', formatDate(YEAR, MARCH, d))),
+      ...([1, 2, 3, 4, 5, 6, 7, 8] as number[]).map(d => makeLeaveDay('d2', formatDate(YEAR, MARCH, d))),
+      ...[6, 7, 8, 9].map(d => makeLeaveDay('d3', formatDate(YEAR, MARCH, d))),
+      ...([12, 13, 14, 15, 16, 17, 18, 19, 20, 21] as number[]).map(d => makeLeaveDay('d5', formatDate(YEAR, MARCH, d))),
+      ...([8, 9, 10, 11, 12, 13] as number[]).map(d => makeLeaveDay('d6', formatDate(YEAR, MARCH, d))),
+      ...([5, 6, 7, 12, 13, 14] as number[]).map(d => makeLeaveDay('d8', formatDate(YEAR, MARCH, d))),
+      ...([3, 4, 5, 6, 7, 8, 9, 15] as number[]).map(d => makeLeaveDay('d10', formatDate(YEAR, MARCH, d))),
+      ...([23, 24, 25, 26, 27] as number[]).map(d => makeLeaveDay('d11', formatDate(YEAR, MARCH, d))),
+      ...([3, 12, 18] as number[]).map(d => makeLeaveDay('df1', formatDate(YEAR, MARCH, d))),
+      ...([1, 19, 20, 21, 22] as number[]).map(d => makeLeaveDay('df2', formatDate(YEAR, MARCH, d))),
+      ...([2, 3, 4, 5, 6] as number[]).map(d => makeLeaveDay('df3', formatDate(YEAR, MARCH, d))),
+      ...([2, 3, 4, 5, 6, 7, 8, 9] as number[]).map(d => makeLeaveDay('df4', formatDate(YEAR, MARCH, d))),
+      ...([16, 17, 18, 19, 20] as number[]).map(d => makeLeaveDay('df5', formatDate(YEAR, MARCH, d))),
+      ...([23, 24, 25, 26, 27] as number[]).map(d => makeLeaveDay('df6', formatDate(YEAR, MARCH, d))),
+    ];
+
+    function generateWithFloating12h() {
+      const engine = new SchedulingEngineV2({
+        month: MARCH,
+        year: YEAR,
+        doctors: allDoctors6,
+        teams: allTeams6,
+        shiftsPerDay: 4,
+        shiftsPerNight: 4,
+        leaveDays: leaveDays6,
+      });
+      return engine.generateSchedule();
+    }
+
+    it('all doctors meet base norm', () => {
+      const result = generateWithFloating12h();
+      const nonOptional = allDoctors6.filter(d => !(d as any).is_optional);
+      for (const doc of nonOptional) {
+        const stats = result.doctorStats.find(s => s.doctorId === doc.id);
+        expect(stats, `${doc.name} missing from doctorStats`).toBeDefined();
+        expect(stats!.meetsBaseNorm, `${doc.name}: ${stats!.totalHours}h < ${stats!.baseNorm}h base norm`).toBe(true);
+      }
+    });
+  });
 });

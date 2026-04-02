@@ -2,7 +2,7 @@
 
 ## Problem
 
-Generate a monthly schedule assigning doctors to 12h shifts (day 08:00–20:00, night 20:00–08:00) or 24h shifts (08:00–08:00+1). Two doctor classes: **team doctors** (12h, grouped in teams with rotation order) and **floating 24h doctors**.
+Generate a monthly schedule assigning doctors to 12h shifts (day 08:00–20:00, night 20:00–08:00) or 24h shifts (08:00–08:00+1). Three doctor classes: **team doctors** (12h, grouped in teams with rotation order), **floating 12h doctors** (no team, fill gaps and receive rebalanced shifts), and **floating/team 24h doctors** (rigid 72h cadence).
 
 ### Hard Constraints
 - **Leave/bridge days**: no shifts on leave or bridge days
@@ -13,6 +13,7 @@ Generate a monthly schedule assigning doctors to 12h shifts (day 08:00–20:00, 
 ### Soft Goals
 - **Cadence adherence**: team doctors follow D-N-R-R rotation strictly
 - **Basic fairness**: gap-fill candidates sorted by fewest shifts
+- **Norm equalization**: all non-optional doctors should meet their base norm (7h × working days minus leave)
 
 ### Key Difference from V1
 
@@ -67,12 +68,15 @@ For each day (1..N), for each team:
 
 ### Phase 1b: 24h Doctor Allocation
 
-Assigns floating 24h doctors to a strict every-4-day cadence (72h rest).
+Assigns 24h doctors to a strict every-4-day cadence (72h rest). Doctors are split into two groups:
 
+**Constrained teams** (teams with `max_doctors_per_shift`): Use round-robin distribution. All cadence days across all offsets are collected and sorted chronologically. For each day, the available doctor with the fewest shifts so far is assigned.
+
+**Unconstrained 24h doctors** (floating or teams without the constraint):
 1. **Optimal offset permutation**: For the first 4 doctors, brute-force all doctor→offset assignments to maximize total shifts
 2. **Swing doctors**: Remaining 24h doctors are assigned the offset that maximizes their shift count
-3. Shifts are placed unconditionally (no capacity check) — 24h doctors may push coverage above `shiftsPerDay`/`shiftsPerNight` on some days
-4. Leave/bridge days are the only reason a cadence slot may be skipped
+
+Shifts are placed unconditionally (no capacity check) — 24h doctors may push coverage above `shiftsPerDay`/`shiftsPerNight` on some days. Leave/bridge days are the only reason a cadence slot may be skipped.
 
 24h shifts are immutable after placement.
 
@@ -85,6 +89,24 @@ After cadence assignment, count coverage per day per shift type. For each slot b
 3. Assign shifts to fill the gap
 
 **Rest violations are allowed** in this phase — these are marked `is_forced_coverage = true` so the UI renders them with a warning indicator.
+
+### Phase 2c: Norm Equalization (Shift Rebalancing)
+
+After gap-filling, floating 12h doctors may still be below their base norm if cadence + 24h doctors already covered all slots. This phase steals 12h shifts from over-norm donors and reassigns them to under-norm recipients.
+
+Loop (up to 200 iterations):
+1. Find the non-optional, non-24h doctor with the **largest deficit** (baseNorm − currentHours)
+2. If no one is below norm → done
+3. Scan all 12h shifts for the best one to steal:
+   - **Donor must have surplus ≥ 12h** above their own base norm (so stealing doesn't push them below)
+   - Recipient must not be on leave or bridge day
+   - Recipient must not already have a shift that day
+   - Recipient must not get rest violations from the new shift
+   - Prefer the donor with the **highest surplus**
+4. If no stealable shift found → done (some doctors may remain below norm)
+5. Reassign the shift (`doctor_id` → recipient), rebuild counters, repeat
+
+**Key property**: slot coverage is unchanged — one doctor replaces another on the same shift. Only hours move from over-norm to under-norm doctors. 24h shifts are never stolen (they follow rigid cadence).
 
 ### Phase 3: Validation & Output
 
@@ -112,6 +134,6 @@ Shared modules (../):
   ├── bridge-days.ts         ← computeAllBridgeDays
   ├── constraints.ts         ← isDoctorOnLeave, isDoctorOnBridgeDay
   ├── prng.ts                ← Seeded PRNG (mulberry32)
-  ├── stats.ts               ← recordShift, rebuildCounters, calculateDoctorStats
+  ├── stats.ts               ← recordShift, rebuildCounters, calculateBaseNorm, calculateDoctorStats
   └── validation.ts          ← detectConflicts
 ```

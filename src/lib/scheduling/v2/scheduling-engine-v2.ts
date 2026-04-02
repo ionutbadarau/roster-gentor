@@ -15,7 +15,7 @@ import { SCHEDULING_CONSTANTS, type ScheduleGenerationOptions, type EngineContex
 import { formatDate, utcMs, getDaysInMonth } from '../calendar-utils';
 import { computeAllBridgeDays } from '../bridge-days';
 import { isDoctorOnLeave, isDoctorOnBridgeDay } from '../constraints';
-import { rebuildCounters, checkDoctorNorms, applyShiftRounding, calculateDoctorStats, recordShift, recordShift24h } from '../stats';
+import { rebuildCounters, checkDoctorNorms, applyShiftRounding, calculateDoctorStats, calculateBaseNorm, recordShift, recordShift24h } from '../stats';
 import { createPRNG } from '../prng';
 import { detectConflicts } from '../validation';
 import { computeTeamCadenceGrid, computeDoctorCadenceSchedule } from '../cadence';
@@ -549,6 +549,75 @@ export class SchedulingEngineV2 implements EngineContext {
         assigned.add(doc.id);
         filled++;
       }
+    }
+
+    // ── Phase 2c: Norm equalization (shift rebalancing) ──
+    // Floating 12h doctors may get zero/few shifts because cadence + 24h
+    // doctors covered all slots. Steal 12h shifts from over-norm donors
+    // and reassign to under-norm recipients, respecting rest constraints.
+    rebuildCounters(this, shifts);
+
+    const MAX_REBALANCE_ITERATIONS = 200;
+    const nonOptional12h = this.doctors.filter(d => !d.is_optional && d.shift_mode !== '24h');
+
+    for (let iter = 0; iter < MAX_REBALANCE_ITERATIONS; iter++) {
+      // Find the doctor with the largest deficit
+      let worstDoctor: DoctorWithTeam | null = null;
+      let worstDeficit = 0;
+
+      for (const doc of nonOptional12h) {
+        const norm = calculateBaseNorm(this, doc.id);
+        const hours = this.doctorHours.get(doc.id) || 0;
+        const deficit = norm - hours;
+        if (deficit > 0 && deficit > worstDeficit) {
+          worstDeficit = deficit;
+          worstDoctor = doc;
+        }
+      }
+
+      if (!worstDoctor) break;
+
+      // Find the best shift to steal
+      let bestShiftIdx = -1;
+      let bestDonorSurplus = -1;
+
+      for (let i = 0; i < shifts.length; i++) {
+        const s = shifts[i];
+        if (s.shift_type !== 'day' && s.shift_type !== 'night') continue;
+        if (s.doctor_id === worstDoctor.id) continue;
+
+        // Donor must have surplus >= 12h above their own norm
+        const donorNorm = calculateBaseNorm(this, s.doctor_id);
+        const donorHours = this.doctorHours.get(s.doctor_id) || 0;
+        const donorSurplus = donorHours - donorNorm;
+        if (donorSurplus < SCHEDULING_CONSTANTS.SHIFT_DURATION) continue;
+
+        // Recipient constraints
+        const dp = s.shift_date.split('-').map(Number);
+        const shiftDate = new Date(dp[0], dp[1] - 1, dp[2]);
+        if (isDoctorOnLeave(this, worstDoctor.id, shiftDate)) continue;
+        if (isDoctorOnBridgeDay(this, worstDoctor.id, shiftDate)) continue;
+
+        // Must not already have a shift that day
+        const alreadyHasShift = shifts.some(
+          other => other.doctor_id === worstDoctor!.id && other.shift_date === s.shift_date
+        );
+        if (alreadyHasShift) continue;
+
+        // Must not cause rest violations for recipient
+        if (wouldViolateRest(worstDoctor.id, s.shift_date, s.shift_type as 'day' | 'night')) continue;
+
+        if (donorSurplus > bestDonorSurplus) {
+          bestDonorSurplus = donorSurplus;
+          bestShiftIdx = i;
+        }
+      }
+
+      if (bestShiftIdx < 0) break;
+
+      // Reassign the shift
+      shifts[bestShiftIdx] = { ...shifts[bestShiftIdx], doctor_id: worstDoctor.id };
+      rebuildCounters(this, shifts);
     }
 
     // ── Final: Validation & warnings ──
