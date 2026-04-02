@@ -747,11 +747,10 @@ export default function ShiftGridCalendar({
     const { start: monthStart, end: monthEnd } = getMonthBoundary(currentYear, currentMonth, daysInMonth);
 
     try {
-      const snapshotShifts = shifts.filter(s => s.shift_date >= monthStart && s.shift_date <= monthEnd);
       await deleteMonthShifts(supabase, monthStart, monthEnd);
 
-      historyPush({ previousShifts: snapshotShifts, previousLeaveDays: [], createdShifts: [], createdLeaveDays: [] });
       onShiftsUpdate(shifts.filter(s => s.shift_date < monthStart || s.shift_date > monthEnd));
+      historyClear();
 
       toast({
         title: t('scheduling.grid.clearedMonthTitle'),

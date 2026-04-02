@@ -1,6 +1,17 @@
 import { Button } from '@/components/ui/button';
 import { CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles, Trash2, Loader2, Phone, FileDown, Undo2, Redo2 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 
@@ -84,10 +95,26 @@ export default function ShiftGridHeader({
                 <Redo2 className="h-4 w-4" />
               </Button>
             </div>
-            <Button variant="outline" onClick={onClearMonth}>
-              <Trash2 className="h-4 w-4 mr-2" />
-              {t('scheduling.grid.clearMonth')}
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {t('scheduling.grid.clearMonth')}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{t('scheduling.grid.clearMonthConfirmTitle')}</AlertDialogTitle>
+                  <AlertDialogDescription>{t('scheduling.grid.clearMonthConfirmDescription')}</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{t('scheduling.grid.clearMonthCancel')}</AlertDialogCancel>
+                  <AlertDialogAction onClick={onClearMonth} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    {t('scheduling.grid.clearMonthConfirmAction')}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             <Button onClick={onGenerate} disabled={generating}>
               {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
               {generating ? t('scheduling.grid.generating') : t('scheduling.grid.generate')}
