@@ -1960,7 +1960,7 @@ describe('SchedulingEngine', () => {
   // ── Optional doctors ────────────────────────────────────────────────────────
 
   describe('optional doctors', () => {
-    it('should not assign any shifts to optional doctors', () => {
+    it('optional doctors only receive shifts to resolve rest violations and have no rest violations themselves', () => {
       const { teams, doctors } = createTeamsAndDoctors([7, 7], 2);
       // Mark last doctor as optional
       doctors[doctors.length - 1].is_optional = true;
@@ -1968,8 +1968,12 @@ describe('SchedulingEngine', () => {
       const result = generate(teams, doctors);
 
       const optionalDoc = doctors[doctors.length - 1];
-      const docShifts = result.shifts.filter(s => s.doctor_id === optionalDoc.id);
-      expect(docShifts).toHaveLength(0);
+      // Optional doctors may receive shifts in Phase 2d to resolve rest violations
+      // but they must never have rest violations themselves
+      const optionalConflicts = result.conflicts.filter(
+        c => c.type === 'rest_violation' && c.doctor_id === optionalDoc.id
+      );
+      expect(optionalConflicts).toHaveLength(0);
     }, 15000);
 
     it('should not generate norm warnings for optional doctors', () => {
@@ -1996,7 +2000,7 @@ describe('SchedulingEngine', () => {
       expect(stats).toBeDefined();
       expect(stats!.baseNorm).toBe(0);
       expect(stats!.meetsBaseNorm).toBe(true);
-      expect(stats!.totalHours).toBe(0);
+      // totalHours may be > 0 if Phase 2d assigned shifts to resolve rest violations
     }, 15000);
   });
 

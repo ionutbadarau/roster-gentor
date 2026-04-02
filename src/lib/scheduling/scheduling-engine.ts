@@ -12,12 +12,12 @@
 
 import type { DoctorWithTeam, Shift, LeaveDay, NationalHoliday, ScheduleConflict, ScheduleGenerationResult, ScheduleValidation, Doctor } from '@/types/scheduling';
 import { SCHEDULING_CONSTANTS, type ScheduleGenerationOptions, type EngineContext } from './constants';
-import { formatDate, utcMs, getDaysInMonth } from './calendar-utils';
+import { formatDate, utcMs, getDaysInMonth, getWeekNumber } from './calendar-utils';
 import { computeAllBridgeDays, computeDoctorBridgeDays } from './bridge-days';
-import { isDoctorOnLeave, isDoctorOnBridgeDay } from './constraints';
+import { isDoctorOnLeave, isDoctorOnBridgeDay, canDoctorWorkWithTimeline } from './constraints';
 import { rebuildCounters, checkDoctorNorms, applyShiftRounding, calculateDoctorStats, calculateBaseNorm, recordShift, recordShift24h } from './stats';
 import { createPRNG } from './prng';
-import { detectConflicts, validateLeaveDays, calculatePossibleLeaveDays, getWorkingDaysInMonthStatic, computeUnderstaffedDays } from './validation';
+import { detectConflicts, validateLeaveDays, calculatePossibleLeaveDays, getWorkingDaysInMonthStatic, computeUnderstaffedDays, findRestViolationPairs } from './validation';
 import { computeTeamCadenceGrid, computeDoctorCadenceSchedule } from './cadence';
 
 
@@ -618,6 +618,85 @@ export class SchedulingEngine implements EngineContext {
       // Reassign the shift
       shifts[bestShiftIdx] = { ...shifts[bestShiftIdx], doctor_id: worstDoctor.id };
       rebuildCounters(this, shifts);
+    }
+
+    // ── Phase 2d: Resolve rest violations via optional doctors ──
+    // After the main schedule is complete, detect rest violations and try to
+    // reassign offending shifts to optional doctors (who are normally excluded
+    // from scheduling). Optional doctors must not get rest violations themselves.
+    const optionalDoctors = allDoctors.filter(d => d.is_optional);
+
+    if (optionalDoctors.length > 0) {
+      // Ensure optional doctors have initialised counters
+      for (const od of optionalDoctors) {
+        if (!this.doctorShiftCount.has(od.id)) {
+          this.doctorShiftCount.set(od.id, 0);
+          this.doctorHours.set(od.id, 0);
+          this.doctorWeeklyHours.set(od.id, new Map());
+        }
+      }
+
+      const MAX_OPTIONAL_REPAIR_ITERATIONS = 50;
+
+      for (let iter = 0; iter < MAX_OPTIONAL_REPAIR_ITERATIONS; iter++) {
+        const allCurrentShifts = [...this.fixedShifts, ...shifts];
+        const violations = findRestViolationPairs(allCurrentShifts);
+        if (violations.length === 0) break;
+
+        let resolvedAny = false;
+
+        for (const v of violations) {
+          // Try later shift first (removing it widens the gap for the earlier shift),
+          // then fall back to the earlier shift.
+          const candidateShifts = [v.currShift, v.prevShift].filter(s =>
+            s.shift_type !== '24h' &&
+            !s.is_manual &&
+            shifts.includes(s) // must be a generated shift, not fixed
+          );
+
+          for (const targetShift of candidateShifts) {
+            const dp = targetShift.shift_date.split('-').map(Number);
+            const shiftDate = new Date(dp[0], dp[1] - 1, dp[2]);
+            const shiftType = targetShift.shift_type as 'day' | 'night';
+
+            // Sort optional doctors by fewest shifts for fairness
+            const sortedOptionals = [...optionalDoctors].sort((a, b) =>
+              (this.doctorShiftCount.get(a.id) || 0) - (this.doctorShiftCount.get(b.id) || 0)
+            );
+
+            for (const optDoc of sortedOptionals) {
+              // Build this optional doctor's current shifts (including fixed + previous month)
+              const optDocShifts = allCurrentShifts.filter(s => s.doctor_id === optDoc.id);
+              const optDocPrevMonth = this.previousMonthShifts.filter(s => s.doctor_id === optDoc.id);
+
+              // Check rest constraints (leave, bridge, overlap, rest in both directions)
+              if (!canDoctorWorkWithTimeline(this, optDoc.id, shiftDate, shiftType, [...optDocShifts, ...optDocPrevMonth])) {
+                continue;
+              }
+
+              // Check weekly hours cap
+              const weekNumber = getWeekNumber(shiftDate);
+              const weeklyMap = this.doctorWeeklyHours.get(optDoc.id);
+              const currentWeeklyHours = weeklyMap?.get(weekNumber) || 0;
+              if (currentWeeklyHours + SCHEDULING_CONSTANTS.SHIFT_DURATION > SCHEDULING_CONSTANTS.MAX_WEEKLY_HOURS) {
+                continue;
+              }
+
+              // Reassign the shift to the optional doctor
+              const shiftIdx = shifts.indexOf(targetShift);
+              if (shiftIdx < 0) continue; // safety check
+              shifts[shiftIdx] = { ...shifts[shiftIdx], doctor_id: optDoc.id };
+              rebuildCounters(this, shifts);
+              resolvedAny = true;
+              break;
+            }
+            if (resolvedAny) break;
+          }
+          if (resolvedAny) break; // re-detect from scratch on next iteration
+        }
+
+        if (!resolvedAny) break; // fixed point — no more resolvable violations
+      }
     }
 
     // ── Final: Validation & warnings ──

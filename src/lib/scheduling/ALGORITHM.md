@@ -8,7 +8,7 @@ Generate a monthly schedule assigning doctors to 12h shifts (day 08:00–20:00, 
 - **Leave/bridge days**: no shifts on leave or bridge days
 - **Coverage**: each day needs `shiftsPerDay` day + `shiftsPerNight` night doctors
 - **24h rest**: 72h between 24h shifts (rigid every-4-day cadence)
-- **Optional doctors**: excluded from all automatic scheduling
+- **Optional doctors**: excluded from main scheduling; used only in Phase 2d to resolve rest violations
 
 ### Soft Goals
 - **Cadence adherence**: team doctors follow D-N-R-R rotation strictly
@@ -27,7 +27,7 @@ Fully deterministic — identical inputs always produce identical output. Seeded
 
 ### Pre-filter: Optional Doctors
 
-Doctors with `is_optional = true` are filtered out before scheduling. Restored before stats/conflict detection so they appear in output with `baseNorm: 0`.
+Doctors with `is_optional = true` are filtered out before the main scheduling phases (1–2c). They are brought back in Phase 2d to resolve rest violations, and fully restored before stats/conflict detection so they appear in output with `baseNorm: 0`.
 
 ### Phase 0: Compute Cadence Grids
 
@@ -108,6 +108,25 @@ Loop (up to 200 iterations):
 
 **Key property**: slot coverage is unchanged — one doctor replaces another on the same shift. Only hours move from over-norm to under-norm doctors. 24h shifts are never stolen (they follow rigid cadence).
 
+### Phase 2d: Optional Doctor Rest Violation Repair
+
+After all scheduling phases are complete, optional doctors (`is_optional = true`) — normally excluded from scheduling — are used to resolve rest violations.
+
+Loop (up to 50 iterations):
+1. Detect all rest violation pairs (two consecutive shifts for the same doctor with insufficient rest gap) using `findRestViolationPairs()`
+2. If no violations → done
+3. For each violation pair, try to reassign one of the two offending shifts:
+   - **Try the later shift first** (removing it widens the gap for the earlier shift), then the earlier
+   - Skip 24h shifts (immutable cadence) and manual/fixed shifts
+4. For the candidate shift, find an available optional doctor (sorted by fewest shifts for fairness):
+   - Must not be on leave or bridge day
+   - Must pass `canDoctorWorkWithTimeline()` — no overlap, no rest violations in either direction (checks against the optional doctor's own existing shifts + previous month shifts)
+   - Must not exceed 48h weekly hours cap
+5. If a valid optional doctor is found, reassign the shift to them, rebuild counters, and restart violation detection from scratch (to handle cascading effects)
+6. If no violation could be resolved in a full pass → done (fixed point)
+
+**Trade-offs**: A donor doctor's hours decrease by 12h, potentially pushing them below their base norm — this is acceptable because resolving a rest violation is a higher priority than norm compliance (the donor appears with a norm warning in the output). Slot coverage is unchanged since the shift is reassigned, not removed.
+
 ### Phase 3: Validation & Output
 
 1. Rebuild counters from final shift list
@@ -132,8 +151,8 @@ Shared modules (../):
   ├── constants.ts           ← SCHEDULING_CONSTANTS, EngineContext
   ├── calendar-utils.ts      ← formatDate, utcMs, getDaysInMonth
   ├── bridge-days.ts         ← computeAllBridgeDays
-  ├── constraints.ts         ← isDoctorOnLeave, isDoctorOnBridgeDay
+  ├── constraints.ts         ← isDoctorOnLeave, isDoctorOnBridgeDay, canDoctorWorkWithTimeline
   ├── prng.ts                ← Seeded PRNG (mulberry32)
   ├── stats.ts               ← recordShift, rebuildCounters, calculateBaseNorm, calculateDoctorStats
-  └── validation.ts          ← detectConflicts
+  └── validation.ts          ← detectConflicts, findRestViolationPairs
 ```

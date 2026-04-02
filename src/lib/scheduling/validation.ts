@@ -190,3 +190,46 @@ export function detectConflicts(shifts: Shift[], doctors: Doctor[], requiredPerD
 
   return conflicts;
 }
+
+/**
+ * Identifies pairs of shifts that violate rest constraints.
+ * Returns the actual shift object references so callers can reassign them.
+ */
+export interface RestViolationPair {
+  doctorId: string;
+  prevShift: Shift;
+  currShift: Shift;
+  gapHours: number;
+  requiredRest: number;
+}
+
+export function findRestViolationPairs(allShifts: Shift[]): RestViolationPair[] {
+  const violations: RestViolationPair[] = [];
+  const doctorShifts = groupShiftsByDoctor(allShifts);
+
+  doctorShifts.forEach((shiftList, doctorId) => {
+    const workShifts = shiftList
+      .filter(s => s.shift_type === 'day' || s.shift_type === 'night' || s.shift_type === '24h')
+      .sort((a, b) =>
+        getShiftStartMs(a.shift_date, a.shift_type as 'day' | 'night' | '24h') -
+        getShiftStartMs(b.shift_date, b.shift_type as 'day' | 'night' | '24h')
+      );
+
+    for (let i = 1; i < workShifts.length; i++) {
+      const prevShift = workShifts[i - 1];
+      const currShift = workShifts[i];
+      const prevType = prevShift.shift_type as 'day' | 'night' | '24h';
+      const currType = currShift.shift_type as 'day' | 'night' | '24h';
+      const prevEndMs = getShiftEndMs(prevShift.shift_date, prevType);
+      const currStartMs = getShiftStartMs(currShift.shift_date, currType);
+      const gapHours = (currStartMs - prevEndMs) / 3_600_000;
+      const requiredRest = getRestHours(prevType);
+
+      if (gapHours < requiredRest) {
+        violations.push({ doctorId, prevShift, currShift, gapHours, requiredRest });
+      }
+    }
+  });
+
+  return violations;
+}
