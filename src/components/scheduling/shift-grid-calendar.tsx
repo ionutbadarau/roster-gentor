@@ -135,6 +135,32 @@ export default function ShiftGridCalendar({
     return result;
   }, [shifts, currentMonth, currentYear, daysInMonth, shiftsPerDay, shiftsPerNight, monthPrefix]);
 
+  // Detect days where generated shifts exceed the configured threshold (post-generation)
+  const shiftOverstaffDays = useMemo(() => {
+    const result = new Map<number, { dayCount: number; nightCount: number }>();
+    const monthShifts = shifts.filter(s => s.shift_date.startsWith(monthPrefix));
+    if (monthShifts.length === 0) return result;
+
+    const byDate = new Map<string, { day: number; night: number }>();
+    for (const s of monthShifts) {
+      if (!byDate.has(s.shift_date)) byDate.set(s.shift_date, { day: 0, night: 0 });
+      const counts = byDate.get(s.shift_date)!;
+      if (s.shift_type === '24h') { counts.day++; counts.night++; }
+      else if (s.shift_type === 'day') counts.day++;
+      else if (s.shift_type === 'night') counts.night++;
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = formatDateString(currentYear, currentMonth, d);
+      const counts = byDate.get(dateStr);
+      if (!counts) continue;
+      if (counts.day > shiftsPerDay || counts.night > shiftsPerNight) {
+        result.set(d, { dayCount: counts.day, nightCount: counts.night });
+      }
+    }
+    return result;
+  }, [shifts, currentMonth, currentYear, daysInMonth, shiftsPerDay, shiftsPerNight, monthPrefix]);
+
   const isUnderstaffedDay = (day: number): boolean => understaffedDays.has(day) || shiftShortfallDays.has(day);
 
   // Reactive norm warnings: recompute from current shifts whenever edits happen
@@ -211,8 +237,18 @@ export default function ShiftGridCalendar({
       }
     });
 
+    shiftOverstaffDays.forEach(({ dayCount, nightCount }, day) => {
+      const dateStr = formatDateString(currentYear, currentMonth, day);
+      if (dayCount > shiftsPerDay) {
+        result.push(`scheduling.engine.overstaffedDay::${JSON.stringify({ count: dayCount, required: shiftsPerDay, date: dateStr })}`);
+      }
+      if (nightCount > shiftsPerNight) {
+        result.push(`scheduling.engine.overstaffedNight::${JSON.stringify({ count: nightCount, required: shiftsPerNight, date: dateStr })}`);
+      }
+    });
+
     return Array.from(new Set(result));
-  }, [generationWarnings, normWarnings, restViolationWarnings, shiftShortfallDays, currentMonth, currentYear, shiftsPerDay, shiftsPerNight]);
+  }, [generationWarnings, normWarnings, restViolationWarnings, shiftShortfallDays, shiftOverstaffDays, currentMonth, currentYear, shiftsPerDay, shiftsPerNight]);
 
   // Sort doctors by display_order (manual sort from config)
   const sortedDoctors = useMemo(() => {

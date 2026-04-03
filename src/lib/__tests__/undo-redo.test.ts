@@ -183,6 +183,15 @@ class GridSimulator {
     return true;
   }
 
+  // Simulates handleClearMonth: removes all shifts in [monthStart, monthEnd]
+  // but keeps leave days. Also clears undo/redo history.
+  clearMonth(monthStart: string, monthEnd: string) {
+    this.shifts = this.shifts.filter(
+      s => s.shift_date < monthStart || s.shift_date > monthEnd,
+    );
+    this.history.clear();
+  }
+
   /** Shift count for a given doctor+date */
   shiftsFor(doctorId: string, date: string) {
     return this.shifts.filter(s => s.doctor_id === doctorId && s.shift_date === date);
@@ -474,5 +483,175 @@ describe('Grid undo/redo integration', () => {
       expect(grid.shiftsFor('doc-1', '2026-03-10')).toHaveLength(1);
       expect(grid.shiftsFor('doc-1', '2026-03-10')[0].shift_type).toBe('night');
     }
+  });
+
+  it('undo after adding a leave day removes it', () => {
+    const leave = makeLeave({ doctor_id: 'doc-1', leave_date: '2026-03-15' });
+    grid.addLeave(leave);
+    expect(grid.leavesFor('doc-1', '2026-03-15')).toHaveLength(1);
+
+    grid.undo();
+    expect(grid.leavesFor('doc-1', '2026-03-15')).toHaveLength(0);
+  });
+
+  it('interleaved shift and leave undo/redo preserves both correctly', () => {
+    const shift = makeShift({ doctor_id: 'doc-1', shift_date: '2026-03-10' });
+    const leave = makeLeave({ doctor_id: 'doc-1', leave_date: '2026-03-12' });
+
+    grid.addShift(shift);
+    grid.addLeave(leave);
+
+    // Undo leave only
+    grid.undo();
+    expect(grid.shiftsFor('doc-1', '2026-03-10')).toHaveLength(1);
+    expect(grid.leavesFor('doc-1', '2026-03-12')).toHaveLength(0);
+
+    // Undo shift too
+    grid.undo();
+    expect(grid.shiftsFor('doc-1', '2026-03-10')).toHaveLength(0);
+    expect(grid.leavesFor('doc-1', '2026-03-12')).toHaveLength(0);
+
+    // Redo shift
+    grid.redo();
+    expect(grid.shiftsFor('doc-1', '2026-03-10')).toHaveLength(1);
+    expect(grid.leavesFor('doc-1', '2026-03-12')).toHaveLength(0);
+
+    // Redo leave
+    grid.redo();
+    expect(grid.shiftsFor('doc-1', '2026-03-10')).toHaveLength(1);
+    expect(grid.leavesFor('doc-1', '2026-03-12')).toHaveLength(1);
+  });
+
+  it('undo is a no-op when history is empty', () => {
+    expect(grid.undo()).toBe(false);
+    expect(grid.shifts).toHaveLength(0);
+    expect(grid.leaveDays).toHaveLength(0);
+  });
+
+  it('redo is a no-op when nothing has been undone', () => {
+    const shift = makeShift({ doctor_id: 'doc-1', shift_date: '2026-03-10' });
+    grid.addShift(shift);
+    expect(grid.redo()).toBe(false);
+    expect(grid.shifts).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Clear month tests
+// ---------------------------------------------------------------------------
+
+describe('Clear month', () => {
+  let grid: GridSimulator;
+
+  beforeEach(() => {
+    idSeq = 0;
+    grid = new GridSimulator();
+  });
+
+  it('removes all shifts for the month', () => {
+    grid.addShift(makeShift({ doctor_id: 'doc-1', shift_date: '2026-03-01' }));
+    grid.addShift(makeShift({ doctor_id: 'doc-1', shift_date: '2026-03-15' }));
+    grid.addShift(makeShift({ doctor_id: 'doc-2', shift_date: '2026-03-20' }));
+    grid.addShift(makeShift({ doctor_id: 'doc-2', shift_date: '2026-03-31' }));
+
+    grid.clearMonth('2026-03-01', '2026-03-31');
+
+    expect(grid.shifts).toHaveLength(0);
+  });
+
+  it('keeps leave days when clearing shifts', () => {
+    grid.addShift(makeShift({ doctor_id: 'doc-1', shift_date: '2026-03-10' }));
+    grid.addShift(makeShift({ doctor_id: 'doc-2', shift_date: '2026-03-15' }));
+    grid.addLeave(makeLeave({ doctor_id: 'doc-1', leave_date: '2026-03-12' }));
+    grid.addLeave(makeLeave({ doctor_id: 'doc-2', leave_date: '2026-03-20' }));
+
+    grid.clearMonth('2026-03-01', '2026-03-31');
+
+    expect(grid.shifts).toHaveLength(0);
+    expect(grid.leaveDays).toHaveLength(2);
+    expect(grid.leavesFor('doc-1', '2026-03-12')).toHaveLength(1);
+    expect(grid.leavesFor('doc-2', '2026-03-20')).toHaveLength(1);
+  });
+
+  it('does not remove shifts from other months', () => {
+    const marchShift = makeShift({ doctor_id: 'doc-1', shift_date: '2026-03-15' });
+    const aprilShift = makeShift({ doctor_id: 'doc-1', shift_date: '2026-04-05' });
+    const febShift = makeShift({ doctor_id: 'doc-1', shift_date: '2026-02-28' });
+
+    grid.addShift(marchShift);
+    grid.addShift(aprilShift);
+    grid.addShift(febShift);
+
+    grid.clearMonth('2026-03-01', '2026-03-31');
+
+    expect(grid.shifts).toHaveLength(2);
+    expect(grid.shiftsFor('doc-1', '2026-04-05')).toHaveLength(1);
+    expect(grid.shiftsFor('doc-1', '2026-02-28')).toHaveLength(1);
+    expect(grid.shiftsFor('doc-1', '2026-03-15')).toHaveLength(0);
+  });
+
+  it('clears undo/redo history after clear month', () => {
+    grid.addShift(makeShift({ doctor_id: 'doc-1', shift_date: '2026-03-10' }));
+    grid.addShift(makeShift({ doctor_id: 'doc-1', shift_date: '2026-03-11' }));
+
+    grid.clearMonth('2026-03-01', '2026-03-31');
+
+    expect(grid.history.canUndo).toBe(false);
+    expect(grid.history.canRedo).toBe(false);
+    expect(grid.undo()).toBe(false);
+  });
+
+  it('clears month with mixed shifts and leave days from multiple doctors', () => {
+    // Multiple doctors with shifts and leave days
+    grid.addShift(makeShift({ doctor_id: 'doc-1', shift_date: '2026-03-05', shift_type: 'day' }));
+    grid.addShift(makeShift({ doctor_id: 'doc-1', shift_date: '2026-03-06', shift_type: 'night' }));
+    grid.addShift(makeShift({ doctor_id: 'doc-2', shift_date: '2026-03-05', shift_type: 'day' }));
+    grid.addShift(makeShift({ doctor_id: 'doc-3', shift_date: '2026-03-10', shift_type: 'night' }));
+    grid.addLeave(makeLeave({ doctor_id: 'doc-1', leave_date: '2026-03-20' }));
+    grid.addLeave(makeLeave({ doctor_id: 'doc-2', leave_date: '2026-03-25' }));
+    grid.addLeave(makeLeave({ doctor_id: 'doc-3', leave_date: '2026-03-15' }));
+
+    grid.clearMonth('2026-03-01', '2026-03-31');
+
+    // All shifts gone
+    expect(grid.shifts).toHaveLength(0);
+    // All leave days preserved
+    expect(grid.leaveDays).toHaveLength(3);
+    expect(grid.leavesFor('doc-1', '2026-03-20')).toHaveLength(1);
+    expect(grid.leavesFor('doc-2', '2026-03-25')).toHaveLength(1);
+    expect(grid.leavesFor('doc-3', '2026-03-15')).toHaveLength(1);
+  });
+
+  it('clear month on empty grid is a no-op', () => {
+    grid.clearMonth('2026-03-01', '2026-03-31');
+    expect(grid.shifts).toHaveLength(0);
+    expect(grid.leaveDays).toHaveLength(0);
+  });
+
+  it('preserves leave days from other months too', () => {
+    grid.addShift(makeShift({ doctor_id: 'doc-1', shift_date: '2026-03-10' }));
+    grid.addLeave(makeLeave({ doctor_id: 'doc-1', leave_date: '2026-03-12' }));
+    grid.addLeave(makeLeave({ doctor_id: 'doc-1', leave_date: '2026-04-01' }));
+
+    grid.clearMonth('2026-03-01', '2026-03-31');
+
+    expect(grid.shifts).toHaveLength(0);
+    expect(grid.leaveDays).toHaveLength(2); // both March and April leave days kept
+  });
+
+  it('undo/redo history from before clear is gone', () => {
+    const s1 = makeShift({ doctor_id: 'doc-1', shift_date: '2026-03-10' });
+    const s2 = makeShift({ doctor_id: 'doc-1', shift_date: '2026-03-11' });
+    grid.addShift(s1);
+    grid.addShift(s2);
+    grid.undo(); // undo s2, so redo is available
+    expect(grid.history.canRedo).toBe(true);
+    expect(grid.history.canUndo).toBe(true);
+
+    grid.clearMonth('2026-03-01', '2026-03-31');
+
+    // Both undo and redo should be gone
+    expect(grid.history.canUndo).toBe(false);
+    expect(grid.history.canRedo).toBe(false);
   });
 });

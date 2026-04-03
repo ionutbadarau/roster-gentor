@@ -157,6 +157,8 @@
       "tooManyLeaveDays": "Prea multe zile de concediu selectate. Maximum permis: {{max}} zile.",
       "understaffedDay": "{{date}}: Tura de zi are {{count}}/{{required}} doctori.",
       "understaffedNight": "{{date}}: Tura de noapte are {{count}}/{{required}} doctori.",
+      "overstaffedDay": "{{date}}: Tura de zi are prea mulți doctori ({{count}}/{{required}}).",
+      "overstaffedNight": "{{date}}: Tura de noapte are prea mulți doctori ({{count}}/{{required}}).",
       "restViolationDay": "Violare perioad\u0103 de odihn\u0103: mai pu\u021bin de {{hours}} ore dup\u0103 tura de zi",
       "restViolationNight": "Violare perioad\u0103 de odihn\u0103: mai pu\u021bin de {{hours}} ore dup\u0103 tura de noapte",
       "restViolation24h": "Violare perioad\u0103 de odihn\u0103: mai pu\u021bin de {{hours}} ore dup\u0103 tura de 24h",

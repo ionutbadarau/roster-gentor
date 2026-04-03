@@ -157,6 +157,8 @@
       "tooManyLeaveDays": "Too many leave days selected. Maximum allowed: {{max}} days.",
       "understaffedDay": "{{date}}: Day shift has {{count}}/{{required}} doctors.",
       "understaffedNight": "{{date}}: Night shift has {{count}}/{{required}} doctors.",
+      "overstaffedDay": "{{date}}: Day shift has too many doctors ({{count}}/{{required}}).",
+      "overstaffedNight": "{{date}}: Night shift has too many doctors ({{count}}/{{required}}).",
       "restViolationDay": "Rest violation: Less than {{hours}} hours after day shift",
       "restViolationNight": "Rest violation: Less than {{hours}} hours after night shift",
       "restViolation24h": "Rest violation: Less than {{hours}} hours after 24h shift",

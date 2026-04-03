@@ -44,6 +44,7 @@ function formatDate(year: number, month: number, day: number): string {
 describe('SchedulingEngine — Cadence-first algorithm', () => {
   beforeEach(() => { idCounter = 0; });
   const MARCH = 2; // 0-indexed
+  const APRIL = 3;
   const YEAR = 2026;
 
   const teamBlue   = makeTeam('tb', 'Blue',   1, '#00f');
@@ -416,7 +417,7 @@ describe('SchedulingEngine — Cadence-first algorithm', () => {
     });
   });
 
-  describe('Real-real-world — floating 12h doctors with constrained team 5', () => {
+  describe('Real-real-world March — floating 12h doctors with constrained team 5', () => {
     const teamBlue6   = makeTeam('tb', 'Blue',   1, '#00f');
     const teamRed6    = makeTeam('tr', 'Red',    2, '#f00');
     const teamGreen6  = makeTeam('tg', 'Green',  3, '#0f0');
@@ -493,9 +494,9 @@ describe('SchedulingEngine — Cadence-first algorithm', () => {
       for (const doc of nonOptional) {
         const stats = result.doctorStats.find(s => s.doctorId === doc.id);
         expect(stats, `${doc.name} missing from doctorStats`).toBeDefined();
-        console.log("stats!", stats)
         expect(stats!.meetsBaseNorm, `${doc.name}: ${stats!.totalHours}h < ${stats!.baseNorm}h base norm`).toBe(true);
       }
     });
   });
+
 });
