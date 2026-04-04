@@ -127,6 +127,21 @@ Loop (up to 50 iterations):
 
 **Trade-offs**: A donor doctor's hours decrease by 12h, potentially pushing them below their base norm — this is acceptable because resolving a rest violation is a higher priority than norm compliance (the donor appears with a norm warning in the output). Slot coverage is unchanged since the shift is reassigned, not removed.
 
+### Phase 2e: Force-Fill Remaining Understaffed Slots
+
+Last-resort pass that guarantees zero understaffed days in the final output. Runs after all other scheduling phases.
+
+For each day (1..N) chronologically:
+1. Re-count coverage (fixed + generated + 24h shifts) for both day and night
+2. If fully staffed → skip
+3. Build candidate pool: all non-optional doctors **excluding** those from constrained teams (`max_doctors_per_shift`) — these teams are capped and should not be force-assigned
+4. **24h preference**: if both day AND night are understaffed, try unconstrained 24h doctors first (one shift covers both slots). Sort by lowest total hours worked
+5. **12h fill**: for any remaining shortfall per shift type, assign 12h doctors sorted by lowest total hours worked
+
+**No rest constraint checking** — shifts are assigned unconditionally and marked `is_forced_coverage = true`. Leave and bridge day constraints are still respected (a doctor on leave/bridge is never assigned).
+
+After this phase, understaffed conflicts should only occur in edge cases where every eligible doctor is already assigned, on leave, or on a bridge day for that date (practically impossible with normal staffing levels).
+
 ### Phase 3: Validation & Output
 
 1. Rebuild counters from final shift list

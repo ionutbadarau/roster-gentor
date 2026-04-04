@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,9 +11,14 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles, Trash2, Loader2, Phone, FileDown, Undo2, Redo2 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles, Trash2, Loader2, Phone, FileDown, Undo2, Redo2, MoreHorizontal } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 
 interface ShiftGridHeaderProps {
@@ -56,6 +62,7 @@ export default function ShiftGridHeader({
 }: ShiftGridHeaderProps) {
   const { t, tArray } = useTranslation();
   const monthNames = tArray('months');
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
 
   return (
     <>
@@ -95,38 +102,31 @@ export default function ShiftGridHeader({
                 <Redo2 className="h-4 w-4" />
               </Button>
             </div>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  {t('scheduling.grid.clearMonth')}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{t('scheduling.grid.clearMonthConfirmTitle')}</AlertDialogTitle>
-                  <AlertDialogDescription>{t('scheduling.grid.clearMonthConfirmDescription')}</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{t('scheduling.grid.clearMonthCancel')}</AlertDialogCancel>
-                  <AlertDialogAction onClick={onClearMonth} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                    {t('scheduling.grid.clearMonthConfirmAction')}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
             <Button onClick={onGenerate} disabled={generating}>
               {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
               {generating ? t('scheduling.grid.generating') : t('scheduling.grid.generate')}
             </Button>
-            <Button variant="outline" onClick={onAssignDispatch} disabled={dispatchAssigning || !hasGeneratedSchedule}>
-              {dispatchAssigning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Phone className="h-4 w-4 mr-2" />}
-              {dispatchAssigning ? t('scheduling.grid.assigningDispatch') : t('scheduling.grid.assignDispatch')}
-            </Button>
-            <Button variant="outline" onClick={onExportPdf} disabled={!hasGeneratedSchedule}>
-              <FileDown className="h-4 w-4 mr-2" />
-              {t('scheduling.grid.exportPdf')}
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" title={t('scheduling.grid.moreActions')}>
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setClearDialogOpen(true)}>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {t('scheduling.grid.clearMonth')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onAssignDispatch} disabled={dispatchAssigning || !hasGeneratedSchedule}>
+                  <Phone className="h-4 w-4 mr-2" />
+                  {dispatchAssigning ? t('scheduling.grid.assigningDispatch') : t('scheduling.grid.assignDispatch')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onExportPdf} disabled={!hasGeneratedSchedule}>
+                  <FileDown className="h-4 w-4 mr-2" />
+                  {t('scheduling.grid.exportPdf')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </CardHeader>
@@ -142,6 +142,24 @@ export default function ShiftGridHeader({
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
+
+      <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('scheduling.grid.clearMonthConfirmTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('scheduling.grid.clearMonthConfirmDescription')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('scheduling.grid.clearMonthCancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { onClearMonth(); setClearDialogOpen(false); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {t('scheduling.grid.clearMonthConfirmAction')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

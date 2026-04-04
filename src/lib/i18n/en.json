@@ -89,7 +89,8 @@
       "manualDispatchDay": "Dispatch Day (X)",
       "manualDispatchNight": "Dispatch Night (Y)",
       "manualDispatchApplied": "Dispatch assigned manually",
-      "exportPdf": "Export PDF"
+      "exportPdf": "Export PDF",
+      "moreActions": "More actions"
     },
     "config": {
       "teamsTitle": "Team Configuration",
@@ -150,7 +151,13 @@
       "maxPerShiftLabel": "1 per shift",
       "maxPerShiftTooltip": "Only 1 doctor from this team works per day/night shift",
       "maxPerShiftChanged": "Max doctors per shift updated",
-      "maxPerShiftError": "Could not update max doctors per shift"
+      "maxPerShiftError": "Could not update max doctors per shift",
+      "deleteTeamTitle": "Delete Team",
+      "deleteTeamMessage": "Are you sure you want to delete \"{{name}}\"? Doctors in this team will become floating staff.",
+      "deleteDoctorTitle": "Delete Doctor",
+      "deleteDoctorMessage": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
+      "cancel": "Cancel",
+      "delete": "Delete"
     },
     "engine": {
       "normWarning": "Base norm cannot be met for {{name}}.",

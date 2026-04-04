@@ -60,6 +60,7 @@ The scheduling engine lives in **`src/lib/scheduling/`** (re-exported from `src/
 - The min nr of working hours each doctor needs to have each month is 7h \* nr of working days for that month
 - Teams rotate by their `order` field; floating doctors fill gaps
 - Cadence-first: D-N-R-R per team, staggered by order; gap-filling with norm rebalancing
+- Force-fill guarantee: a final phase assigns lowest-norm doctors to any remaining understaffed slots regardless of rest constraints, ensuring zero understaffed days after generation (excludes constrained-team and optional doctors)
 - Returns `{ shifts, conflicts, warnings, doctorStats }` — never writes to DB directly
 
 **`src/components/scheduling/shift-grid-calendar.tsx`** — Grid calendar where rows = doctors, columns = days. Calls `SchedulingEngine`, displays results, and allows manual edits. Tracks remaining leave days with validation.

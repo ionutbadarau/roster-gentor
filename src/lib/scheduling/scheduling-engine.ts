@@ -699,6 +699,112 @@ export class SchedulingEngine implements EngineContext {
       }
     }
 
+    // ── Phase 2e: Force-fill all remaining understaffed slots ──
+    // Last-resort pass: assign lowest-norm doctors regardless of rest constraints.
+    // Excludes doctors from constrained teams (max_doctors_per_shift) and optional doctors.
+    // Prefers 24h doctors when both day AND night are understaffed on the same day.
+    {
+      rebuildCounters(this, shifts);
+
+      const constrainedTeamIds = new Set(
+        this.teams.filter(t => t.max_doctors_per_shift).map(t => t.id)
+      );
+
+      const forceFill24h = this.doctors.filter(d =>
+        d.shift_mode === '24h' && !constrainedTeamIds.has(d.team_id || '')
+      );
+      const forceFill12h = this.doctors.filter(d =>
+        d.shift_mode !== '24h' && !constrainedTeamIds.has(d.team_id || '')
+      );
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const currentDate = new Date(this.year, this.month, day);
+        const dateStr = formatDate(currentDate);
+
+        // Count current coverage
+        const fixedDay = fixedShiftsByDateType.get(`${dateStr}:day`)?.length || 0;
+        const fixedNight = fixedShiftsByDateType.get(`${dateStr}:night`)?.length || 0;
+        const genDay = shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'day').length;
+        const genNight = shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'night').length;
+        const gen24h = shifts.filter(s => s.shift_date === dateStr && s.shift_type === '24h').length;
+        const fixed24h = this.fixedShifts.filter(s => s.shift_date === dateStr && s.shift_type === '24h').length;
+        const all24h = gen24h + fixed24h;
+
+        let dayNeeded = this.shiftsPerDay - (fixedDay + genDay + all24h);
+        let nightNeeded = this.shiftsPerNight - (fixedNight + genNight + all24h);
+        if (dayNeeded <= 0 && nightNeeded <= 0) continue;
+
+        // Rebuild assigned set for this day from current state
+        const assignedToday = new Set<string>();
+        for (const s of this.fixedShifts) {
+          if (s.shift_date === dateStr) assignedToday.add(s.doctor_id);
+        }
+        for (const s of shifts) {
+          if (s.shift_date === dateStr) assignedToday.add(s.doctor_id);
+        }
+
+        const isAvailable = (doc: DoctorWithTeam) =>
+          !assignedToday.has(doc.id) &&
+          !isDoctorOnLeave(this, doc.id, currentDate) &&
+          !isDoctorOnBridgeDay(this, doc.id, currentDate);
+
+        // 24h preference: when both day AND night need filling
+        if (dayNeeded > 0 || nightNeeded > 0) {
+          console.log(`[Phase 2e] ${dateStr}: need ${dayNeeded} day, ${nightNeeded} night`);
+        }
+        if (dayNeeded > 0 && nightNeeded > 0) {
+          const avail24h = forceFill24h
+            .filter(isAvailable)
+            .sort((a, b) => (this.doctorHours.get(a.id) || 0) - (this.doctorHours.get(b.id) || 0));
+
+          for (const doc of avail24h) {
+            if (dayNeeded <= 0 || nightNeeded <= 0) break;
+            shifts.push({
+              id: this.generateId(),
+              doctor_id: doc.id,
+              shift_date: dateStr,
+              shift_type: '24h',
+              start_time: '08:00',
+              end_time: '08:00',
+              is_forced_coverage: true,
+            });
+            recordShift24h(this, doc, currentDate);
+            assignedToday.add(doc.id);
+            dayNeeded--;
+            nightNeeded--;
+            console.log(`[Phase 2e]   → 24h: ${doc.name} (${this.doctorHours.get(doc.id)}h)`);
+          }
+        }
+
+        // Fill remaining gaps with 12h doctors
+        for (const shiftType of ['day', 'night'] as const) {
+          let needed = shiftType === 'day' ? dayNeeded : nightNeeded;
+          if (needed <= 0) continue;
+
+          const avail12h = forceFill12h
+            .filter(isAvailable)
+            .sort((a, b) => (this.doctorHours.get(a.id) || 0) - (this.doctorHours.get(b.id) || 0));
+
+          for (const doc of avail12h) {
+            if (needed <= 0) break;
+            shifts.push({
+              id: this.generateId(),
+              doctor_id: doc.id,
+              shift_date: dateStr,
+              shift_type: shiftType,
+              start_time: shiftType === 'day' ? '08:00' : '20:00',
+              end_time: shiftType === 'day' ? '20:00' : '08:00',
+              is_forced_coverage: true,
+            });
+            recordShift(this, doc, currentDate, shiftType);
+            assignedToday.add(doc.id);
+            needed--;
+            console.log(`[Phase 2e]   → ${shiftType}: ${doc.name} (${this.doctorHours.get(doc.id)}h)`);
+          }
+        }
+      }
+    }
+
     // ── Final: Validation & warnings ──
     rebuildCounters(this, shifts);
 

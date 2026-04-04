@@ -244,6 +244,12 @@ describe('SchedulingEngine — Cadence-first algorithm', () => {
     expect(d2ForcedShifts.length).toBeLessThanOrEqual(2);
   });
 
+  it('no understaffed conflicts after generation', () => {
+    const result = generateV2();
+    const understaffed = result.conflicts.filter(c => c.type === 'understaffed');
+    expect(understaffed).toHaveLength(0);
+  });
+
   it('completes without hanging', { timeout: 30_000 }, () => {
     const start = performance.now();
     const result = generateV2();
@@ -407,6 +413,12 @@ describe('SchedulingEngine — Cadence-first algorithm', () => {
       }
     });
 
+    it('no understaffed conflicts after generation', () => {
+      const result = generateWithTeam5();
+      const understaffed = result.conflicts.filter(c => c.type === 'understaffed');
+      expect(understaffed).toHaveLength(0);
+    });
+
     it('all team5 24h doctors meet base norm', () => {
       const result = generateWithTeam5();
       for (const doc of team5Doctors24h) {
@@ -488,6 +500,12 @@ describe('SchedulingEngine — Cadence-first algorithm', () => {
       return engine.generateSchedule();
     }
 
+    it('no understaffed conflicts after generation', () => {
+      const result = generateWithFloating12h();
+      const understaffed = result.conflicts.filter(c => c.type === 'understaffed');
+      expect(understaffed).toHaveLength(0);
+    });
+
     it('all doctors meet base norm', () => {
       const result = generateWithFloating12h();
       const nonOptional = allDoctors6.filter(d => !(d as any).is_optional);
@@ -499,4 +517,135 @@ describe('SchedulingEngine — Cadence-first algorithm', () => {
     });
   });
 
+  describe('Real-real-world April', () => {
+    const teamBlueA   = makeTeam('tb', 'Blue',   1, '#00f');
+    const teamRedA    = makeTeam('tr', 'Red',    2, '#f00');
+    const teamGreenA  = makeTeam('tg', 'Green',  3, '#0f0');
+    const teamYellowA = makeTeam('ty', 'Yellow', 4, '#ff0');
+    const team5A      = { ...makeTeam('t5', 'Team5', 5, '#888'), max_doctors_per_shift: 1 };
+    const allTeamsA = [teamBlueA, teamRedA, teamGreenA, teamYellowA, team5A];
+
+    // Same 12 team doctors
+    const teamDoctorsA: DoctorWithTeam[] = [
+      makeDoctor('d1',  'doctor 1',  'tb', false, teamBlueA),
+      makeDoctor('d2',  'doctor 2',  'tb', false, teamBlueA),
+      makeDoctor('d3',  'doctor 3',  'tb', false, teamBlueA),
+      makeDoctor('d4',  'doctor 4',  'tr', false, teamRedA),
+      makeDoctor('d5',  'doctor 5',  'tr', false, teamRedA),
+      makeDoctor('d6',  'dr 6',      'tr', false, teamRedA),
+      makeDoctor('d7',  'dr 7',      'tg', false, teamGreenA),
+      makeDoctor('d8',  'dr 8',      'tg', false, teamGreenA),
+      makeDoctor('d9',  'dr 9',      'tg', false, teamGreenA),
+      makeDoctor('d10', 'dr 10',     'ty', false, teamYellowA),
+      makeDoctor('d11', 'dr 11',     'ty', false, teamYellowA),
+      makeDoctor('d12', 'dr 12',     'ty', false, teamYellowA),
+    ];
+
+    // df1 and df2 are floating 12h doctors (NOT in team5, NOT 24h)
+    const floatingDoctors12hA: DoctorWithTeam[] = [
+      makeDoctor('df1', 'dr flotant 1', undefined, true),
+      makeDoctor('df2', 'dr flotant 2', undefined, true),
+    ];
+
+    // df3 and df4 are floating + optional
+    const floatingOptionalA: DoctorWithTeam[] = [
+      { ...makeDoctor('df3', 'dr flotant optional 1', undefined, true), is_optional: true },
+      { ...makeDoctor('df4', 'dr flotant optional 2', undefined, true), is_optional: true },
+    ];
+
+    const team5Doctors24hA: DoctorWithTeam[] = [
+      { ...makeDoctor('d13', 'dr 13', 't5', false, team5A), shift_mode: '24h' },
+      { ...makeDoctor('d14', 'dr 14', 't5', false, team5A), shift_mode: '24h' },
+      { ...makeDoctor('d15', 'dr 15', 't5', false, team5A), shift_mode: '24h' },
+      { ...makeDoctor('d16', 'dr 16', 't5', false, team5A), shift_mode: '24h' },
+    ];
+
+    const allDoctorsA = [...teamDoctorsA, ...floatingDoctors12hA, ...floatingOptionalA, ...team5Doctors24hA];
+
+    const leaveDaysA: LeaveDay[] = [
+      // doctor 2
+      ...([25,26,27,28,29,30] as number[]).map(d => makeLeaveDay('d2', formatDate(YEAR, APRIL, d))),
+      // doctor 3
+      ...([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13] as number[]).map(d => makeLeaveDay('d3', formatDate(YEAR, APRIL, d))),
+      // doctor 5
+      ...([13, 14,15,16,17,18] as number[]).map(d => makeLeaveDay('d5', formatDate(YEAR, APRIL, d))),
+      // dr 6
+      ...([25,26,27,28,29,30] as number[]).map(d => makeLeaveDay('d6', formatDate(YEAR, APRIL, d))),
+      // dr 7
+      ...([1,4,20,21,22,23,24,25,26,27,28,29,30] as number[]).map(d => makeLeaveDay('d7', formatDate(YEAR, APRIL, d))),
+      // dr 8
+      ...([10,11,12,13,14,15,16] as number[]).map(d => makeLeaveDay('d8', formatDate(YEAR, APRIL, d))),
+      // dr 9
+      ...([15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30] as number[]).map(d => makeLeaveDay('d9', formatDate(YEAR, APRIL, d))),
+      // dr 10
+      ...([19,20,21,22,23,24] as number[]).map(d => makeLeaveDay('d10', formatDate(YEAR, APRIL, d))),
+      // dr 12
+      ...([6, 7, 8, 9, 10, 11, 12, 13, 14] as number[]).map(d => makeLeaveDay('d12', formatDate(YEAR, APRIL, d))),
+      // dr flotant 1
+      ...([1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as number[]).map(d => makeLeaveDay('df1', formatDate(YEAR, APRIL, d))),
+      // dr flotant 2
+      ...([17,18,19,25,26] as number[]).map(d => makeLeaveDay('df2', formatDate(YEAR, APRIL, d))),
+      // dr 14
+      ...([30] as number[]).map(d => makeLeaveDay('d14', formatDate(YEAR, APRIL, d))),
+      // dr 16
+      ...([5,6,7,8,9,10] as number[]).map(d => makeLeaveDay('d16', formatDate(YEAR, APRIL, d))),
+      // dr flotant 4
+      ...([6,7,8,9,10,11,12,13,14] as number[]).map(d => makeLeaveDay('df4', formatDate(YEAR, APRIL, d))),
+    ];
+
+    function generateApril() {
+      const engine = new SchedulingEngine({
+        month: APRIL,
+        year: YEAR,
+        doctors: allDoctorsA,
+        teams: allTeamsA,
+        shiftsPerDay: 4,
+        shiftsPerNight: 4,
+        leaveDays: leaveDaysA,
+      });
+      return engine.generateSchedule();
+    }
+
+    it('completes without hanging', { timeout: 30_000 }, () => {
+      const start = performance.now();
+      const result = generateApril();
+      const elapsed = performance.now() - start;
+      expect(elapsed).toBeLessThan(30_000);
+      expect(result.shifts.length).toBeGreaterThan(0);
+    });
+
+    it('no shifts on leave days', () => {
+      const result = generateApril();
+      for (const leave of leaveDaysA) {
+        const docShifts = result.shifts.filter(
+          s => s.doctor_id === leave.doctor_id && s.shift_date === leave.leave_date
+        );
+        expect(docShifts).toHaveLength(0);
+      }
+    });
+
+    it('no understaffed conflicts after generation', () => {
+      const result = generateApril();
+      const understaffed = result.conflicts.filter(c => c.type === 'understaffed');
+      expect(understaffed).toHaveLength(0);
+    });
+
+    it('all doctors meet base norm', () => {
+      const result = generateApril();
+      const nonOptional = allDoctorsA.filter(d => !(d as any).is_optional);
+      for (const doc of nonOptional) {
+        const stats = result.doctorStats.find(s => s.doctorId === doc.id);
+        expect(stats, `${doc.name} missing from doctorStats`).toBeDefined();
+        expect(stats!.meetsBaseNorm, `${doc.name}: ${stats!.totalHours}h < ${stats!.baseNorm}h base norm`).toBe(true);
+      }
+    });
+
+    it('all floating 12h doctors get at least 1 shift', () => {
+      const result = generateApril();
+      for (const doc of floatingDoctors12hA) {
+        const count = result.shifts.filter(s => s.doctor_id === doc.id).length;
+        expect(count).toBeGreaterThan(0);
+      }
+    });
+  });
 });

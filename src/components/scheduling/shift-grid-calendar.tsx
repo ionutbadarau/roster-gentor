@@ -65,6 +65,7 @@ export default function ShiftGridCalendar({
   } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [selectionPopup, setSelectionPopup] = useState<SelectionPopupData | null>(null);
+  const [altHoveredDay, setAltHoveredDay] = useState<number | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
@@ -250,10 +251,16 @@ export default function ShiftGridCalendar({
     return Array.from(new Set(result));
   }, [generationWarnings, normWarnings, restViolationWarnings, shiftShortfallDays, shiftOverstaffDays, currentMonth, currentYear, shiftsPerDay, shiftsPerNight]);
 
-  // Sort doctors by display_order (manual sort from config)
+  // Sort doctors by team order first, then by display_order within each team
   const sortedDoctors = useMemo(() => {
-    return [...doctors].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
-  }, [doctors]);
+    const teamOrderMap = new Map(teams.map((t) => [t.id, t.order ?? 0]));
+    return [...doctors].sort((a, b) => {
+      const teamA = a.team_id ? (teamOrderMap.get(a.team_id) ?? 999) : 999;
+      const teamB = b.team_id ? (teamOrderMap.get(b.team_id) ?? 999) : 999;
+      if (teamA !== teamB) return teamA - teamB;
+      return (a.display_order ?? 0) - (b.display_order ?? 0);
+    });
+  }, [doctors, teams]);
 
   // --- Navigation ---
   const handlePreviousMonth = () => {
@@ -912,6 +919,15 @@ export default function ShiftGridCalendar({
     historyClear();
   }, [currentMonth, currentYear, historyClear]);
 
+  // Clear ALT-hover highlight when ALT key is released
+  useEffect(() => {
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Alt') setAltHoveredDay(null);
+    };
+    window.addEventListener('keyup', handleKeyUp);
+    return () => window.removeEventListener('keyup', handleKeyUp);
+  }, []);
+
   // --- Cell letter extraction ---
   const extractCellLetter = (label: string, fallback: string): string => {
     return label.match(/\((.+?)\)/)?.[1] || fallback;
@@ -998,6 +1014,8 @@ export default function ShiftGridCalendar({
                       ? t('scheduling.grid.understaffedWarning', { day, ...understaffedDays.get(day)! })
                       : t('scheduling.grid.holidayToggleTooltip')}
                     onClick={() => handleToggleHoliday(day)}
+                    onMouseMove={(e) => { if (e.altKey) setAltHoveredDay(day); else if (altHoveredDay === day) setAltHoveredDay(null); }}
+                    onMouseLeave={() => { if (altHoveredDay === day) setAltHoveredDay(null); }}
                   >
                     <div className="font-semibold">{day}</div>
                     <div>{getDayOfWeek(day)}</div>
@@ -1038,7 +1056,9 @@ export default function ShiftGridCalendar({
                   isWeekend={isWeekend}
                   onCellMouseDown={(day, e) => handleCellMouseDown(doctor.id, day, e)}
                   onCellMouseEnter={(day) => handleCellMouseEnter(doctor.id, day)}
+                  onCellMouseMove={(day, e) => { if (e.altKey) setAltHoveredDay(day); else if (altHoveredDay === day) setAltHoveredDay(null); }}
                   hasGenerated={hasGeneratedForMonth}
+                  altHighlight={altHoveredDay !== null && !getShiftForDoctorAndDay(doctor.id, altHoveredDay) && !isLeaveDay(doctor.id, altHoveredDay)}
                 />
               ))}
             </div>

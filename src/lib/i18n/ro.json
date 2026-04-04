@@ -89,7 +89,8 @@
       "manualDispatchApplied": "Dispecerat atribuit manual",
       "exportPdf": "Export PDF",
       "manualShiftTooltip": "Selecție manuală — păstrată la regenerare",
-      "manualShiftLegend": "Manual (fixat)"
+      "manualShiftLegend": "Manual (fixat)",
+      "moreActions": "Mai multe acțiuni"
     },
     "config": {
       "teamsTitle": "Configurare Echipe",
@@ -150,7 +151,13 @@
       "maxPerShiftLabel": "1 per tură",
       "maxPerShiftTooltip": "Doar 1 doctor din această echipă lucrează pe tură de zi/noapte",
       "maxPerShiftChanged": "Numărul maxim de doctori pe tură a fost actualizat",
-      "maxPerShiftError": "Nu s-a putut actualiza numărul maxim de doctori pe tură"
+      "maxPerShiftError": "Nu s-a putut actualiza numărul maxim de doctori pe tură",
+      "deleteTeamTitle": "Șterge Echipa",
+      "deleteTeamMessage": "Ești sigur că vrei să ștergi \"{{name}}\"? Doctorii din această echipă vor deveni personal flotant.",
+      "deleteDoctorTitle": "Șterge Doctor",
+      "deleteDoctorMessage": "Ești sigur că vrei să ștergi \"{{name}}\"? Această acțiune nu poate fi anulată.",
+      "cancel": "Anulează",
+      "delete": "Șterge"
     },
     "engine": {
       "normWarning": "Norma de baza nu poate fi indeplinita pentru {{name}}.",
