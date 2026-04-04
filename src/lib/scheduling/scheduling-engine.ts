@@ -755,7 +755,10 @@ export class SchedulingEngine implements EngineContext {
         if (dayNeeded > 0 && nightNeeded > 0) {
           const avail24h = forceFill24h
             .filter(isAvailable)
-            .sort((a, b) => (this.doctorHours.get(a.id) || 0) - (this.doctorHours.get(b.id) || 0));
+            .sort((a, b) =>
+              ((this.doctorHours.get(a.id) || 0) - calculateBaseNorm(this, a.id)) -
+              ((this.doctorHours.get(b.id) || 0) - calculateBaseNorm(this, b.id))
+            );
 
           for (const doc of avail24h) {
             if (dayNeeded <= 0 || nightNeeded <= 0) break;
@@ -783,7 +786,10 @@ export class SchedulingEngine implements EngineContext {
 
           const avail12h = forceFill12h
             .filter(isAvailable)
-            .sort((a, b) => (this.doctorHours.get(a.id) || 0) - (this.doctorHours.get(b.id) || 0));
+            .sort((a, b) =>
+              ((this.doctorHours.get(a.id) || 0) - calculateBaseNorm(this, a.id)) -
+              ((this.doctorHours.get(b.id) || 0) - calculateBaseNorm(this, b.id))
+            );
 
           for (const doc of avail12h) {
             if (needed <= 0) break;
