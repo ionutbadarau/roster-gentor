@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SchedulingEngine, SCHEDULING_CONSTANTS } from '@/lib/scheduling-engine';
+import { equalizeShifts } from '@/lib/scheduling/equalize-shifts';
 import type { DoctorWithTeam, Team, LeaveDay, Shift } from '@/types/scheduling';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -645,6 +646,82 @@ describe('SchedulingEngine — Cadence-first algorithm', () => {
       for (const doc of floatingDoctors12hA) {
         const count = result.shifts.filter(s => s.doctor_id === doc.id).length;
         expect(count).toBeGreaterThan(0);
+      }
+    });
+
+    it('equalizeShifts brings EQZB doctors within integer-part < 2', () => {
+      const result = generateApril();
+
+      const options = {
+        month: APRIL,
+        year: YEAR,
+        doctors: allDoctorsA,
+        teams: allTeamsA,
+        shiftsPerDay: 4,
+        shiftsPerNight: 4,
+        leaveDays: leaveDaysA,
+      };
+
+      const equalized = equalizeShifts(result.shifts, options);
+
+      // Determine EQZB doctors (not optional, not in constrained team, not 24h)
+      const constrainedTeamIds = new Set(
+        allTeamsA.filter(t => t.max_doctors_per_shift != null).map(t => t.id)
+      );
+      const eqzbDoctors = allDoctorsA.filter(d =>
+        !d.is_optional &&
+        d.shift_mode !== '24h' &&
+        !(d.team_id && constrainedTeamIds.has(d.team_id))
+      );
+
+      // Compute norm deltas for EQZB doctors after equalization
+      const workingDays = SchedulingEngine.getWorkingDaysInMonthStatic(APRIL, YEAR);
+      const deltas = eqzbDoctors.map(doc => {
+        const docShifts = equalized.shifts.filter((s: Shift) => s.doctor_id === doc.id);
+        const shifts24h = docShifts.filter((s: Shift) => s.shift_type === '24h').length;
+        const dayShifts = docShifts.filter((s: Shift) => s.shift_type === 'day').length + shifts24h;
+        const nightShifts = docShifts.filter((s: Shift) => s.shift_type === 'night').length + shifts24h;
+        const totalHours = (dayShifts + nightShifts) * 12;
+        const leaveDaysCount = leaveDaysA.filter(
+          l => l.doctor_id === doc.id && l.leave_type !== 'bridge'
+        ).length;
+        const baseNorm = 7 * (workingDays - leaveDaysCount);
+        return { doctor: doc, delta: (totalHours - baseNorm) / 12 };
+      });
+
+      const intParts = deltas.map(d => Math.trunc(d.delta));
+      const minInt = Math.min(...intParts);
+      const maxInt = Math.max(...intParts);
+
+      expect(maxInt - minInt).toBeLessThan(2);
+
+      // Shift counts per (date, shift_type) must be preserved
+      const countsBefore = new Map<string, number>();
+      for (const s of result.shifts) {
+        if (s.shift_type === 'day' || s.shift_type === 'night') {
+          const key = `${s.shift_date}:${s.shift_type}`;
+          countsBefore.set(key, (countsBefore.get(key) || 0) + 1);
+        }
+      }
+      const countsAfter = new Map<string, number>();
+      for (const s of equalized.shifts) {
+        if (s.shift_type === 'day' || s.shift_type === 'night') {
+          const key = `${s.shift_date}:${s.shift_type}`;
+          countsAfter.set(key, (countsAfter.get(key) || 0) + 1);
+        }
+      }
+      countsBefore.forEach((count, key) => {
+        expect(countsAfter.get(key), `slot ${key} count changed`).toBe(count);
+      });
+
+      // Optional and 24h doctors must not be involved in swaps
+      const optionalIds = new Set(allDoctorsA.filter(d => d.is_optional).map(d => d.id));
+      const team24hIds = new Set(allDoctorsA.filter(d => d.shift_mode === '24h').map(d => d.id));
+      for (const swap of equalized.swaps) {
+        expect(optionalIds.has(swap.fromDoctorId)).toBe(false);
+        expect(optionalIds.has(swap.toDoctorId)).toBe(false);
+        expect(team24hIds.has(swap.fromDoctorId)).toBe(false);
+        expect(team24hIds.has(swap.toDoctorId)).toBe(false);
       }
     });
   });

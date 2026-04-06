@@ -12,6 +12,7 @@ import { Loader2 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 import { formatDateString, getMonthPrefix, getMonthBoundary, groupShiftsByDoctor, getShiftStartMs, getShiftEndMs, getRestHours } from '@/lib/scheduling/shift-utils';
 import { assignDispatch } from '@/lib/scheduling/dispatch-assignment';
+import { equalizeShifts } from '@/lib/scheduling/equalize-shifts';
 import { upsertShift, createLeaveDay, deleteRecord, deleteMonthShifts, deleteMonthLeaveDays, restoreShift, restoreLeaveDay } from '@/lib/scheduling/shift-data-service';
 import { useUndoHistory, type UndoEntry, type DispatchChange } from '@/lib/scheduling/use-undo-history';
 import { exportSchedulePdf } from '@/lib/scheduling/export-pdf';
@@ -56,6 +57,7 @@ export default function ShiftGridCalendar({
 }: ShiftGridCalendarProps) {
   const [generating, setGenerating] = useState(false);
   const [dispatchAssigning, setDispatchAssigning] = useState(false);
+  const [equalizing, setEqualizing] = useState(false);
   const { generate: generateInWorker } = useSchedulingWorker();
   const [generationWarnings, setGenerationWarnings] = useState<string[]>([]);
   const [dragState, setDragState] = useState<{
@@ -386,6 +388,83 @@ export default function ShiftGridCalendar({
       toast({ title: t('common.error'), description: t('scheduling.grid.dispatchAssignError'), variant: 'destructive' });
     } finally {
       setDispatchAssigning(false);
+    }
+  };
+
+  // --- Shift equalization ---
+  const handleEqualizeShifts = async () => {
+    setEqualizing(true);
+    const { start: monthStart, end: monthEnd } = getMonthBoundary(currentYear, currentMonth, daysInMonth);
+
+    try {
+      const monthShifts = shifts.filter(s => s.shift_date >= monthStart && s.shift_date <= monthEnd);
+      const result = equalizeShifts(monthShifts, {
+        month: currentMonth,
+        year: currentYear,
+        doctors: doctors as any,
+        teams,
+        shiftsPerDay,
+        shiftsPerNight,
+        leaveDays,
+        nationalHolidays,
+      });
+
+      if (result.swaps.length === 0) {
+        toast({
+          title: t('common.success'),
+          description: t('scheduling.grid.equalizeNoChange'),
+        });
+        return;
+      }
+
+      // Batch-update Supabase: update doctor_id for each swapped shift
+      const swapMap = new Map(result.swaps.map(sw => [sw.shiftId, sw.toDoctorId]));
+      const shiftIds = result.swaps.map(sw => sw.shiftId);
+
+      // Update in batches (Supabase doesn't support per-row updates in bulk,
+      // so group by target doctor_id)
+      const byTarget = new Map<string, string[]>();
+      for (const sw of result.swaps) {
+        if (!byTarget.has(sw.toDoctorId)) byTarget.set(sw.toDoctorId, []);
+        byTarget.get(sw.toDoctorId)!.push(sw.shiftId);
+      }
+      await Promise.all(
+        Array.from(byTarget.entries()).map(([doctorId, ids]) =>
+          supabase.from('shifts').update({ doctor_id: doctorId }).in('id', ids)
+        )
+      );
+
+      // Update local state
+      const updatedShifts = shifts.map(s => {
+        const newDoctorId = swapMap.get(s.id);
+        if (newDoctorId) return { ...s, doctor_id: newDoctorId };
+        return s;
+      });
+      onShiftsUpdate(updatedShifts);
+
+      // Push to undo history
+      const undoEntry: UndoEntry = {
+        previousShifts: [],
+        previousLeaveDays: [],
+        createdShifts: [],
+        createdLeaveDays: [],
+        equalizeChanges: result.swaps.map(sw => ({
+          shiftId: sw.shiftId,
+          oldDoctorId: sw.fromDoctorId,
+          newDoctorId: sw.toDoctorId,
+        })),
+      };
+      historyPush(undoEntry);
+
+      toast({
+        title: t('common.success'),
+        description: t('scheduling.grid.equalizeSuccess', { month: monthNames[currentMonth], year: currentYear }),
+      });
+    } catch (error) {
+      console.error('Error equalizing shifts:', error);
+      toast({ title: t('common.error'), description: t('scheduling.grid.equalizeError'), variant: 'destructive' });
+    } finally {
+      setEqualizing(false);
     }
   };
 
@@ -838,6 +917,22 @@ export default function ShiftGridCalendar({
         currentShifts = currentShifts.map(s => dcMap.has(s.id) ? { ...s, dispatch_type: dcMap.get(s.id) ?? null } : s);
       }
 
+      // Reverse equalize changes (set each shift back to its old doctor_id)
+      if (entry.equalizeChanges?.length) {
+        const byOldDoctor = new Map<string, string[]>();
+        for (const ec of entry.equalizeChanges) {
+          if (!byOldDoctor.has(ec.oldDoctorId)) byOldDoctor.set(ec.oldDoctorId, []);
+          byOldDoctor.get(ec.oldDoctorId)!.push(ec.shiftId);
+        }
+        await Promise.all(
+          Array.from(byOldDoctor.entries()).map(([doctorId, ids]) =>
+            supabase.from('shifts').update({ doctor_id: doctorId }).in('id', ids)
+          )
+        );
+        const ecMap = new Map(entry.equalizeChanges.map(ec => [ec.shiftId, ec.oldDoctorId]));
+        currentShifts = currentShifts.map(s => ecMap.has(s.id) ? { ...s, doctor_id: ecMap.get(s.id)! } : s);
+      }
+
       // Update local state
       const createdShiftSet = new Set(entry.createdShifts.map(s => s.id));
       const createdLeaveSet = new Set(entry.createdLeaveDays.map(l => l.id));
@@ -880,6 +975,22 @@ export default function ShiftGridCalendar({
         );
         const dcMap = new Map(entry.dispatchChanges.map(dc => [dc.shiftId, dc.newDispatchType]));
         currentShifts = currentShifts.map(s => dcMap.has(s.id) ? { ...s, dispatch_type: dcMap.get(s.id) ?? null } : s);
+      }
+
+      // Re-apply equalize changes (set each shift to its new doctor_id)
+      if (entry.equalizeChanges?.length) {
+        const byNewDoctor = new Map<string, string[]>();
+        for (const ec of entry.equalizeChanges) {
+          if (!byNewDoctor.has(ec.newDoctorId)) byNewDoctor.set(ec.newDoctorId, []);
+          byNewDoctor.get(ec.newDoctorId)!.push(ec.shiftId);
+        }
+        await Promise.all(
+          Array.from(byNewDoctor.entries()).map(([doctorId, ids]) =>
+            supabase.from('shifts').update({ doctor_id: doctorId }).in('id', ids)
+          )
+        );
+        const ecMap = new Map(entry.equalizeChanges.map(ec => [ec.shiftId, ec.newDoctorId]));
+        currentShifts = currentShifts.map(s => ecMap.has(s.id) ? { ...s, doctor_id: ecMap.get(s.id)! } : s);
       }
 
       // Update local state
@@ -970,12 +1081,14 @@ export default function ShiftGridCalendar({
           totalBridgeDaysCount={totalBridgeDaysCount}
           generating={generating}
           dispatchAssigning={dispatchAssigning}
+          equalizing={equalizing}
           hasGeneratedSchedule={hasGeneratedForMonth}
           onPreviousMonth={handlePreviousMonth}
           onNextMonth={handleNextMonth}
           onGenerate={handleGenerateSchedule}
           onClearMonth={handleClearMonth}
           onAssignDispatch={handleAssignDispatch}
+          onEqualizeShifts={handleEqualizeShifts}
           onExportPdf={handleExportPdf}
           canUndo={canUndo}
           onUndo={handleUndo}

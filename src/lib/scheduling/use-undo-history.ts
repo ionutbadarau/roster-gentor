@@ -9,6 +9,12 @@ export type DispatchChange = {
   newDispatchType: 'day' | 'night' | null;
 };
 
+export type EqualizeChange = {
+  shiftId: string;
+  oldDoctorId: string;
+  newDoctorId: string;
+};
+
 export type UndoEntry = {
   /** Records that existed before the action (to restore on undo) */
   previousShifts: Shift[];
@@ -18,6 +24,8 @@ export type UndoEntry = {
   createdLeaveDays: LeaveDay[];
   /** In-place dispatch_type changes (for manual dispatch assignment) */
   dispatchChanges?: DispatchChange[];
+  /** In-place doctor_id swaps (for shift equalization) */
+  equalizeChanges?: EqualizeChange[];
 };
 
 /**

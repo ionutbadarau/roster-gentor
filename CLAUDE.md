@@ -51,6 +51,7 @@ The scheduling engine lives in **`src/lib/scheduling/`** (re-exported from `src/
 | `constraints.ts` | `canDoctorWork`, `canDoctorWorkWithTimeline` — all constraint checking |
 | `stats.ts` | Shift recording, counter management, per-doctor statistics |
 | `validation.ts` | Static utilities: `detectConflicts`, `validateLeaveDays`, `computeUnderstaffedDays` |
+| `equalize-shifts.ts` | Post-generation shift equalization: swaps shifts between EQZB doctors to balance "+/- Norm" deltas |
 
 **Key rules:**
 

@@ -18,7 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles, Trash2, Loader2, Phone, FileDown, Undo2, Redo2, MoreHorizontal } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles, Trash2, Loader2, Phone, FileDown, Undo2, Redo2, MoreHorizontal, Scale } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 
 interface ShiftGridHeaderProps {
@@ -28,12 +28,14 @@ interface ShiftGridHeaderProps {
   totalBridgeDaysCount: number;
   generating: boolean;
   dispatchAssigning: boolean;
+  equalizing: boolean;
   hasGeneratedSchedule: boolean;
   onPreviousMonth: () => void;
   onNextMonth: () => void;
   onGenerate: () => void;
   onClearMonth: () => void;
   onAssignDispatch: () => void;
+  onEqualizeShifts: () => void;
   onExportPdf: () => void;
   canUndo?: boolean;
   onUndo?: () => void;
@@ -48,12 +50,14 @@ export default function ShiftGridHeader({
   totalBridgeDaysCount,
   generating,
   dispatchAssigning,
+  equalizing,
   hasGeneratedSchedule,
   onPreviousMonth,
   onNextMonth,
   onGenerate,
   onClearMonth,
   onAssignDispatch,
+  onEqualizeShifts,
   onExportPdf,
   canUndo,
   onUndo,
@@ -106,6 +110,10 @@ export default function ShiftGridHeader({
               {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
               {generating ? t('scheduling.grid.generating') : t('scheduling.grid.generate')}
             </Button>
+            <Button variant="outline" onClick={onEqualizeShifts} disabled={equalizing || !hasGeneratedSchedule}>
+              {equalizing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Scale className="h-4 w-4 mr-2" />}
+              {equalizing ? t('scheduling.grid.equalizingShifts') : t('scheduling.grid.equalizeShifts')}
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" title={t('scheduling.grid.moreActions')}>
@@ -131,7 +139,7 @@ export default function ShiftGridHeader({
         </div>
       </CardHeader>
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 px-6">
         <Button variant="outline" size="sm" onClick={onPreviousMonth}>
           <ChevronLeft className="h-4 w-4" />
         </Button>

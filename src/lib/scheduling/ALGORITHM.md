@@ -153,6 +153,32 @@ After this phase, understaffed conflicts should only occur in edge cases where e
 
 Returns `{ shifts, conflicts, warnings, doctorStats }`.
 
+### Post-Generation: Shift Equalization
+
+Activated manually via the **"Equalize shifts"** button after a schedule has been generated. Equalizes shift distribution among **equalizable (EQZB)** doctors so that the integer part of every EQZB doctor's "+/- Norm" delta differs by < 2 from every other EQZB doctor's delta.
+
+**EQZB doctors**: not optional, not in a team with `max_doctors_per_shift`, not 24h.
+
+Loop (up to 500 iterations):
+1. Compute "+/- Norm" delta for all EQZB doctors: `(totalHours - baseNorm) / 12`
+2. Find the doctor with the **lowest** delta (under-normed, UN) and the one with the **highest** (over-normed)
+3. If `trunc(highest.delta) - trunc(lowest.delta) < 2` → equalization complete (e.g. 1.1 vs 2.9 is fine; 1.1 vs 3.0 is not)
+4. Identify all **ON donors**: EQZB doctors whose integer-part delta is ≥ 2 above the UN doctor's
+5. For the UN doctor, scan every available day/night slot in the month (skipping leave, bridge, and days where UN already has a shift)
+6. For each candidate slot, find the best shift to **steal** from an ON donor:
+   - **Rest-violation shifts have priority** — stealing a shift that is already part of a rest violation reduces total violations
+   - Among equal-priority candidates, prefer the ON donor with the **highest** "+/- Norm" delta
+   - Manual/fixed shifts (`is_manual`) are never stolen
+7. If no stealable shift is found → equalization cannot progress further, exit
+8. Execute the swap: reassign the shift from the ON donor to the UN doctor, rebuild counters, repeat
+
+**Key properties**:
+- Slot coverage is unchanged — one doctor replaces another on the same shift
+- Preferring violation shifts as steal targets reduces the total number of rest violations
+- The algorithm is idempotent: running it twice produces the same result
+
+Implementation: `src/lib/scheduling/equalize-shifts.ts`
+
 ## Module Map
 
 ```
