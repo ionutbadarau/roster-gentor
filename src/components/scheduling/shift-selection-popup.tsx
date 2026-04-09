@@ -13,7 +13,7 @@ interface ShiftSelectionPopupProps {
   popup: SelectionPopupData;
   hasAssignments: boolean;
   hasBridgeCandidates: boolean;
-  hasDispatch: boolean;
+  activeDispatchTypes: Set<'day' | 'night'>;
   shiftTypes: Set<string>;
   onBatchAction: (action: 'day' | 'night' | '24h' | 'leave' | 'bridge') => void;
   onDispatchAction: (dispatchType: 'day' | 'night') => void;
@@ -21,11 +21,11 @@ interface ShiftSelectionPopupProps {
 }
 
 const ShiftSelectionPopup = forwardRef<HTMLDivElement, ShiftSelectionPopupProps>(
-  ({ popup, hasAssignments, hasBridgeCandidates, hasDispatch, shiftTypes, onBatchAction, onDispatchAction, onBatchClear }, ref) => {
+  ({ popup, hasAssignments, hasBridgeCandidates, activeDispatchTypes, shiftTypes, onBatchAction, onDispatchAction, onBatchClear }, ref) => {
     const { t } = useTranslation();
 
-    const canDispatchDay = hasAssignments && !hasDispatch && (shiftTypes.has('day') || shiftTypes.has('24h'));
-    const canDispatchNight = hasAssignments && !hasDispatch && (shiftTypes.has('night') || shiftTypes.has('24h'));
+    const canDispatchDay = hasAssignments && (shiftTypes.has('day') || shiftTypes.has('24h'));
+    const canDispatchNight = hasAssignments && (shiftTypes.has('night') || shiftTypes.has('24h'));
     const dispatchCount = (canDispatchDay ? 1 : 0) + (canDispatchNight ? 1 : 0);
     const POPUP_W = 190;
     let baseH = 196;
@@ -87,7 +87,7 @@ const ShiftSelectionPopup = forwardRef<HTMLDivElement, ShiftSelectionPopupProps>
             <div className="border-t my-1" />
             {canDispatchDay && (
               <button
-                className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
+                className={`flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer ${activeDispatchTypes.has('day') ? 'bg-green-100 dark:bg-green-900/30' : ''}`}
                 onClick={() => onDispatchAction('day')}
               >
                 <Phone className="w-4 h-4 flex-shrink-0 text-green-600" />
@@ -96,7 +96,7 @@ const ShiftSelectionPopup = forwardRef<HTMLDivElement, ShiftSelectionPopupProps>
             )}
             {canDispatchNight && (
               <button
-                className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
+                className={`flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer ${activeDispatchTypes.has('night') ? 'bg-teal-100 dark:bg-teal-900/30' : ''}`}
                 onClick={() => onDispatchAction('night')}
               >
                 <Phone className="w-4 h-4 flex-shrink-0 text-teal-600" />

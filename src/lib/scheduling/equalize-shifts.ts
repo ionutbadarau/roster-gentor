@@ -97,7 +97,7 @@ export function equalizeShifts(
     );
 
     // Build set of shift IDs that are part of rest violations
-    const allShifts = [...engine.fixedShifts, ...shifts];
+    const allShifts = [...engine.previousMonthShifts, ...engine.fixedShifts, ...shifts];
     const violationPairs = findRestViolationPairs(allShifts);
     const violatingShiftIds = new Set<string>();
     for (const vp of violationPairs) {
@@ -138,8 +138,7 @@ export function equalizeShifts(
           if (!eqzbIds.has(s.doctor_id)) continue;
 
           // Hard constraints: skip if assigning this shift to UN doctor would violate
-          const allForHC = [...engine.fixedShifts, ...shifts];
-          if (violatesHardConstraints(unDoctor.id, s.shift_date, shiftType, allForHC)) continue;
+          if (violatesHardConstraints(unDoctor.id, s.shift_date, shiftType, allShifts)) continue;
 
           const isViolation = violatingShiftIds.has(s.id);
           const donorDelta = deltaMap.get(s.doctor_id) ?? 0;

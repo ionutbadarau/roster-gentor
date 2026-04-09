@@ -293,7 +293,7 @@ export default function ShiftGridCalendar({
       // Collect last few days of previous month to seed rest constraints
       const prevMonthDate = new Date(currentYear, currentMonth, 0);
       const prevMonthEnd = formatDateString(prevMonthDate.getFullYear(), prevMonthDate.getMonth(), prevMonthDate.getDate());
-      const prevLookbackDay = Math.max(1, prevMonthDate.getDate() - 2);
+      const prevLookbackDay = Math.max(1, prevMonthDate.getDate() - 4);
       const prevMonthLookback = formatDateString(prevMonthDate.getFullYear(), prevMonthDate.getMonth(), prevLookbackDay);
       const previousMonthShifts = shifts.filter(s => s.shift_date >= prevMonthLookback && s.shift_date <= prevMonthEnd);
 
@@ -674,13 +674,16 @@ export default function ShiftGridCalendar({
     });
   }, [selectionPopup, shifts, leaveDays, currentYear, currentMonth]);
 
-  const selectionHasDispatch = useMemo(() => {
-    if (!selectionPopup) return false;
+  const selectionDispatchTypes = useMemo(() => {
+    const types = new Set<'day' | 'night'>();
+    if (!selectionPopup) return types;
     const { doctorId, days: selectedDays } = selectionPopup;
-    return selectedDays.some(day => {
+    for (const day of selectedDays) {
       const dateStr = formatDateString(currentYear, currentMonth, day);
-      return shifts.some(s => s.doctor_id === doctorId && s.shift_date === dateStr && s.dispatch_type);
-    });
+      const shift = shifts.find(s => s.doctor_id === doctorId && s.shift_date === dateStr && s.dispatch_type);
+      if (shift?.dispatch_type) types.add(shift.dispatch_type as 'day' | 'night');
+    }
+    return types;
   }, [selectionPopup, shifts, currentYear, currentMonth]);
 
   const selectionShiftTypes = useMemo(() => {
@@ -733,7 +736,7 @@ export default function ShiftGridCalendar({
 
         if (existingLeave) {
           const existingType = existingLeave.leave_type || 'regular';
-          const targetType = action === 'bridge' ? 'bridge' : 'regular';
+          const targetType = action === 'bridge' ? 'bridge' : isNonWorkingDay(day) ? 'bridge' : 'regular';
           if ((action === 'leave' || action === 'bridge') && existingType === targetType) continue;
           snapshotLeaves.push(existingLeave);
           await deleteRecord(supabase, 'leave_days', existingLeave.id);
@@ -741,7 +744,7 @@ export default function ShiftGridCalendar({
         }
 
         if (action === 'leave' || action === 'bridge') {
-          const leaveType = action === 'bridge' ? 'bridge' : 'regular';
+          const leaveType = action === 'bridge' ? 'bridge' : isNonWorkingDay(day) ? 'bridge' : 'regular';
           const data = await createLeaveDay(supabase, doctorId, dateStr, leaveType);
           createdLeaves.push(data);
           updatedLeaveDays = [...updatedLeaveDays, data];
@@ -841,15 +844,17 @@ export default function ShiftGridCalendar({
           );
         }
 
-        // Set dispatch on the target shift
+        // Toggle dispatch on the target shift: remove if same type, set otherwise
+        const isToggleOff = targetShift.dispatch_type === dispatchType;
+        const newType = isToggleOff ? null : dispatchType;
         dispatchChanges.push({
           shiftId: targetShift.id,
           previousDispatchType: (targetShift.dispatch_type as 'day' | 'night' | null) ?? null,
-          newDispatchType: dispatchType,
+          newDispatchType: newType,
         });
-        await supabase.from('shifts').update({ dispatch_type: dispatchType }).eq('id', targetShift.id);
+        await supabase.from('shifts').update({ dispatch_type: newType }).eq('id', targetShift.id);
         updatedShifts = updatedShifts.map(s =>
-          s.id === targetShift.id ? { ...s, dispatch_type: dispatchType } : s
+          s.id === targetShift.id ? { ...s, dispatch_type: newType } : s
         );
       }
 
@@ -1171,7 +1176,7 @@ export default function ShiftGridCalendar({
                   onCellMouseEnter={(day) => handleCellMouseEnter(doctor.id, day)}
                   onCellMouseMove={(day, e) => { if (e.altKey) setAltHoveredDay(day); else if (altHoveredDay === day) setAltHoveredDay(null); }}
                   hasGenerated={hasGeneratedForMonth}
-                  altHighlight={altHoveredDay !== null && !getShiftForDoctorAndDay(doctor.id, altHoveredDay) && !isLeaveDay(doctor.id, altHoveredDay)}
+                  altHighlight={altHoveredDay !== null && !getShiftForDoctorAndDay(doctor.id, altHoveredDay) && !isLeaveDay(doctor.id, altHoveredDay) && !isBridgeDay(doctor.id, altHoveredDay)}
                 />
               ))}
             </div>
@@ -1184,7 +1189,7 @@ export default function ShiftGridCalendar({
               popup={selectionPopup}
               hasAssignments={selectionHasAssignments}
               hasBridgeCandidates={selectionHasBridgeCandidates}
-              hasDispatch={selectionHasDispatch}
+              activeDispatchTypes={selectionDispatchTypes}
               shiftTypes={selectionShiftTypes}
               onBatchAction={handleBatchAction}
               onDispatchAction={handleDispatchAction}

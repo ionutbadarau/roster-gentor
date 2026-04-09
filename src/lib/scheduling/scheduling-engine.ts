@@ -202,7 +202,7 @@ export class SchedulingEngine implements EngineContext {
           if (maxPerShift && teamShiftCount >= maxPerShift) continue;
 
           // Hard constraints: max consecutive days & no NZN pattern
-          const allCurrent = [...this.fixedShifts, ...shifts];
+          const allCurrent = [...this.previousMonthShifts, ...this.fixedShifts, ...shifts];
           if (violatesHardConstraints(doc.id, dateStr, cadenceType, allCurrent)) continue;
 
           shifts.push({
@@ -465,7 +465,7 @@ export class SchedulingEngine implements EngineContext {
           for (const { s, idx } of convertible) {
             if (converted >= toConvert) break;
             // Check hard constraints and rest constraints for the converted shift
-            const otherShifts = [...this.fixedShifts, ...shifts.filter((_, i) => i !== idx)];
+            const otherShifts = [...this.previousMonthShifts, ...this.fixedShifts, ...shifts.filter((_, i) => i !== idx)];
             if (violatesHardConstraints(s.doctor_id, dateStr, underType, otherShifts)) continue;
             const shiftDate = new Date(this.year, this.month, day);
             const doctorShifts = otherShifts.filter(os => os.doctor_id === s.doctor_id);
@@ -546,7 +546,7 @@ export class SchedulingEngine implements EngineContext {
         ? utcMs(dp[0], dp[1] - 1, dp[2], 20)
         : utcMs(dp[0], dp[1] - 1, dp[2] + 1, 8);
 
-      const allShifts = [...this.fixedShifts, ...shifts];
+      const allShifts = [...this.previousMonthShifts, ...this.fixedShifts, ...shifts];
       for (const s of allShifts) {
         if (s.doctor_id !== docId || s.shift_type === 'rest') continue;
         const sp = s.shift_date.split('-').map(Number);
@@ -609,7 +609,7 @@ export class SchedulingEngine implements EngineContext {
           }
         }
         // Hard constraints: never allow consecutive-days or NZN violations
-        const allCurrentShiftsForHC = [...this.fixedShifts, ...shifts];
+        const allCurrentShiftsForHC = [...this.previousMonthShifts, ...this.fixedShifts, ...shifts];
         if (violatesHardConstraints(doc.id, slot.dateStr, slot.shiftType, allCurrentShiftsForHC)) continue;
         // Cap rest violations per doctor: skip if this would create a new violation
         // and the doctor already has too many
@@ -690,7 +690,7 @@ export class SchedulingEngine implements EngineContext {
         // Must not cause rest violations for recipient
         if (wouldViolateRest(worstDoctor.id, s.shift_date, s.shift_type as 'day' | 'night')) continue;
         // Hard constraints for recipient
-        const allForHC = [...this.fixedShifts, ...shifts];
+        const allForHC = [...this.previousMonthShifts, ...this.fixedShifts, ...shifts];
         if (violatesHardConstraints(worstDoctor.id, s.shift_date, s.shift_type as 'day' | 'night', allForHC)) continue;
 
         if (donorSurplus > bestDonorSurplus) {
@@ -760,7 +760,7 @@ export class SchedulingEngine implements EngineContext {
                 continue;
               }
               // Hard constraints for optional doctor
-              const allForOptHC = [...this.fixedShifts, ...shifts];
+              const allForOptHC = [...this.previousMonthShifts, ...this.fixedShifts, ...shifts];
               if (violatesHardConstraints(optDoc.id, targetShift.shift_date, shiftType, allForOptHC)) {
                 continue;
               }
@@ -850,9 +850,6 @@ export class SchedulingEngine implements EngineContext {
           !isDoctorOnBridgeDay(this, doc.id, currentDate);
 
         // 24h preference: when both day AND night need filling
-        if (dayNeeded > 0 || nightNeeded > 0) {
-          console.log(`[Phase 2e] ${dateStr}: need ${dayNeeded} day, ${nightNeeded} night`);
-        }
         if (dayNeeded > 0 && nightNeeded > 0) {
           const avail24h = forceFill24h
             .filter(isAvailable)
@@ -864,7 +861,7 @@ export class SchedulingEngine implements EngineContext {
           for (const doc of avail24h) {
             if (dayNeeded <= 0 || nightNeeded <= 0) break;
             // Hard constraints: check both day and night components of 24h shift
-            const allForHC24 = [...this.fixedShifts, ...shifts];
+            const allForHC24 = [...this.previousMonthShifts, ...this.fixedShifts, ...shifts];
             if (violatesHardConstraints(doc.id, dateStr, 'day', allForHC24)) continue;
             if (violatesHardConstraints(doc.id, dateStr, 'night', allForHC24)) continue;
             shifts.push({
@@ -880,7 +877,6 @@ export class SchedulingEngine implements EngineContext {
             assignedToday.add(doc.id);
             dayNeeded--;
             nightNeeded--;
-            console.log(`[Phase 2e]   → 24h: ${doc.name} (${this.doctorHours.get(doc.id)}h)`);
           }
         }
 
@@ -899,7 +895,7 @@ export class SchedulingEngine implements EngineContext {
           for (const doc of avail12h) {
             if (needed <= 0) break;
             // Hard constraints: never violate max consecutive days or NZN
-            const allForHC12 = [...this.fixedShifts, ...shifts];
+            const allForHC12 = [...this.previousMonthShifts, ...this.fixedShifts, ...shifts];
             if (violatesHardConstraints(doc.id, dateStr, shiftType, allForHC12)) continue;
             shifts.push({
               id: this.generateId(),
@@ -913,7 +909,6 @@ export class SchedulingEngine implements EngineContext {
             recordShift(this, doc, currentDate, shiftType);
             assignedToday.add(doc.id);
             needed--;
-            console.log(`[Phase 2e]   → ${shiftType}: ${doc.name} (${this.doctorHours.get(doc.id)}h)`);
           }
         }
       }

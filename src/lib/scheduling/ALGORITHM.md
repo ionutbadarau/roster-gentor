@@ -84,6 +84,18 @@ Shifts are placed unconditionally (no capacity check) — 24h doctors may push c
 
 24h shifts are immutable after placement.
 
+### Phase 1c: Rebalance Overstaffed Slots
+
+After Phase 1 and 1b, 24h shifts (fixed manual or generated) may overstuff one shift type while leaving the opposite understaffed. For example, a manual 24h shift on a day where the cadence already fills all night slots creates night overstaffing and day understaffing.
+
+For each day that has any 24h shifts:
+1. Count total day and night coverage (fixed + generated + 24h)
+2. If one type is overstaffed AND the opposite is understaffed, convert non-manual cadence shifts from the overstaffed type to the opposite
+3. Each conversion is validated against hard constraints (max consecutive days, no NZN) and rest constraints (`canDoctorWorkWithTimeline`)
+4. Counters are rebuilt after any conversions
+
+This phase preserves total coverage per day — it only redistributes shifts between day and night types.
+
 ### Phase 2: Identify & Fill Uncovered Slots
 
 After cadence assignment, count coverage per day per shift type. For each slot below the required staffing level:

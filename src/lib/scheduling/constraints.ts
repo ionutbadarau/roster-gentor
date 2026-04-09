@@ -9,10 +9,7 @@ import type { DoctorWithTeam, Shift } from '@/types/scheduling';
 import type { EngineContext } from './constants';
 import { SCHEDULING_CONSTANTS } from './constants';
 import { formatDate, utcMs, getWeekNumber } from './calendar-utils';
-import { parseDateStr } from './shift-utils';
-
-/** Maximum consecutive working days allowed before a mandatory rest day. */
-const MAX_CONSECUTIVE_WORK_DAYS = 3;
+import { parseDateStr, formatDateString } from './shift-utils';
 
 export function isDoctorOnLeave(ctx: EngineContext, doctorId: string, date: Date): boolean {
   const dateStr = formatDate(date);
@@ -210,10 +207,9 @@ export function wouldCreateNZNPattern(
   const [y, m, d] = parseDateStr(dateStr);
 
   // Helper: check if the doctor has a specific shift type on a given day offset
-  const pad = (n: number) => String(n).padStart(2, '0');
   const hasShiftOrAll = (dayOffset: number, type: 'day' | 'night'): boolean => {
     const checkDate = new Date(Date.UTC(y, m, d + dayOffset));
-    const checkStr = `${checkDate.getUTCFullYear()}-${pad(checkDate.getUTCMonth() + 1)}-${pad(checkDate.getUTCDate())}`;
+    const checkStr = formatDateString(checkDate.getUTCFullYear(), checkDate.getUTCMonth(), checkDate.getUTCDate());
     return allShifts.some(
       s => s.doctor_id === doctorId && s.shift_date === checkStr &&
            (s.shift_type === type || s.shift_type === '24h')

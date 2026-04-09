@@ -9,7 +9,7 @@ import type { Doctor, Shift, ScheduleConflict, LeaveDay, NationalHoliday, Schedu
 import { SCHEDULING_CONSTANTS } from './constants';
 import { computeDoctorBridgeDays } from './bridge-days';
 import { getWorkingDaysInMonth } from './calendar-utils';
-import { groupShiftsByDate, groupShiftsByDoctor, getShiftEndMs, getShiftStartMs, getRestHours, parseDateStr } from './shift-utils';
+import { groupShiftsByDate, groupShiftsByDoctor, getShiftEndMs, getShiftStartMs, getRestHours, parseDateStr, formatDateString } from './shift-utils';
 
 /**
  * Convenience wrapper: accepts NationalHoliday[] (builds the Set internally).
@@ -155,6 +155,7 @@ export function detectConflicts(shifts: Shift[], doctors: Doctor[], requiredPerD
   const doctorShifts = groupShiftsByDoctor(shifts);
 
   doctorShifts.forEach((doctorShiftList, doctorId) => {
+    const doctor = doctors.find(d => d.id === doctorId);
     const workShifts = doctorShiftList.filter(
       s => s.shift_type === 'day' || s.shift_type === 'night' || s.shift_type === '24h'
     );
@@ -198,9 +199,8 @@ export function detectConflicts(shifts: Shift[], doctors: Doctor[], requiredPerD
       // Check if 4 entries span exactly 3 days (consecutive)
       const spanDays = (uniqueDayMs[i + 3] - uniqueDayMs[i]) / 86_400_000;
       if (spanDays === 3) {
-        const doctor = doctors.find(d => d.id === doctorId);
         const violationDate = new Date(uniqueDayMs[i + 3]);
-        const dateStr = `${violationDate.getUTCFullYear()}-${String(violationDate.getUTCMonth() + 1).padStart(2, '0')}-${String(violationDate.getUTCDate()).padStart(2, '0')}`;
+        const dateStr = formatDateString(violationDate.getUTCFullYear(), violationDate.getUTCMonth(), violationDate.getUTCDate());
         conflicts.push({
           type: 'rest_violation',
           date: dateStr,
@@ -217,8 +217,7 @@ export function detectConflicts(shifts: Shift[], doctors: Doctor[], requiredPerD
       const s2 = sortedShifts[i + 1];
       const s3 = sortedShifts[i + 2];
       if (s1.shift_type !== 'night' || s2.shift_type !== 'day' || s3.shift_type !== 'night') continue;
-      const [, , d1] = parseDateStr(s1.shift_date);
-      const [y1, m1] = parseDateStr(s1.shift_date);
+      const [y1, m1, d1] = parseDateStr(s1.shift_date);
       const day1Ms = Date.UTC(y1, m1, d1);
       const [y2, m2, d2] = parseDateStr(s2.shift_date);
       const day2Ms = Date.UTC(y2, m2, d2);
@@ -226,7 +225,6 @@ export function detectConflicts(shifts: Shift[], doctors: Doctor[], requiredPerD
       const day3Ms = Date.UTC(y3, m3, d3);
       // Night(D), Day(D+1), Night(D+1)
       if (day2Ms - day1Ms === 86_400_000 && day3Ms === day2Ms) {
-        const doctor = doctors.find(d => d.id === doctorId);
         conflicts.push({
           type: 'rest_violation',
           date: s3.shift_date,
