@@ -175,7 +175,10 @@
       "restViolationNight": "Rest violation: Less than {{hours}} hours after night shift",
       "restViolation24h": "Rest violation: Less than {{hours}} hours after 24h shift",
       "restViolation": "{{date}}: Rest violation for {{name}} — only {{hours}}h rest ({{required}}h required)",
-      "extraShiftImbalance": "Extra shift imbalance: {{gap}}-shift gap between doctors."
+      "extraShiftImbalance": "Extra shift imbalance: {{gap}}-shift gap between doctors.",
+      "consecutiveDaysViolation": "{{date}}: {{name}} has more than 3 consecutive working days",
+      "nznPatternViolation": "{{date}}: {{name}} has an NZN pattern (36h continuous work)",
+      "forceFillTimeout": "Force-fill timed out (30s) — some shifts may be understaffed"
     }
   },
   "auth": {

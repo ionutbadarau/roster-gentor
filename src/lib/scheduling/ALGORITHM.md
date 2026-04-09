@@ -8,7 +8,11 @@ Generate a monthly schedule assigning doctors to 12h shifts (day 08:00–20:00, 
 - **Leave/bridge days**: no shifts on leave or bridge days
 - **Coverage**: each day needs `shiftsPerDay` day + `shiftsPerNight` night doctors
 - **24h rest**: 72h between 24h shifts (rigid every-4-day cadence)
+- **Max 3 consecutive working days**: a doctor who has worked 3 days in a row must have the 4th day off — enforced in ALL phases including force-fill
+- **No NZN pattern (no 36h continuous work)**: Night(D) → Day(D+1) → Night(D+1) is forbidden (would mean 36h continuous work from 20:00 to 08:00+2) — enforced in ALL phases including force-fill
 - **Optional doctors**: excluded from main scheduling; used only in Phase 2d to resolve rest violations
+
+If hard constraints prevent filling a slot, it is left understaffed and flagged as a warning. A 30-second timeout on force-fill prevents excessive computation.
 
 ### Soft Goals
 - **Cadence adherence**: team doctors follow D-N-R-R rotation strictly
@@ -64,7 +68,7 @@ For each day (1..N), for each team:
    - Skip if on leave or bridge day
    - Assign the cadence shift (Day or Night)
 
-**No rest constraint checking** — the D-N-R-R cycle naturally satisfies 24h/48h rest requirements. Cross-month boundary violations are acceptable.
+**No rest constraint checking** — the D-N-R-R cycle naturally satisfies 24h/48h rest requirements. Cross-month boundary violations are acceptable. **Hard constraints** (max 3 consecutive days, no NZN) are always checked; a doctor is skipped if assigning their cadence shift would violate them.
 
 ### Phase 1b: 24h Doctor Allocation
 
@@ -138,9 +142,11 @@ For each day (1..N) chronologically:
 4. **24h preference**: if both day AND night are understaffed, try unconstrained 24h doctors first (one shift covers both slots). Sort by lowest total hours worked
 5. **12h fill**: for any remaining shortfall per shift type, assign 12h doctors sorted by lowest total hours worked
 
-**No rest constraint checking** — shifts are assigned unconditionally and marked `is_forced_coverage = true`. Leave and bridge day constraints are still respected (a doctor on leave/bridge is never assigned).
+**No rest constraint checking** — shifts are assigned unconditionally and marked `is_forced_coverage = true`. Leave and bridge day constraints are still respected (a doctor on leave/bridge is never assigned). **Hard constraints** (max 3 consecutive days, no NZN) are always enforced — a candidate who would violate them is skipped, potentially leaving the slot understaffed.
 
-After this phase, understaffed conflicts should only occur in edge cases where every eligible doctor is already assigned, on leave, or on a bridge day for that date (practically impossible with normal staffing levels).
+A **30-second timeout** applies to the entire force-fill phase. If exceeded, remaining slots are left unfilled and a timeout warning is emitted.
+
+After this phase, understaffed conflicts may occur when hard constraints prevent any eligible doctor from being assigned, or when every eligible doctor is already assigned/on leave/bridge for that date.
 
 ### Phase 3: Validation & Output
 
@@ -192,7 +198,7 @@ Shared modules (../):
   ├── constants.ts           ← SCHEDULING_CONSTANTS, EngineContext
   ├── calendar-utils.ts      ← formatDate, utcMs, getDaysInMonth
   ├── bridge-days.ts         ← computeAllBridgeDays
-  ├── constraints.ts         ← isDoctorOnLeave, isDoctorOnBridgeDay, canDoctorWorkWithTimeline
+  ├── constraints.ts         ← isDoctorOnLeave, isDoctorOnBridgeDay, canDoctorWorkWithTimeline, violatesHardConstraints
   ├── prng.ts                ← Seeded PRNG (mulberry32)
   ├── stats.ts               ← recordShift, rebuildCounters, calculateBaseNorm, calculateDoctorStats
   └── validation.ts          ← detectConflicts, findRestViolationPairs

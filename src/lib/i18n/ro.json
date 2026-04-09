@@ -175,7 +175,10 @@
       "restViolationNight": "Violare perioad\u0103 de odihn\u0103: mai pu\u021bin de {{hours}} ore dup\u0103 tura de noapte",
       "restViolation24h": "Violare perioad\u0103 de odihn\u0103: mai pu\u021bin de {{hours}} ore dup\u0103 tura de 24h",
       "restViolation": "{{date}}: Violare perioadă de odihnă pentru {{name}} — doar {{hours}}h odihnă ({{required}}h necesare)",
-      "extraShiftImbalance": "Dezechilibru ture suplimentare: diferență de {{gap}} ture între doctori."
+      "extraShiftImbalance": "Dezechilibru ture suplimentare: diferență de {{gap}} ture între doctori.",
+      "consecutiveDaysViolation": "{{date}}: {{name}} are mai mult de 3 zile consecutive de lucru",
+      "nznPatternViolation": "{{date}}: {{name}} are un pattern NZN (36h de lucru continuu)",
+      "forceFillTimeout": "Completarea forțată a expirat (30s) — unele ture pot fi neacoperite"
     }
   },
   "auth": {

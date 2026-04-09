@@ -14,7 +14,7 @@ import type { DoctorWithTeam, Shift, LeaveDay, NationalHoliday, ScheduleConflict
 import { SCHEDULING_CONSTANTS, type ScheduleGenerationOptions, type EngineContext } from './constants';
 import { formatDate, utcMs, getDaysInMonth, getWeekNumber } from './calendar-utils';
 import { computeAllBridgeDays, computeDoctorBridgeDays } from './bridge-days';
-import { isDoctorOnLeave, isDoctorOnBridgeDay, canDoctorWorkWithTimeline } from './constraints';
+import { isDoctorOnLeave, isDoctorOnBridgeDay, canDoctorWorkWithTimeline, violatesHardConstraints } from './constraints';
 import { rebuildCounters, checkDoctorNorms, applyShiftRounding, calculateDoctorStats, calculateBaseNorm, recordShift, recordShift24h } from './stats';
 import { createPRNG } from './prng';
 import { detectConflicts, validateLeaveDays, calculatePossibleLeaveDays, getWorkingDaysInMonthStatic, computeUnderstaffedDays, findRestViolationPairs } from './validation';
@@ -182,7 +182,10 @@ export class SchedulingEngine implements EngineContext {
         }
       }
 
-      // Assign cadence shifts for each team
+      // Assign cadence shifts for each team.
+      // If the cadence type would overstuff a slot (e.g. night already at capacity
+      // due to a fixed 24h shift), flip the assignment to the opposite type when
+      // that opposite slot is understaffed.
       for (const [teamId, dayMap] of Array.from(teamCadence)) {
         const cadenceType = dayMap.get(day); // 'day', 'night', or null (rest)
         if (!cadenceType) continue;
@@ -197,6 +200,10 @@ export class SchedulingEngine implements EngineContext {
           if (isDoctorOnLeave(this, doc.id, currentDate)) continue;
           if (isDoctorOnBridgeDay(this, doc.id, currentDate)) continue;
           if (maxPerShift && teamShiftCount >= maxPerShift) continue;
+
+          // Hard constraints: max consecutive days & no NZN pattern
+          const allCurrent = [...this.fixedShifts, ...shifts];
+          if (violatesHardConstraints(doc.id, dateStr, cadenceType, allCurrent)) continue;
 
           shifts.push({
             id: this.generateId(),
@@ -408,6 +415,79 @@ export class SchedulingEngine implements EngineContext {
       }
     }
 
+    // ── Phase 1c: Rebalance overstaffed slots ──
+    // After cadence (Phase 1) and 24h placement (Phase 1b), fixed 24h shifts or
+    // 24h doctor placements may have overstaffed one shift type while the opposite
+    // is understaffed. Convert non-manual cadence shifts from the overstaffed type
+    // to the opposite type to rebalance.
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = formatDate(new Date(this.year, this.month, day));
+
+      // Use same counting formula as Phase 2:
+      // fixedCount already includes fixed 24h (fixedShiftsByDateType maps 24h to both day/night)
+      // gen24h only counts GENERATED 24h, avoiding double-count of fixed 24h
+      const fixedDay = fixedShiftsByDateType.get(`${dateStr}:day`)?.length || 0;
+      const fixedNight = fixedShiftsByDateType.get(`${dateStr}:night`)?.length || 0;
+      const genDay = shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'day').length;
+      const genNight = shifts.filter(s => s.shift_date === dateStr && s.shift_type === 'night').length;
+      const gen24h = shifts.filter(s => s.shift_date === dateStr && s.shift_type === '24h').length;
+
+      const totalDay = fixedDay + genDay + gen24h;
+      const totalNight = fixedNight + genNight + gen24h;
+
+      // Only rebalance on days where 24h shifts exist — they are the source of
+      // cross-type overstaffing (counting for both day AND night).
+      const fixed24h = this.fixedShifts.filter(s => s.shift_date === dateStr && s.shift_type === '24h').length;
+      if (gen24h + fixed24h === 0) continue;
+
+      // Check each direction: overstaffed type → understaffed opposite
+      for (const [overType, underType] of [['night', 'day'], ['day', 'night']] as const) {
+        const overCount = overType === 'day' ? totalDay : totalNight;
+        const underCount = overType === 'day' ? totalNight : totalDay;
+        const overRequired = overType === 'day' ? this.shiftsPerDay : this.shiftsPerNight;
+        const underRequired = overType === 'day' ? this.shiftsPerNight : this.shiftsPerDay;
+
+        if (overCount > overRequired && underCount < underRequired) {
+          const excess = overCount - overRequired;
+          const deficit = underRequired - underCount;
+          const toConvert = Math.min(excess, deficit);
+
+          // Find convertible shifts: non-manual generated shifts of the overstaffed type
+          const convertible = shifts
+            .map((s, idx) => ({ s, idx }))
+            .filter(({ s }) =>
+              s.shift_date === dateStr &&
+              s.shift_type === overType &&
+              !s.is_manual
+            );
+
+          let converted = 0;
+          for (const { s, idx } of convertible) {
+            if (converted >= toConvert) break;
+            // Check hard constraints and rest constraints for the converted shift
+            const otherShifts = [...this.fixedShifts, ...shifts.filter((_, i) => i !== idx)];
+            if (violatesHardConstraints(s.doctor_id, dateStr, underType, otherShifts)) continue;
+            const shiftDate = new Date(this.year, this.month, day);
+            const doctorShifts = otherShifts.filter(os => os.doctor_id === s.doctor_id);
+            const prevMonthShifts = this.previousMonthShifts.filter(ps => ps.doctor_id === s.doctor_id);
+            if (!canDoctorWorkWithTimeline(this, s.doctor_id, shiftDate, underType, [...doctorShifts, ...prevMonthShifts])) continue;
+
+            shifts[idx] = {
+              ...s,
+              shift_type: underType,
+              start_time: underType === 'day' ? '08:00' : '20:00',
+              end_time: underType === 'day' ? '20:00' : '08:00',
+            };
+            converted++;
+          }
+
+          if (converted > 0) {
+            rebuildCounters(this, shifts);
+          }
+        }
+      }
+    }
+
     // ── Phase 2: Identify uncovered slots ──
     interface UncoveredSlot {
       day: number;
@@ -528,6 +608,9 @@ export class SchedulingEngine implements EngineContext {
             if (teamCountOnSlot >= team.max_doctors_per_shift) continue;
           }
         }
+        // Hard constraints: never allow consecutive-days or NZN violations
+        const allCurrentShiftsForHC = [...this.fixedShifts, ...shifts];
+        if (violatesHardConstraints(doc.id, slot.dateStr, slot.shiftType, allCurrentShiftsForHC)) continue;
         // Cap rest violations per doctor: skip if this would create a new violation
         // and the doctor already has too many
         const causesViolation = wouldViolateRest(doc.id, slot.dateStr, slot.shiftType);
@@ -606,6 +689,9 @@ export class SchedulingEngine implements EngineContext {
 
         // Must not cause rest violations for recipient
         if (wouldViolateRest(worstDoctor.id, s.shift_date, s.shift_type as 'day' | 'night')) continue;
+        // Hard constraints for recipient
+        const allForHC = [...this.fixedShifts, ...shifts];
+        if (violatesHardConstraints(worstDoctor.id, s.shift_date, s.shift_type as 'day' | 'night', allForHC)) continue;
 
         if (donorSurplus > bestDonorSurplus) {
           bestDonorSurplus = donorSurplus;
@@ -673,6 +759,11 @@ export class SchedulingEngine implements EngineContext {
               if (!canDoctorWorkWithTimeline(this, optDoc.id, shiftDate, shiftType, [...optDocShifts, ...optDocPrevMonth])) {
                 continue;
               }
+              // Hard constraints for optional doctor
+              const allForOptHC = [...this.fixedShifts, ...shifts];
+              if (violatesHardConstraints(optDoc.id, targetShift.shift_date, shiftType, allForOptHC)) {
+                continue;
+              }
 
               // Check weekly hours cap
               const weekNumber = getWeekNumber(shiftDate);
@@ -703,8 +794,12 @@ export class SchedulingEngine implements EngineContext {
     // Last-resort pass: assign lowest-norm doctors regardless of rest constraints.
     // Excludes doctors from constrained teams (max_doctors_per_shift) and optional doctors.
     // Prefers 24h doctors when both day AND night are understaffed on the same day.
+    // Hard constraints (max consecutive days, no NZN) are ALWAYS enforced.
+    // 30-second timeout: if exceeded, remaining slots are left unfilled.
     {
       rebuildCounters(this, shifts);
+      const forceFillStartTime = Date.now();
+      const FORCE_FILL_TIMEOUT_MS = 30_000;
 
       const constrainedTeamIds = new Set(
         this.teams.filter(t => t.max_doctors_per_shift).map(t => t.id)
@@ -718,6 +813,12 @@ export class SchedulingEngine implements EngineContext {
       );
 
       for (let day = 1; day <= daysInMonth; day++) {
+        // Timeout: stop force-fill if 30 seconds exceeded
+        if (Date.now() - forceFillStartTime > FORCE_FILL_TIMEOUT_MS) {
+          warnings.push('scheduling.engine.forceFillTimeout');
+          break;
+        }
+
         const currentDate = new Date(this.year, this.month, day);
         const dateStr = formatDate(currentDate);
 
@@ -762,6 +863,10 @@ export class SchedulingEngine implements EngineContext {
 
           for (const doc of avail24h) {
             if (dayNeeded <= 0 || nightNeeded <= 0) break;
+            // Hard constraints: check both day and night components of 24h shift
+            const allForHC24 = [...this.fixedShifts, ...shifts];
+            if (violatesHardConstraints(doc.id, dateStr, 'day', allForHC24)) continue;
+            if (violatesHardConstraints(doc.id, dateStr, 'night', allForHC24)) continue;
             shifts.push({
               id: this.generateId(),
               doctor_id: doc.id,
@@ -793,6 +898,9 @@ export class SchedulingEngine implements EngineContext {
 
           for (const doc of avail12h) {
             if (needed <= 0) break;
+            // Hard constraints: never violate max consecutive days or NZN
+            const allForHC12 = [...this.fixedShifts, ...shifts];
+            if (violatesHardConstraints(doc.id, dateStr, shiftType, allForHC12)) continue;
             shifts.push({
               id: this.generateId(),
               doctor_id: doc.id,

@@ -13,7 +13,7 @@ import type { ScheduleGenerationOptions } from './constants';
 import { SCHEDULING_CONSTANTS } from './constants';
 import { SchedulingEngine } from './scheduling-engine';
 import { rebuildCounters, calculateBaseNorm } from './stats';
-import { isDoctorOnLeave, isDoctorOnBridgeDay } from './constraints';
+import { isDoctorOnLeave, isDoctorOnBridgeDay, violatesHardConstraints } from './constraints';
 import { findRestViolationPairs } from './validation';
 import { getDaysInMonth, formatDate } from './calendar-utils';
 
@@ -136,6 +136,10 @@ export function equalizeShifts(
           if (s.is_manual) continue;
           if (!onDoctorIds.has(s.doctor_id)) continue;
           if (!eqzbIds.has(s.doctor_id)) continue;
+
+          // Hard constraints: skip if assigning this shift to UN doctor would violate
+          const allForHC = [...engine.fixedShifts, ...shifts];
+          if (violatesHardConstraints(unDoctor.id, s.shift_date, shiftType, allForHC)) continue;
 
           const isViolation = violatingShiftIds.has(s.id);
           const donorDelta = deltaMap.get(s.doctor_id) ?? 0;

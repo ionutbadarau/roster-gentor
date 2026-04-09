@@ -10,9 +10,19 @@ import { utcMs, getWeekNumber, getWorkingDaysInMonth, getMonthPrefix } from './c
 export function calculateBaseNorm(ctx: EngineContext, doctorId: string): number {
   const workingDays = getWorkingDaysInMonth(ctx.year, ctx.month, ctx.holidayDateSet);
   const monthPrefix = getMonthPrefix(ctx.year, ctx.month);
-  const doctorLeaveDays = ctx.leaveDays.filter(
-    l => l.doctor_id === doctorId && l.leave_date.startsWith(monthPrefix) && l.leave_type !== 'bridge'
-  ).length;
+  const doctorLeaveDays = ctx.leaveDays.filter(l => {
+    if (l.doctor_id !== doctorId) return false;
+    if (!l.leave_date.startsWith(monthPrefix)) return false;
+    if (l.leave_type === 'bridge') return false;
+    // Leave days that fall on weekends or national holidays are treated as
+    // bridge days — they don't reduce the norm (they weren't working days).
+    const [y, m, d] = l.leave_date.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    const dow = date.getDay();
+    if (dow === 0 || dow === 6) return false;
+    if (ctx.holidayDateSet.has(l.leave_date)) return false;
+    return true;
+  }).length;
   return SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * (workingDays - doctorLeaveDays);
 }
 

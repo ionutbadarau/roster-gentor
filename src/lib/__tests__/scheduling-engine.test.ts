@@ -563,7 +563,9 @@ describe('SchedulingEngine', () => {
       expect(result.warnings).toHaveLength(0);
 
       // Verify leave doctors have correctly reduced norms
-      const expectedLeaveNorm = APRIL_BASE_NORM - SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * 7; // 154 - 49 = 105
+      // April 12 (Sun) and April 18 (Sat) are weekends — only 5 weekday leaves count for norm
+      const weekdayLeaveDays = 5;
+      const expectedLeaveNorm = APRIL_BASE_NORM - SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * weekdayLeaveDays; // 154 - 35 = 119
       for (const docId of [doc2.id, doc3.id]) {
         const stat = result.doctorStats.find(s => s.doctorId === docId)!;
         expect(stat.baseNorm).toBe(expectedLeaveNorm);

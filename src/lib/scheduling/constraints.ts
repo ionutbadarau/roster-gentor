@@ -9,6 +9,10 @@ import type { DoctorWithTeam, Shift } from '@/types/scheduling';
 import type { EngineContext } from './constants';
 import { SCHEDULING_CONSTANTS } from './constants';
 import { formatDate, utcMs, getWeekNumber } from './calendar-utils';
+import { parseDateStr } from './shift-utils';
+
+/** Maximum consecutive working days allowed before a mandatory rest day. */
+const MAX_CONSECUTIVE_WORK_DAYS = 3;
 
 export function isDoctorOnLeave(ctx: EngineContext, doctorId: string, date: Date): boolean {
   const dateStr = formatDate(date);
@@ -144,4 +148,108 @@ export function canDoctorWorkWithTimeline(
   }
 
   return true;
+}
+
+/**
+ * Check if placing a shift on `dateStr` for this doctor would create 4+
+ * consecutive working days. Only examines the doctor's own shifts.
+ */
+export function wouldExceedConsecutiveDays(
+  doctorId: string,
+  dateStr: string,
+  allShifts: Shift[],
+): boolean {
+  const [y, m, d] = parseDateStr(dateStr);
+  // Build set of days (as day-of-month offsets relative to dateStr) that the doctor works
+  // We only need to look at a window of [date-3 .. date+3] (7-day range)
+  const workingDays = new Set<number>();
+  workingDays.add(0); // The proposed day
+
+  for (const s of allShifts) {
+    if (s.doctor_id !== doctorId) continue;
+    if (s.shift_type !== 'day' && s.shift_type !== 'night' && s.shift_type !== '24h') continue;
+    const [sy, sm, sd] = parseDateStr(s.shift_date);
+    // Compute day difference using UTC dates to avoid DST issues
+    const diffMs = Date.UTC(sy, sm, sd) - Date.UTC(y, m, d);
+    const diffDays = Math.round(diffMs / 86_400_000);
+    if (diffDays >= -3 && diffDays <= 3) {
+      workingDays.add(diffDays);
+    }
+  }
+
+  // Check every window of 4 consecutive days that includes day 0
+  for (let start = -3; start <= 0; start++) {
+    let count = 0;
+    for (let i = start; i < start + 4; i++) {
+      if (workingDays.has(i)) count++;
+    }
+    if (count >= 4) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Check if placing a shift of `shiftType` on `dateStr` for this doctor would
+ * create an NZN pattern (Night → Day → Night with no gap = 36h continuous work).
+ *
+ * NZN on calendar:
+ *   Night(day D):   20:00(D) → 08:00(D+1)
+ *   Day(day D+1):   08:00(D+1) → 20:00(D+1)
+ *   Night(day D+1): 20:00(D+1) → 08:00(D+2)
+ * This means continuous work from 20:00(D) to 08:00(D+2) = 36h.
+ *
+ * The proposed shift can be any of the three positions in the pattern.
+ */
+export function wouldCreateNZNPattern(
+  doctorId: string,
+  dateStr: string,
+  shiftType: 'day' | 'night',
+  allShifts: Shift[],
+): boolean {
+  const [y, m, d] = parseDateStr(dateStr);
+
+  // Helper: check if the doctor has a specific shift type on a given day offset
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const hasShiftOrAll = (dayOffset: number, type: 'day' | 'night'): boolean => {
+    const checkDate = new Date(Date.UTC(y, m, d + dayOffset));
+    const checkStr = `${checkDate.getUTCFullYear()}-${pad(checkDate.getUTCMonth() + 1)}-${pad(checkDate.getUTCDate())}`;
+    return allShifts.some(
+      s => s.doctor_id === doctorId && s.shift_date === checkStr &&
+           (s.shift_type === type || s.shift_type === '24h')
+    );
+  };
+
+  if (shiftType === 'night') {
+    // Proposed shift is Night on day D.
+    // Pattern 1: This is the FIRST Night → need Day(D+1) and Night(D+1)
+    if (hasShiftOrAll(1, 'day') && hasShiftOrAll(1, 'night')) return true;
+
+    // Pattern 2: This is the LAST Night → need Night(D-1) and Day(D)
+    // NZN = Night(D-1), Day(D), Night(D) — the proposed night completes it
+    if (hasShiftOrAll(-1, 'night') && hasShiftOrAll(0, 'day')) return true;
+  }
+
+  if (shiftType === 'day') {
+    // Proposed shift is Day on day D.
+    // NZN = Night(D-1), Day(D), Night(D)
+    if (hasShiftOrAll(-1, 'night') && hasShiftOrAll(0, 'night')) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Returns true if placing a shift would violate any hard constraint.
+ * Hard constraints are NEVER allowed to be violated, even in force-fill.
+ */
+export function violatesHardConstraints(
+  doctorId: string,
+  dateStr: string,
+  shiftType: 'day' | 'night',
+  allShifts: Shift[],
+): boolean {
+  if (wouldExceedConsecutiveDays(doctorId, dateStr, allShifts)) return true;
+  if (wouldCreateNZNPattern(doctorId, dateStr, shiftType, allShifts)) return true;
+  return false;
 }
