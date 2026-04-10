@@ -66,6 +66,8 @@ export default function ShiftGridCalendar({
     endDay: number;
   } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const isDraggingRef = useRef(false);
+  const dragStateRef = useRef<typeof dragState>(null);
   const [selectionPopup, setSelectionPopup] = useState<SelectionPopupData | null>(null);
   const [altHoveredDay, setAltHoveredDay] = useState<number | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
@@ -352,14 +354,24 @@ export default function ShiftGridCalendar({
 
     try {
       const monthShifts = shifts.filter(s => s.shift_date >= monthStart && s.shift_date <= monthEnd);
-      const assignments = assignDispatch(monthShifts, doctors, currentMonth, currentYear);
 
-      // Clear existing dispatch for this month
+      // Collect dates with manual dispatch assignments to preserve them
+      const manualDispatchDates = { day: new Set<string>(), night: new Set<string>() };
+      for (const s of monthShifts) {
+        if (s.is_manual_dispatch && s.dispatch_type) {
+          manualDispatchDates[s.dispatch_type].add(s.shift_date);
+        }
+      }
+
+      const assignments = assignDispatch(monthShifts, doctors, currentMonth, currentYear, manualDispatchDates);
+
+      // Clear existing non-manual dispatch for this month
       await supabase
         .from('shifts')
         .update({ dispatch_type: null })
         .gte('shift_date', monthStart)
-        .lte('shift_date', monthEnd);
+        .lte('shift_date', monthEnd)
+        .eq('is_manual_dispatch', false);
 
       // Batch-apply new assignments: one query per dispatch_type
       const dayIds = assignments.filter(a => a.dispatchType === 'day').map(a => a.shiftId);
@@ -369,10 +381,10 @@ export default function ShiftGridCalendar({
         nightIds.length > 0 ? supabase.from('shifts').update({ dispatch_type: 'night' }).in('id', nightIds) : Promise.resolve(),
       ]);
 
-      // Update local state
+      // Update local state (preserve manual dispatches)
       const assignmentMap = new Map(assignments.map(a => [a.shiftId, a.dispatchType]));
       const updatedShifts = shifts.map(s => {
-        if (s.shift_date >= monthStart && s.shift_date <= monthEnd) {
+        if (s.shift_date >= monthStart && s.shift_date <= monthEnd && !s.is_manual_dispatch) {
           return { ...s, dispatch_type: assignmentMap.get(s.id) ?? null };
         }
         return s;
@@ -628,25 +640,34 @@ export default function ShiftGridCalendar({
     e.preventDefault();
     setSelectionPopup(null);
     setIsDragging(true);
-    setDragState({ doctorId, startDay: day, endDay: day });
+    isDraggingRef.current = true;
+    const ds = { doctorId, startDay: day, endDay: day };
+    setDragState(ds);
+    dragStateRef.current = ds;
   };
 
   const handleCellMouseEnter = (doctorId: string, day: number) => {
     if (!isDragging || !dragState) return;
     if (dragState.doctorId !== doctorId) return;
-    setDragState(prev => prev ? { ...prev, endDay: day } : null);
+    setDragState(prev => {
+      const next = prev ? { ...prev, endDay: day } : null;
+      dragStateRef.current = next;
+      return next;
+    });
   };
 
   const handleMouseUp = useCallback((e: MouseEvent) => {
-    if (!isDragging || !dragState) return;
+    if (!isDraggingRef.current || !dragStateRef.current) return;
+    isDraggingRef.current = false;
     setIsDragging(false);
 
-    const min = Math.min(dragState.startDay, dragState.endDay);
-    const max = Math.max(dragState.startDay, dragState.endDay);
+    const ds = dragStateRef.current;
+    const min = Math.min(ds.startDay, ds.endDay);
+    const max = Math.max(ds.startDay, ds.endDay);
     const selectedDays = Array.from({ length: max - min + 1 }, (_, i) => min + i);
 
-    setSelectionPopup({ doctorId: dragState.doctorId, days: selectedDays, x: e.clientX, y: e.clientY });
-  }, [isDragging, dragState]);
+    setSelectionPopup({ doctorId: ds.doctorId, days: selectedDays, x: e.clientX, y: e.clientY });
+  }, []);
 
   useEffect(() => {
     document.addEventListener('mouseup', handleMouseUp);
@@ -658,6 +679,7 @@ export default function ShiftGridCalendar({
       if (selectionPopup && popupRef.current && !popupRef.current.contains(e.target as Node)) {
         setSelectionPopup(null);
         setDragState(null);
+        dragStateRef.current = null;
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -710,6 +732,7 @@ export default function ShiftGridCalendar({
     const { doctorId, days: selectedDays } = selectionPopup;
     setSelectionPopup(null);
     setDragState(null);
+    dragStateRef.current = null;
 
     try {
       let updatedShifts = [...shifts];
@@ -775,6 +798,7 @@ export default function ShiftGridCalendar({
     const { doctorId, days: selectedDays } = selectionPopup;
     setSelectionPopup(null);
     setDragState(null);
+    dragStateRef.current = null;
 
     try {
       let updatedShifts = [...shifts];
@@ -818,6 +842,7 @@ export default function ShiftGridCalendar({
     const { doctorId, days: selectedDays } = selectionPopup;
     setSelectionPopup(null);
     setDragState(null);
+    dragStateRef.current = null;
 
     try {
       let updatedShifts = [...shifts];
@@ -837,24 +862,29 @@ export default function ShiftGridCalendar({
             shiftId: existingDispatch.id,
             previousDispatchType: existingDispatch.dispatch_type as 'day' | 'night',
             newDispatchType: null,
+            previousIsManualDispatch: !!existingDispatch.is_manual_dispatch,
+            newIsManualDispatch: false,
           });
-          await supabase.from('shifts').update({ dispatch_type: null }).eq('id', existingDispatch.id);
+          await supabase.from('shifts').update({ dispatch_type: null, is_manual_dispatch: false }).eq('id', existingDispatch.id);
           updatedShifts = updatedShifts.map(s =>
-            s.id === existingDispatch.id ? { ...s, dispatch_type: null } : s
+            s.id === existingDispatch.id ? { ...s, dispatch_type: null, is_manual_dispatch: false } : s
           );
         }
 
         // Toggle dispatch on the target shift: remove if same type, set otherwise
         const isToggleOff = targetShift.dispatch_type === dispatchType;
         const newType = isToggleOff ? null : dispatchType;
+        const isManualDispatch = !isToggleOff;
         dispatchChanges.push({
           shiftId: targetShift.id,
           previousDispatchType: (targetShift.dispatch_type as 'day' | 'night' | null) ?? null,
           newDispatchType: newType,
+          previousIsManualDispatch: !!targetShift.is_manual_dispatch,
+          newIsManualDispatch: isManualDispatch,
         });
-        await supabase.from('shifts').update({ dispatch_type: newType }).eq('id', targetShift.id);
+        await supabase.from('shifts').update({ dispatch_type: newType, is_manual_dispatch: isManualDispatch }).eq('id', targetShift.id);
         updatedShifts = updatedShifts.map(s =>
-          s.id === targetShift.id ? { ...s, dispatch_type: newType } : s
+          s.id === targetShift.id ? { ...s, dispatch_type: newType, is_manual_dispatch: isManualDispatch } : s
         );
       }
 
@@ -915,11 +945,14 @@ export default function ShiftGridCalendar({
       if (entry.dispatchChanges?.length) {
         await Promise.all(
           entry.dispatchChanges.map(dc =>
-            supabase.from('shifts').update({ dispatch_type: dc.previousDispatchType }).eq('id', dc.shiftId)
+            supabase.from('shifts').update({ dispatch_type: dc.previousDispatchType, is_manual_dispatch: dc.previousIsManualDispatch ?? false }).eq('id', dc.shiftId)
           )
         );
-        const dcMap = new Map(entry.dispatchChanges.map(dc => [dc.shiftId, dc.previousDispatchType]));
-        currentShifts = currentShifts.map(s => dcMap.has(s.id) ? { ...s, dispatch_type: dcMap.get(s.id) ?? null } : s);
+        const dcMap = new Map(entry.dispatchChanges.map(dc => [dc.shiftId, dc]));
+        currentShifts = currentShifts.map(s => {
+          const dc = dcMap.get(s.id);
+          return dc ? { ...s, dispatch_type: dc.previousDispatchType ?? null, is_manual_dispatch: dc.previousIsManualDispatch ?? false } : s;
+        });
       }
 
       // Reverse equalize changes (set each shift back to its old doctor_id)
@@ -975,11 +1008,14 @@ export default function ShiftGridCalendar({
       if (entry.dispatchChanges?.length) {
         await Promise.all(
           entry.dispatchChanges.map(dc =>
-            supabase.from('shifts').update({ dispatch_type: dc.newDispatchType }).eq('id', dc.shiftId)
+            supabase.from('shifts').update({ dispatch_type: dc.newDispatchType, is_manual_dispatch: dc.newIsManualDispatch ?? false }).eq('id', dc.shiftId)
           )
         );
-        const dcMap = new Map(entry.dispatchChanges.map(dc => [dc.shiftId, dc.newDispatchType]));
-        currentShifts = currentShifts.map(s => dcMap.has(s.id) ? { ...s, dispatch_type: dcMap.get(s.id) ?? null } : s);
+        const dcMap = new Map(entry.dispatchChanges.map(dc => [dc.shiftId, dc]));
+        currentShifts = currentShifts.map(s => {
+          const dc = dcMap.get(s.id);
+          return dc ? { ...s, dispatch_type: dc.newDispatchType ?? null, is_manual_dispatch: dc.newIsManualDispatch ?? false } : s;
+        });
       }
 
       // Re-apply equalize changes (set each shift to its new doctor_id)

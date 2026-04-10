@@ -7,6 +7,8 @@ export type DispatchChange = {
   shiftId: string;
   previousDispatchType: 'day' | 'night' | null;
   newDispatchType: 'day' | 'night' | null;
+  previousIsManualDispatch?: boolean;
+  newIsManualDispatch?: boolean;
 };
 
 export type EqualizeChange = {

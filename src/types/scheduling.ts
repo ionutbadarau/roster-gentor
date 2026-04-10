@@ -58,6 +58,7 @@ export interface Shift {
   is_manual?: boolean;
   is_forced_coverage?: boolean;
   dispatch_type?: 'day' | 'night' | null;
+  is_manual_dispatch?: boolean;
   created_at?: string;
   updated_at?: string;
 }
