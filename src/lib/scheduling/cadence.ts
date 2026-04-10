@@ -6,9 +6,81 @@
  * exactly one team is on Day, one on Night, and two are resting (with 4 teams).
  */
 
-import type { DoctorWithTeam, Team } from '@/types/scheduling';
+import type { DoctorWithTeam, Shift, Team } from '@/types/scheduling';
 import { SCHEDULING_CONSTANTS } from './constants';
 import { getShiftStartMs, getShiftEndMs, getRestHours, formatDateString } from './shift-utils';
+
+/**
+ * Compute cadence offsets based on how much rest each team has accumulated
+ * from the previous month. The most-rested team gets Day on day 1, the
+ * next-most-rested gets Night, and the remaining teams rest.
+ *
+ * Returns null when there are no previous month shifts (falls back to order-based).
+ */
+export function computeRestBasedOffsets(
+  teams: Team[],
+  doctors: DoctorWithTeam[],
+  previousMonthShifts: Shift[],
+  year: number,
+  month: number,
+): Map<string, number> | null {
+  if (previousMonthShifts.length === 0) return null;
+
+  const cycle = SCHEDULING_CONSTANTS.CADENCE_CYCLE_LENGTH;
+
+  // Only consider teams that have at least one 12h cadence doctor
+  const cadenceTeamIds = new Set<string>();
+  for (const doc of doctors) {
+    if (doc.shift_mode !== '24h' && !doc.is_floating && doc.team_id) {
+      cadenceTeamIds.add(doc.team_id);
+    }
+  }
+  const cadenceTeams = teams.filter(t => cadenceTeamIds.has(t.id));
+  if (cadenceTeams.length === 0) return null;
+
+  // Build set of doctor IDs per team for fast lookup
+  const teamDoctorIds = new Map<string, Set<string>>();
+  for (const team of cadenceTeams) {
+    const ids = new Set<string>();
+    for (const doc of doctors) {
+      if (doc.team_id === team.id && doc.shift_mode !== '24h' && !doc.is_floating) {
+        ids.add(doc.id);
+      }
+    }
+    teamDoctorIds.set(team.id, ids);
+  }
+
+  // Start of day 1 of the new month (day shift starts at 08:00)
+  const monthStartMs = Date.UTC(year, month, 1, 8);
+
+  // For each cadence team, find the latest shift end time from previous month
+  const teamRestPeriods: { teamId: string; restMs: number; order: number }[] = [];
+
+  for (const team of cadenceTeams) {
+    const docIds = teamDoctorIds.get(team.id)!;
+    let latestEndTime = 0;
+
+    for (const shift of previousMonthShifts) {
+      if (!docIds.has(shift.doctor_id)) continue;
+      if (shift.shift_type !== 'day' && shift.shift_type !== 'night' && shift.shift_type !== '24h') continue;
+      const endTime = getShiftEndMs(shift.shift_date, shift.shift_type as 'day' | 'night' | '24h');
+      if (endTime > latestEndTime) latestEndTime = endTime;
+    }
+
+    const restMs = latestEndTime > 0 ? monthStartMs - latestEndTime : Infinity;
+    teamRestPeriods.push({ teamId: team.id, restMs, order: team.order });
+  }
+
+  // Sort descending by rest (most rested first); tie-break by team order
+  teamRestPeriods.sort((a, b) => b.restMs - a.restMs || a.order - b.order);
+
+  const offsets = new Map<string, number>();
+  teamRestPeriods.forEach((tp, idx) => {
+    offsets.set(tp.teamId, idx % cycle);
+  });
+
+  return offsets;
+}
 
 /**
  * Compute the cadence position for each team on each day.
@@ -23,17 +95,23 @@ import { getShiftStartMs, getShiftEndMs, getRestHours, formatDateString } from '
 export function computeTeamCadenceGrid(
   teams: Team[],
   daysInMonth: number,
-  options?: { sequential?: boolean },
+  options?: { sequential?: boolean; teamOffsets?: Map<string, number> },
 ): Map<string, Map<number, 'day' | 'night' | null>> {
   const cycle = SCHEDULING_CONSTANTS.CADENCE_CYCLE_LENGTH;
   const grid = new Map<string, Map<number, 'day' | 'night' | null>>();
 
   for (const team of teams) {
-    // Safe modulo: JS % can return negative for negative operands
-    const rawOffset = ((team.order - 1) % cycle + cycle) % cycle;
-    const offset = options?.sequential
-      ? (cycle - rawOffset) % cycle
-      : rawOffset;
+    // Use pre-computed rest-based offset if available, otherwise fall back to order-based
+    let offset: number;
+    if (options?.teamOffsets?.has(team.id)) {
+      offset = options.teamOffsets.get(team.id)!;
+    } else {
+      // Safe modulo: JS % can return negative for negative operands
+      const rawOffset = ((team.order - 1) % cycle + cycle) % cycle;
+      offset = options?.sequential
+        ? (cycle - rawOffset) % cycle
+        : rawOffset;
+    }
     const dayMap = new Map<number, 'day' | 'night' | null>();
 
     for (let day = 1; day <= daysInMonth; day++) {

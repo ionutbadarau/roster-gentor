@@ -18,7 +18,7 @@ import { isDoctorOnLeave, isDoctorOnBridgeDay, canDoctorWorkWithTimeline, violat
 import { rebuildCounters, checkDoctorNorms, applyShiftRounding, calculateDoctorStats, calculateBaseNorm, recordShift, recordShift24h } from './stats';
 import { createPRNG } from './prng';
 import { detectConflicts, validateLeaveDays, calculatePossibleLeaveDays, getWorkingDaysInMonthStatic, computeUnderstaffedDays, findRestViolationPairs } from './validation';
-import { computeTeamCadenceGrid, computeDoctorCadenceSchedule } from './cadence';
+import { computeTeamCadenceGrid, computeDoctorCadenceSchedule, computeRestBasedOffsets } from './cadence';
 
 
 export class SchedulingEngine implements EngineContext {
@@ -149,7 +149,15 @@ export class SchedulingEngine implements EngineContext {
     }
 
     // ── Phase 0: Compute cadence grids ──
-    const teamCadence = computeTeamCadenceGrid(this.teams, daysInMonth, { sequential: true });
+    // When previous month shifts exist, rank teams by rest period so the
+    // most-rested team starts on Day for day 1 (avoids cross-month rest violations).
+    const teamOffsets = computeRestBasedOffsets(
+      this.teams, this.doctors, this.previousMonthShifts, this.year, this.month
+    );
+    const teamCadence = computeTeamCadenceGrid(this.teams, daysInMonth, {
+      sequential: true,
+      teamOffsets: teamOffsets ?? undefined,
+    });
     this.doctorCadence = computeDoctorCadenceSchedule(this.doctors, teamCadence);
 
     // ── Phase 1: Fill cadence shifts strictly ──

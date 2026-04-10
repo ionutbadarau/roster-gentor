@@ -37,7 +37,9 @@ Doctors with `is_optional = true` are filtered out before the main scheduling ph
 
 Each team follows a 4-day cycle: **Day, Night, Rest, Rest** (D-N-R-R).
 
-Teams are staggered sequentially by their `order` field so that team N starts its Day shift on day N:
+**Rest-based starting order (cross-month awareness):** When previous month shifts are available, `computeRestBasedOffsets()` ranks cadence teams by accumulated rest — the team whose doctors finished their last shift earliest gets Day on day 1, the next-most-rested gets Night, and the remaining teams rest. This prevents cross-month rest violations (e.g., a team that worked Night on the last day of the previous month won't be assigned Day on day 1 of the new month). Falls back to order-based offsets when no previous month data exists.
+
+**Fallback (order-based):** Teams are staggered sequentially by their `order` field so that team N starts its Day shift on day N:
 
 ```
 offset = (cycle - (order - 1) % cycle) % cycle
@@ -56,7 +58,7 @@ Team 4:   N     R     R     D     N     R     R     D
 
 On any given day, exactly one team is on Day, one on Night, and two are resting.
 
-Uses `computeTeamCadenceGrid()` from `../cadence.ts` with `{ sequential: true }`.
+Uses `computeTeamCadenceGrid()` from `../cadence.ts` with `{ sequential: true }` and optional `teamOffsets`.
 
 ### Phase 1: Fill Cadence Shifts Strictly
 
