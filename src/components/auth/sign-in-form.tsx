@@ -10,20 +10,23 @@ import Link from "next/link";
 
 export function SignInForm({ message }: { message: Message }) {
   const { t } = useTranslation();
+  const signUpsEnabled = process.env.NEXT_PUBLIC_SIGNUPS_ENABLED === 'true';
 
   return (
     <form className="flex flex-col space-y-6">
       <div className="space-y-2 text-center">
         <h1 className="text-3xl font-semibold tracking-tight">{t('auth.signIn.title')}</h1>
-        <p className="text-sm text-muted-foreground">
-          {t('auth.signIn.noAccount')}{" "}
-          <Link
-            className="text-primary font-medium hover:underline transition-all"
-            href="/sign-up"
-          >
-            {t('auth.signIn.signUpLink')}
-          </Link>
-        </p>
+        {signUpsEnabled && (
+          <p className="text-sm text-muted-foreground">
+            {t('auth.signIn.noAccount')}{" "}
+            <Link
+              className="text-primary font-medium hover:underline transition-all"
+              href="/sign-up"
+            >
+              {t('auth.signIn.signUpLink')}
+            </Link>
+          </p>
+        )}
       </div>
 
       <div className="space-y-4">

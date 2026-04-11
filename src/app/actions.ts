@@ -6,6 +6,14 @@ import { redirect } from "next/navigation";
 import { createClient } from "../../supabase/server";
 
 export const signUpAction = async (formData: FormData) => {
+  if (process.env.NEXT_PUBLIC_SIGNUPS_ENABLED !== 'true') {
+    return encodedRedirect(
+      "error",
+      "/sign-up",
+      "Sign-ups are temporarily closed. Please check back soon.",
+    );
+  }
+
   const email = formData.get("email")?.toString();
   const password = formData.get("password")?.toString();
   const fullName = formData.get("full_name")?.toString() || '';

@@ -1,7 +1,6 @@
 import { Message } from "@/components/form-message";
 import Navbar from "@/components/navbar";
 import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
-import { SmtpMessage } from "../smtp-message";
 
 export default async function ForgotPassword(props: {
   searchParams: Promise<Message>;
@@ -15,7 +14,6 @@ export default async function ForgotPassword(props: {
         <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-sm">
           <ForgotPasswordForm message={searchParams} />
         </div>
-        <SmtpMessage />
       </div>
     </>
   );

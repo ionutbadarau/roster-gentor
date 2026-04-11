@@ -203,7 +203,11 @@
       "password": "Parol\u0103",
       "passwordPlaceholder": "Parola ta",
       "signingUp": "Se \u00eenregistreaz\u0103...",
-      "signUpButton": "\u00cenregistrare"
+      "signUpButton": "\u00cenregistrare",
+      "closedTitle": "\u00cenregistr\u0103rile sunt temporar \u00eenchise",
+      "closedBody": "Punem ultimele retu\u0219uri produsului. \u00cenregistr\u0103rile noi se vor redeschide \u00een cur\u00e2nd — mul\u021bumim pentru r\u0103bdare!",
+      "closedError": "\u00cenregistr\u0103rile sunt temporar \u00eenchise. Revino \u00een cur\u00e2nd.",
+      "backToSignIn": "\u00cenapoi la autentificare"
     },
     "forgotPassword": {
       "title": "Resetare Parol\u0103",
@@ -222,11 +226,6 @@
       "confirmPasswordPlaceholder": "Confirm\u0103 parola",
       "resetting": "Se reseteaz\u0103...",
       "resetButton": "Resetare parol\u0103"
-    },
-    "smtp": {
-      "note": "Not\u0103:",
-      "rateLimit": "Emailurile sunt limitate ca frecven\u021b\u0103. Activeaz\u0103 SMTP personalizat pentru a cre\u0219te limita.",
-      "learnMore": "Afl\u0103 mai multe"
     },
     "actions": {
       "emailPasswordRequired": "Emailul \u0219i parola sunt obligatorii",

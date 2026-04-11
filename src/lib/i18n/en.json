@@ -203,7 +203,11 @@
       "password": "Password",
       "passwordPlaceholder": "Your password",
       "signingUp": "Signing up...",
-      "signUpButton": "Sign up"
+      "signUpButton": "Sign up",
+      "closedTitle": "Sign-ups are temporarily closed",
+      "closedBody": "We're putting the finishing touches on the product. New registrations will reopen soon — thanks for your patience!",
+      "closedError": "Sign-ups are temporarily closed. Please check back soon.",
+      "backToSignIn": "Back to sign in"
     },
     "forgotPassword": {
       "title": "Reset Password",
@@ -222,11 +226,6 @@
       "confirmPasswordPlaceholder": "Confirm password",
       "resetting": "Resetting password...",
       "resetButton": "Reset password"
-    },
-    "smtp": {
-      "note": "Note:",
-      "rateLimit": "Emails are rate limited. Enable Custom SMTP to increase the rate limit.",
-      "learnMore": "Learn more"
     },
     "actions": {
       "emailPasswordRequired": "Email and password are required",

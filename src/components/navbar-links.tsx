@@ -8,6 +8,7 @@ import { ThemeSwitcher } from './theme-switcher'
 
 export function NavbarLinks({ isLoggedIn }: { isLoggedIn: boolean }) {
   const { t, language, setLanguage } = useTranslation()
+  const signUpsEnabled = process.env.NEXT_PUBLIC_SIGNUPS_ENABLED === 'true'
 
   return (
     <div className="flex gap-4 items-center">
@@ -40,12 +41,14 @@ export function NavbarLinks({ isLoggedIn }: { isLoggedIn: boolean }) {
           >
             {t('nav.signIn')}
           </Link>
-          <Link
-            href="/sign-up"
-            className="px-4 py-2 text-sm font-medium text-white bg-black rounded-md hover:bg-gray-800"
-          >
-            {t('nav.signUp')}
-          </Link>
+          {signUpsEnabled && (
+            <Link
+              href="/sign-up"
+              className="px-4 py-2 text-sm font-medium text-white bg-black rounded-md hover:bg-gray-800"
+            >
+              {t('nav.signUp')}
+            </Link>
+          )}
         </>
       )}
     </div>
