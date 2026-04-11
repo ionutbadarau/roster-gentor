@@ -7,11 +7,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useTranslation } from "@/lib/i18n";
 
-export function ResetPasswordForm({ message }: { message: Message }) {
+export function ResetPasswordForm({
+  message,
+  code,
+}: {
+  message: Message;
+  code: string;
+}) {
   const { t } = useTranslation();
 
   return (
     <form className="flex flex-col space-y-6">
+      <input type="hidden" name="code" value={code} />
       <div className="space-y-2 text-center">
         <h1 className="text-3xl font-semibold tracking-tight">{t('auth.resetPassword.title')}</h1>
         <p className="text-sm text-muted-foreground">

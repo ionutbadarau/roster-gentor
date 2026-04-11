@@ -104,7 +104,7 @@ export const forgotPasswordAction = async (formData: FormData) => {
   }
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/callback?redirect_to=/reset-password`,
+    redirectTo: `${origin}/reset-password`,
   });
 
   if (error) {
@@ -132,36 +132,62 @@ export const resetPasswordAction = async (formData: FormData) => {
 
   const password = formData.get("password") as string;
   const confirmPassword = formData.get("confirmPassword") as string;
+  const code = formData.get("code") as string;
+
+  if (!code) {
+    return encodedRedirect(
+      "error",
+      "/sign-in",
+      "Invalid or expired password reset link. Please request a new one.",
+    );
+  }
 
   if (!password || !confirmPassword) {
-    encodedRedirect(
+    return encodedRedirect(
       "error",
-      "/reset-password",
+      `/reset-password?code=${encodeURIComponent(code)}`,
       "Password and confirm password are required",
     );
   }
 
   if (password !== confirmPassword) {
-    encodedRedirect(
+    return encodedRedirect(
       "error",
-      "/reset-password",
+      `/reset-password?code=${encodeURIComponent(code)}`,
       "Passwords do not match",
     );
   }
 
-  const { error } = await supabase.auth.updateUser({
-    password: password,
-  });
+  const { error: exchangeError } =
+    await supabase.auth.exchangeCodeForSession(code);
 
-  if (error) {
-    encodedRedirect(
+  if (exchangeError) {
+    return encodedRedirect(
       "error",
-      "/reset-password",
-      "Password update failed",
+      "/sign-in",
+      "Invalid or expired password reset link. Please request a new one.",
     );
   }
 
-  encodedRedirect("success", "/reset-password", "Password updated");
+  const { error: updateError } = await supabase.auth.updateUser({
+    password: password,
+  });
+
+  if (updateError) {
+    await supabase.auth.signOut();
+    return encodedRedirect(
+      "error",
+      "/forgot-password",
+      "Password update failed. Please request a new reset link.",
+    );
+  }
+
+  await supabase.auth.signOut();
+  return encodedRedirect(
+    "success",
+    "/sign-in",
+    "Password updated. Please sign in with your new password.",
+  );
 };
 
 export const signOutAction = async () => {
