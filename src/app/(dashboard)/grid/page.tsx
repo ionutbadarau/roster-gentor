@@ -13,9 +13,9 @@ export default function GridPage() {
 
   const { data: doctors = [], isLoading: loadingDoctors } = useDoctors();
   const { data: teams = [], isLoading: loadingTeams } = useTeams();
-  const { data: shifts = [], isLoading: loadingShifts } = useShifts();
-  const { data: leaveDays = [], isLoading: loadingLeave } = useLeaveDays();
-  const { data: nationalHolidays = [], isLoading: loadingHolidays } = useNationalHolidays();
+  const { data: shifts = [], isLoading: loadingShifts } = useShifts(currentYear, currentMonth);
+  const { data: leaveDays = [], isLoading: loadingLeave } = useLeaveDays(currentYear, currentMonth);
+  const { data: nationalHolidays = [], isLoading: loadingHolidays } = useNationalHolidays(currentYear, currentMonth);
   const { data: config, isLoading: loadingConfig } = useScheduleConfig();
   const { data: userId = null } = useUserId();
 
@@ -49,13 +49,13 @@ export default function GridPage() {
           setCurrentYear(year);
         }}
         onShiftsUpdate={(newShifts: Shift[]) => {
-          queryClient.setQueryData(queryKeys.shifts, newShifts);
+          queryClient.setQueryData(queryKeys.shifts(currentYear, currentMonth), newShifts);
         }}
         onLeaveDaysUpdate={(newLeaveDays: LeaveDay[]) => {
-          queryClient.setQueryData(queryKeys.leaveDays, newLeaveDays);
+          queryClient.setQueryData(queryKeys.leaveDays(currentYear, currentMonth), newLeaveDays);
         }}
         onNationalHolidaysUpdate={(newHolidays: NationalHoliday[]) => {
-          queryClient.setQueryData(queryKeys.nationalHolidays, newHolidays);
+          queryClient.setQueryData(queryKeys.nationalHolidays(currentYear, currentMonth), newHolidays);
         }}
       />
     </div>

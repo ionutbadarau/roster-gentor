@@ -289,15 +289,19 @@ export default function ShiftGridCalendar({
 
     try {
       const manualShifts = shifts.filter(s => s.is_manual && s.shift_date >= monthStart && s.shift_date <= monthEnd);
-      const otherMonthShifts = shifts.filter(s => s.shift_date < monthStart || s.shift_date > monthEnd);
-      onShiftsUpdate([...otherMonthShifts, ...manualShifts]);
+      onShiftsUpdate(manualShifts);
 
-      // Collect last few days of previous month to seed rest constraints
+      // Fetch last few days of previous month from DB to seed rest constraints
       const prevMonthDate = new Date(currentYear, currentMonth, 0);
       const prevMonthEnd = formatDateString(prevMonthDate.getFullYear(), prevMonthDate.getMonth(), prevMonthDate.getDate());
       const prevLookbackDay = Math.max(1, prevMonthDate.getDate() - 4);
       const prevMonthLookback = formatDateString(prevMonthDate.getFullYear(), prevMonthDate.getMonth(), prevLookbackDay);
-      const previousMonthShifts = shifts.filter(s => s.shift_date >= prevMonthLookback && s.shift_date <= prevMonthEnd);
+      const { data: prevShiftsData } = await supabase
+        .from('shifts')
+        .select('*')
+        .gte('shift_date', prevMonthLookback)
+        .lte('shift_date', prevMonthEnd);
+      const previousMonthShifts = (prevShiftsData ?? []) as Shift[];
 
       const result = await workerFn({
         month: currentMonth,
@@ -337,7 +341,7 @@ export default function ShiftGridCalendar({
         description: t('scheduling.grid.toastGenerateSuccess', { month: monthNames[currentMonth], year: currentYear }),
       });
 
-      onShiftsUpdate([...otherMonthShifts, ...manualShifts, ...(savedShifts ?? result.shifts)]);
+      onShiftsUpdate([...manualShifts, ...(savedShifts ?? result.shifts)]);
     } catch (error) {
       console.error('Error generating schedule:', error);
       toast({ title: t('common.error'), description: t('scheduling.grid.toastGenerateError'), variant: 'destructive' });
@@ -906,7 +910,7 @@ export default function ShiftGridCalendar({
     try {
       await deleteMonthShifts(supabase, monthStart, monthEnd);
 
-      onShiftsUpdate(shifts.filter(s => s.shift_date < monthStart || s.shift_date > monthEnd));
+      onShiftsUpdate([]);
       historyClear();
 
       toast({
