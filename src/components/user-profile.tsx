@@ -3,12 +3,12 @@ import { UserCircle } from 'lucide-react'
 import { Button } from './ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu'
 import { createClient } from '../../supabase/client'
-import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from '@/lib/i18n'
 
 export default function UserProfile() {
     const supabase = createClient()
-    const router = useRouter()
+    const queryClient = useQueryClient()
     const { t } = useTranslation()
 
     return (
@@ -20,8 +20,9 @@ export default function UserProfile() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={async () => {
+                    queryClient.clear()
                     await supabase.auth.signOut()
-                    router.refresh()
+                    window.location.href = '/sign-in'
                 }}>
                     {t('nav.signOut')}
                 </DropdownMenuItem>

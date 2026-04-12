@@ -1,16 +1,33 @@
 "use client";
 
-import { signInAction } from "@/app/actions";
 import { FormMessage, Message } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useTranslation } from "@/lib/i18n";
+import { createClient } from "../../../supabase/client";
 import Link from "next/link";
+import { useState } from "react";
 
 export function SignInForm({ message }: { message: Message }) {
   const { t } = useTranslation();
   const signUpsEnabled = process.env.NEXT_PUBLIC_SIGNUPS_ENABLED === 'true';
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (formData: FormData) => {
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    window.location.href = '/grid';
+  };
 
   return (
     <form className="flex flex-col space-y-6">
@@ -70,12 +87,13 @@ export function SignInForm({ message }: { message: Message }) {
       <SubmitButton
         className="w-full"
         pendingText={t('auth.signIn.signingIn')}
-        formAction={signInAction}
+        formAction={handleSubmit}
       >
         {t('auth.signIn.signInButton')}
       </SubmitButton>
 
-      <FormMessage message={message} />
+      {error && <FormMessage message={{ error }} />}
+      {!error && <FormMessage message={message} />}
     </form>
   );
 }

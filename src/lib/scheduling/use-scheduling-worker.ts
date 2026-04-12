@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useCallback } from 'react';
+import { SchedulingEngine } from './scheduling-engine';
 import type { ScheduleGenerationOptions } from './constants';
 import type { ScheduleGenerationResult } from '@/types/scheduling';
 
@@ -9,9 +10,13 @@ export function useSchedulingWorker() {
 
   useEffect(() => {
     if (typeof Worker !== 'undefined') {
-      workerRef.current = new Worker(
-        new URL('./scheduling.worker.ts', import.meta.url)
-      );
+      try {
+        workerRef.current = new Worker(
+          new URL('./scheduling.worker.ts', import.meta.url)
+        );
+      } catch {
+        workerRef.current = null;
+      }
     }
     return () => {
       workerRef.current?.terminate();
@@ -21,13 +26,14 @@ export function useSchedulingWorker() {
 
   const generate = useCallback(
     (options: ScheduleGenerationOptions): Promise<ScheduleGenerationResult> => {
-      return new Promise((resolve, reject) => {
-        const worker = workerRef.current;
-        if (!worker) {
-          reject(new Error('Worker not available'));
-          return;
-        }
+      const worker = workerRef.current;
+      if (!worker) {
+        // Fallback: run on main thread
+        const engine = new SchedulingEngine(options);
+        return Promise.resolve(engine.generateSchedule());
+      }
 
+      return new Promise((resolve, reject) => {
         worker.onmessage = (e: MessageEvent<ScheduleGenerationResult>) => {
           resolve(e.data);
         };
