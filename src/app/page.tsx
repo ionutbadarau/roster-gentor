@@ -1,18 +1,12 @@
-import Footer from "@/components/footer";
-import Hero from "@/components/hero";
-import Navbar from "@/components/navbar";
-import MarketingContent from "@/components/marketing-content";
-import { createClient } from "../../supabase/server";
+import Footer from '@/components/footer';
+import Navbar from '@/components/navbar';
+import MarketingV1 from '@/components/marketing-v1';
 
 export default async function Home() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
+    <div className="min-h-screen bg-white dark:bg-gray-950">
       <Navbar />
-      <Hero />
-      <MarketingContent />
+      <MarketingV1 />
       <Footer />
     </div>
   );

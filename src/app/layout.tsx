@@ -11,8 +11,8 @@ import QueryProvider from "@/components/query-provider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Generator ture",
-  description: "Shifts monthly generator",
+  title: "PlanGarzi — Planificarea Turelor Medicale",
+  description: "Program lunar de ture automat pentru echipele din spital. Configurează echipe, generează programe echitabile și exportă în PDF.",
 };
 
 export default function RootLayout({

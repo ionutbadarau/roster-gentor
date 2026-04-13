@@ -17,10 +17,20 @@ export function NavbarLinks({ isLoggedIn }: { isLoggedIn: boolean }) {
         variant="ghost"
         size="sm"
         onClick={() => setLanguage(language === 'ro' ? 'en' : 'ro')}
-        className="text-xs font-semibold px-2"
+        className="text-xs font-semibold px-2 gap-1"
       >
-        {language === 'ro' ? 'EN' : 'RO'}
+        {language === 'ro' ? (
+          <><span className="text-base leading-none">🇬🇧</span> EN</>
+        ) : (
+          <><span className="text-base leading-none">🇷🇴</span> RO</>
+        )}
       </Button>
+      <Link
+        href="/contact"
+        className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition-colors"
+      >
+        {t('marketing.footer.contact')}
+      </Link>
       {isLoggedIn ? (
         <>
           <Link
