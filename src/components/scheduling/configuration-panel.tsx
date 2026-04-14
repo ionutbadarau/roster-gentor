@@ -106,6 +106,7 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
               onChangeShiftMode={mutations.changeShiftMode}
               onToggleOptional={mutations.toggleOptional}
               onToggleDispatch={mutations.toggleDispatch}
+              onChangeEmail={mutations.updateEmail}
               onReorderDoctors={mutations.reorderDoctors}
               onAddDoctorToTeam={handleAddDoctorToTeam}
               setDeletingId={setDeletingId}
@@ -153,6 +154,7 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
         onChangeShiftMode={mutations.changeShiftMode}
         onToggleOptional={mutations.toggleOptional}
         onToggleDispatch={mutations.toggleDispatch}
+        onChangeEmail={mutations.updateEmail}
         onReorderDoctors={mutations.reorderDoctors}
         onAddDoctor={handleAddDoctorGeneric}
         setDeletingId={setDeletingId}

@@ -32,6 +32,7 @@ interface ConfigTeamGroupProps {
   onChangeShiftMode: (doctorId: string, mode: '12h' | '24h') => void;
   onToggleOptional: (doctorId: string, isOptional: boolean) => void;
   onToggleDispatch: (doctorId: string, canDispatch: boolean) => void;
+  onChangeEmail: (doctorId: string, email: string) => void;
   onReorderDoctors: (fromId: string, toId: string, sortedDoctors: Doctor[]) => void;
   onAddDoctorToTeam: (teamId: string) => void;
   // Team-level drag
@@ -65,6 +66,7 @@ export default function ConfigTeamGroup({
   onChangeShiftMode,
   onToggleOptional,
   onToggleDispatch,
+  onChangeEmail,
   onReorderDoctors,
   onAddDoctorToTeam,
   teamDragHandleProps,
@@ -224,6 +226,7 @@ export default function ConfigTeamGroup({
                 onChangeShiftMode={onChangeShiftMode}
                 onToggleOptional={onToggleOptional}
                 onToggleDispatch={onToggleDispatch}
+                onChangeEmail={onChangeEmail}
                 dragHandleProps={{
                   draggable: true,
                   onDragStart: (e) => {

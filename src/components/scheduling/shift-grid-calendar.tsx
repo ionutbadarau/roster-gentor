@@ -21,6 +21,7 @@ import ShiftGridDoctorRow from './shift-grid-doctor-row';
 import ShiftSelectionPopup, { type SelectionPopupData } from './shift-selection-popup';
 import ShiftGridWarnings from './shift-grid-warnings';
 import ShiftGridLegend from './shift-grid-legend';
+import SendScheduleDialog from './send-schedule-dialog';
 
 interface ShiftGridCalendarProps {
   doctors: Doctor[];
@@ -1116,6 +1117,32 @@ export default function ShiftGridCalendar({
     });
   };
 
+  // --- Send schedule to doctors ---
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [sendingSchedule, setSendingSchedule] = useState(false);
+
+  const handleSendSchedule = async () => {
+    setSendingSchedule(true);
+    try {
+      const res = await fetch('/api/send-schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ month: currentMonth, year: currentYear }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast({
+        title: t('common.success'),
+        description: t('scheduling.grid.scheduleSentSuccess', { count: String(data.sent) }),
+      });
+    } catch (error) {
+      toast({ title: t('common.error'), description: t('scheduling.grid.scheduleSentError'), variant: 'destructive' });
+    } finally {
+      setSendingSchedule(false);
+      setSendDialogOpen(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -1135,6 +1162,9 @@ export default function ShiftGridCalendar({
           onAssignDispatch={handleAssignDispatch}
           onEqualizeShifts={handleEqualizeShifts}
           onExportPdf={handleExportPdf}
+          onSendSchedule={() => setSendDialogOpen(true)}
+          sendingSchedule={sendingSchedule}
+          doctorsWithEmail={doctors.filter(d => d.email?.trim()).length}
           canUndo={canUndo}
           onUndo={handleUndo}
           canRedo={canRedo}
@@ -1246,6 +1276,16 @@ export default function ShiftGridCalendar({
           )}
         </CardContent>
       </Card>
+
+      <SendScheduleDialog
+        open={sendDialogOpen}
+        onOpenChange={setSendDialogOpen}
+        doctors={doctors}
+        monthName={monthNames[currentMonth]}
+        year={currentYear}
+        sending={sendingSchedule}
+        onSend={handleSendSchedule}
+      />
     </div>
   );
 }

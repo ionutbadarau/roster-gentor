@@ -25,6 +25,7 @@ interface ConfigFloatingDoctorsProps {
   onChangeShiftMode: (doctorId: string, mode: '12h' | '24h') => void;
   onToggleOptional: (doctorId: string, isOptional: boolean) => void;
   onToggleDispatch: (doctorId: string, canDispatch: boolean) => void;
+  onChangeEmail: (doctorId: string, email: string) => void;
   onReorderDoctors: (fromId: string, toId: string, sortedDoctors: Doctor[]) => void;
   onAddDoctor: () => void;
   setDeletingId: (id: string | null) => void;
@@ -45,6 +46,7 @@ export default function ConfigFloatingDoctors({
   onChangeShiftMode,
   onToggleOptional,
   onToggleDispatch,
+  onChangeEmail,
   onReorderDoctors,
   onAddDoctor,
   setDeletingId,
@@ -110,6 +112,7 @@ export default function ConfigFloatingDoctors({
                 onChangeShiftMode={onChangeShiftMode}
                 onToggleOptional={onToggleOptional}
                 onToggleDispatch={onToggleDispatch}
+                onChangeEmail={onChangeEmail}
                 dragHandleProps={{
                   draggable: true,
                   onDragStart: (e) => {

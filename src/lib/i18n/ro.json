@@ -2,7 +2,8 @@
   "common": {
     "loading": "Se \u00eencarc\u0103 datele...",
     "error": "Eroare",
-    "success": "Succes"
+    "success": "Succes",
+    "optional": "opțional"
   },
   "months": ["Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie", "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie"],
   "daysShort": ["D", "L", "Ma", "Mi", "J", "V", "S"],
@@ -95,7 +96,15 @@
       "exportPdf": "Export PDF",
       "manualShiftTooltip": "Selecție manuală — păstrată la regenerare",
       "manualShiftLegend": "Manual (fixat)",
-      "moreActions": "Mai multe acțiuni"
+      "moreActions": "Mai multe acțiuni",
+      "sendSchedule": "Trimite la Doctori",
+      "sendingSchedule": "Se trimite...",
+      "scheduleSentSuccess": "Programul a fost trimis la {{count}} doctori",
+      "scheduleSentError": "Nu s-au putut trimite emailurile cu programul",
+      "sendScheduleDialogTitle": "Trimite Programul la Doctori",
+      "sendScheduleDialogDescription": "Următorii doctori vor primi un email cu un link pentru a vedea programul din {{month}} {{year}}:",
+      "sendScheduleNoEmails": "Niciun doctor nu are adresă de email configurată. Adaugă emailuri în tab-ul Configurare.",
+      "sendScheduleSkipped": "{{count}} doctori fără email vor fi ignorați"
     },
     "config": {
       "teamsTitle": "Configurare Echipe",
@@ -162,7 +171,11 @@
       "deleteDoctorTitle": "Șterge Doctor",
       "deleteDoctorMessage": "Ești sigur că vrei să ștergi \"{{name}}\"? Această acțiune nu poate fi anulată.",
       "cancel": "Anulează",
-      "delete": "Șterge"
+      "delete": "Șterge",
+      "emailLabel": "Email",
+      "emailPlaceholder": "doctor@exemplu.ro",
+      "emailUpdatedSuccess": "Emailul a fost actualizat",
+      "emailUpdateError": "Nu s-a putut actualiza emailul"
     },
     "engine": {
       "normWarning": "Norma de baza nu poate fi indeplinita pentru {{name}}.",
@@ -293,6 +306,13 @@
       "signIn": "Autentificare",
       "allRightsReserved": "Toate drepturile rezervate."
     }
+  },
+  "scheduleView": {
+    "title": "Program — {{month}} {{year}}",
+    "subtitle": "Vizualizare doar citire",
+    "yourRow": "Tu",
+    "expired": "Acest link a expirat sau nu este valid.",
+    "expiredDescription": "Contactează administratorul pentru un link nou."
   },
   "errors": {
     "notFound": {

@@ -2,7 +2,8 @@
   "common": {
     "loading": "Loading data...",
     "error": "Error",
-    "success": "Success"
+    "success": "Success",
+    "optional": "optional"
   },
   "months": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
   "daysShort": ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"],
@@ -95,7 +96,15 @@
       "manualDispatchNight": "Dispatch Night (Y)",
       "manualDispatchApplied": "Dispatch assigned manually",
       "exportPdf": "Export PDF",
-      "moreActions": "More actions"
+      "moreActions": "More actions",
+      "sendSchedule": "Send to Doctors",
+      "sendingSchedule": "Sending...",
+      "scheduleSentSuccess": "Schedule sent to {{count}} doctors",
+      "scheduleSentError": "Could not send schedule emails",
+      "sendScheduleDialogTitle": "Send Schedule to Doctors",
+      "sendScheduleDialogDescription": "The following doctors will receive an email with a link to view the {{month}} {{year}} schedule:",
+      "sendScheduleNoEmails": "No doctors have email addresses configured. Add emails in the Configuration tab.",
+      "sendScheduleSkipped": "{{count}} doctors without email will be skipped"
     },
     "config": {
       "teamsTitle": "Team Configuration",
@@ -162,7 +171,11 @@
       "deleteDoctorTitle": "Delete Doctor",
       "deleteDoctorMessage": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
       "cancel": "Cancel",
-      "delete": "Delete"
+      "delete": "Delete",
+      "emailLabel": "Email",
+      "emailPlaceholder": "doctor@example.com",
+      "emailUpdatedSuccess": "Email updated",
+      "emailUpdateError": "Could not update email"
     },
     "engine": {
       "normWarning": "Base norm cannot be met for {{name}}.",
@@ -293,6 +306,13 @@
       "signIn": "Sign In",
       "allRightsReserved": "All rights reserved."
     }
+  },
+  "scheduleView": {
+    "title": "Schedule — {{month}} {{year}}",
+    "subtitle": "Read-only view",
+    "yourRow": "You",
+    "expired": "This schedule link has expired or is invalid.",
+    "expiredDescription": "Please contact your administrator for a new link."
   },
   "errors": {
     "notFound": {

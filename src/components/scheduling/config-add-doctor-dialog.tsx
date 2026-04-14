@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus, Loader2, Mail } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 import { Doctor, Team } from '@/types/scheduling';
 
@@ -15,11 +15,12 @@ interface ConfigAddDoctorDialogProps {
   teams: Team[];
   doctors: Doctor[];
   defaultTeamId?: string;
-  onAddDoctor: (name: string, teamId: string, doctors: Doctor[]) => Promise<boolean>;
+  onAddDoctor: (name: string, teamId: string, doctors: Doctor[], email?: string) => Promise<boolean>;
 }
 
 export default function ConfigAddDoctorDialog({ open, onOpenChange, teams, doctors, defaultTeamId, onAddDoctor }: ConfigAddDoctorDialogProps) {
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState(defaultTeamId ?? teams[0]?.id ?? '');
   const [adding, setAdding] = useState(false);
   const { t } = useTranslation();
@@ -28,15 +29,17 @@ export default function ConfigAddDoctorDialog({ open, onOpenChange, teams, docto
     if (open) {
       setSelectedTeamId(defaultTeamId ?? teams[0]?.id ?? '');
       setName('');
+      setEmail('');
     }
   }, [open, defaultTeamId, teams]);
 
   const handleAdd = async () => {
     setAdding(true);
-    const success = await onAddDoctor(name, selectedTeamId, doctors);
+    const success = await onAddDoctor(name, selectedTeamId, doctors, email || undefined);
     setAdding(false);
     if (success) {
       setName('');
+      setEmail('');
       onOpenChange(false);
     }
   };
@@ -59,6 +62,22 @@ export default function ConfigAddDoctorDialog({ open, onOpenChange, teams, docto
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) handleAdd(); }}
               autoFocus
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="dialog-doctor-email" className="flex items-center gap-1.5">
+              <Mail className="h-3.5 w-3.5" />
+              {t('scheduling.config.emailLabel')}
+              <span className="text-xs text-muted-foreground font-normal">({t('common.optional')})</span>
+            </Label>
+            <Input
+              id="dialog-doctor-email"
+              type="email"
+              placeholder={t('scheduling.config.emailPlaceholder')}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) handleAdd(); }}
             />
           </div>
 

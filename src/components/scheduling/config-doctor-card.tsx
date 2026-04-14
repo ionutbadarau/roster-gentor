@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Pencil, Check, X, Trash2, Loader2, GripVertical } from 'lucide-react';
+import { Pencil, Check, X, Trash2, Loader2, GripVertical, Mail } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 import { Doctor, Team } from '@/types/scheduling';
 
@@ -24,6 +24,7 @@ interface ConfigDoctorCardProps {
   onChangeShiftMode: (doctorId: string, mode: '12h' | '24h') => void;
   onToggleOptional: (doctorId: string, isOptional: boolean) => void;
   onToggleDispatch: (doctorId: string, canDispatch: boolean) => void;
+  onChangeEmail: (doctorId: string, email: string) => void;
   dragHandleProps?: {
     draggable: true;
     onDragStart: (e: React.DragEvent) => void;
@@ -49,6 +50,7 @@ export default function ConfigDoctorCard({
   onChangeShiftMode,
   onToggleOptional,
   onToggleDispatch,
+  onChangeEmail,
   dragHandleProps,
   onDragOver,
   onDrop,
@@ -176,6 +178,23 @@ export default function ConfigDoctorCard({
           <Label htmlFor={`dispatch-${doctor.id}`} className="text-xs text-muted-foreground cursor-pointer">
             {t('scheduling.config.dispatchLabel')}
           </Label>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <Input
+            type="email"
+            className="h-7 text-xs w-44"
+            placeholder={t('scheduling.config.emailPlaceholder')}
+            defaultValue={doctor.email ?? ''}
+            onBlur={(e) => {
+              const val = e.target.value.trim();
+              if (val !== (doctor.email ?? '')) onChangeEmail(doctor.id, val);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+            }}
+          />
         </div>
       </div>
     </div>

@@ -18,7 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles, Trash2, Loader2, Phone, FileDown, Undo2, Redo2, MoreHorizontal, Scale } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles, Trash2, Loader2, Phone, FileDown, Undo2, Redo2, MoreHorizontal, Scale, Mail } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 
 interface ShiftGridHeaderProps {
@@ -37,6 +37,9 @@ interface ShiftGridHeaderProps {
   onAssignDispatch: () => void;
   onEqualizeShifts: () => void;
   onExportPdf: () => void;
+  onSendSchedule?: () => void;
+  sendingSchedule?: boolean;
+  doctorsWithEmail?: number;
   canUndo?: boolean;
   onUndo?: () => void;
   canRedo?: boolean;
@@ -59,6 +62,9 @@ export default function ShiftGridHeader({
   onAssignDispatch,
   onEqualizeShifts,
   onExportPdf,
+  onSendSchedule,
+  sendingSchedule,
+  doctorsWithEmail,
   canUndo,
   onUndo,
   canRedo,
@@ -132,6 +138,10 @@ export default function ShiftGridHeader({
                 <DropdownMenuItem onClick={onExportPdf} disabled={!hasGeneratedSchedule}>
                   <FileDown className="h-4 w-4 mr-2" />
                   {t('scheduling.grid.exportPdf')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onSendSchedule} disabled={sendingSchedule || !hasGeneratedSchedule || !doctorsWithEmail}>
+                  <Mail className="h-4 w-4 mr-2" />
+                  {sendingSchedule ? t('scheduling.grid.sendingSchedule') : t('scheduling.grid.sendSchedule')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

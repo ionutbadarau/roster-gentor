@@ -106,7 +106,7 @@ export function useConfigMutations(
 
   // ── Doctors ────────────────────────────────────────────
 
-  const addDoctor = useCallback(async (name: string, teamId: string, doctors: Doctor[]) => {
+  const addDoctor = useCallback(async (name: string, teamId: string, doctors: Doctor[], email?: string) => {
     const trimmed = name.trim();
     if (!trimmed) {
       toast({ title: t('common.error'), description: t('scheduling.config.doctorNameRequired'), variant: 'destructive' });
@@ -116,7 +116,7 @@ export function useConfigMutations(
       const maxOrder = doctors.reduce((max, d) => Math.max(max, d.display_order ?? 0), 0);
       const { error } = await supabase.from('doctors').insert({
         name: trimmed,
-        email: null,
+        email: email?.trim() || null,
         team_id: teamId || null,
         is_floating: !teamId,
         user_id: userId,
@@ -241,6 +241,22 @@ export function useConfigMutations(
     }
   }, [supabase, onUpdate, toast, t]);
 
+  const updateEmail = useCallback(async (doctorId: string, email: string) => {
+    const trimmed = email.trim();
+    try {
+      const { error } = await supabase
+        .from('doctors')
+        .update({ email: trimmed || null })
+        .eq('id', doctorId);
+      if (error) throw error;
+      toast({ title: t('common.success'), description: t('scheduling.config.emailUpdatedSuccess') });
+      await onUpdate();
+    } catch (error) {
+      console.error('Error updating email:', error);
+      toast({ title: t('common.error'), description: t('scheduling.config.emailUpdateError'), variant: 'destructive' });
+    }
+  }, [supabase, onUpdate, toast, t]);
+
   // ── Shift Settings ─────────────────────────────────────
 
   const saveShiftSettings = useCallback(async (shiftsPerDay: number, shiftsPerNight: number, doctorCount: number) => {
@@ -276,7 +292,7 @@ export function useConfigMutations(
   return {
     addTeam, deleteTeam, renameTeam, reorderTeams, toggleMaxPerShift,
     addDoctor, deleteDoctor, renameDoctor, reorderDoctors,
-    changeTeam, changeShiftMode, toggleOptional, toggleDispatch,
+    changeTeam, changeShiftMode, toggleOptional, toggleDispatch, updateEmail,
     saveShiftSettings,
   };
 }
