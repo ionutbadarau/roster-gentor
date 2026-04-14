@@ -26,11 +26,20 @@ export async function middleware(req: NextRequest) {
     }
   )
 
-  // Refresh session if expired - required for Server Components
-  const { data: { session }, error } = await supabase.auth.getSession()
+  // Validate user server-side (getUser() hits Supabase Auth, unlike getSession())
+  const { error } = await supabase.auth.getUser()
 
   if (error) {
-    console.error('Auth session error:', error)
+    // Invalid/deleted user — clear session cookies and redirect to sign-in
+    const isAuthPage = req.nextUrl.pathname.startsWith('/sign-in') ||
+      req.nextUrl.pathname.startsWith('/sign-up') ||
+      req.nextUrl.pathname.startsWith('/forgot-password')
+
+    if (!isAuthPage) {
+      const redirectUrl = req.nextUrl.clone()
+      redirectUrl.pathname = '/sign-in'
+      return NextResponse.redirect(redirectUrl)
+    }
   }
 
   return res
