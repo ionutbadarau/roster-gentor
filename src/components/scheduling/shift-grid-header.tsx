@@ -18,7 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles, Trash2, Loader2, Phone, FileDown, Undo2, Redo2, MoreHorizontal, Scale, Mail } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles, Trash2, Loader2, Phone, FileDown, FileSpreadsheet, Undo2, Redo2, MoreHorizontal, Scale, Mail } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 
 interface ShiftGridHeaderProps {
@@ -37,6 +37,7 @@ interface ShiftGridHeaderProps {
   onAssignDispatch: () => void;
   onEqualizeShifts: () => void;
   onExportPdf: () => void;
+  onExportExcel: () => void;
   onSendSchedule?: () => void;
   sendingSchedule?: boolean;
   doctorsWithEmail?: number;
@@ -62,6 +63,7 @@ export default function ShiftGridHeader({
   onAssignDispatch,
   onEqualizeShifts,
   onExportPdf,
+  onExportExcel,
   onSendSchedule,
   sendingSchedule,
   doctorsWithEmail,
@@ -87,64 +89,72 @@ export default function ShiftGridHeader({
               {t('scheduling.grid.description')}
             </CardDescription>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="text-sm flex items-center gap-3">
-              <span>
-                <span className="text-muted-foreground">{t('scheduling.grid.leaveDaysThisMonth') + ': '}</span>
-                <Badge variant="outline">
-                  {currentLeaveDaysCount}
-                </Badge>
-              </span>
-              {totalBridgeDaysCount > 0 && (
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center justify-between gap-3 w-full sm:w-auto">
+              <div className="text-sm flex items-center gap-3">
                 <span>
-                  <span className="text-muted-foreground">{t('scheduling.grid.bridgeDaysThisMonth') + ': '}</span>
-                  <Badge variant="outline" className="bg-amber-50 dark:bg-amber-900/30">
-                    {totalBridgeDaysCount}
+                  <span className="text-muted-foreground">{t('scheduling.grid.leaveDaysThisMonth') + ': '}</span>
+                  <Badge variant="outline">
+                    {currentLeaveDaysCount}
                   </Badge>
                 </span>
-              )}
-            </div>
-            <div className="flex">
-              <Button variant="outline" size="icon" className="rounded-r-none border-r-0" onClick={onUndo} disabled={!canUndo} title={t('scheduling.grid.undo') + ' (Ctrl+Z)'}>
-                <Undo2 className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="icon" className="rounded-l-none" onClick={onRedo} disabled={!canRedo} title={t('scheduling.grid.redo') + ' (Ctrl+Y)'}>
-                <Redo2 className="h-4 w-4" />
-              </Button>
-            </div>
-            <Button onClick={onGenerate} disabled={generating}>
-              {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
-              {generating ? t('scheduling.grid.generating') : t('scheduling.grid.generate')}
-            </Button>
-            <Button variant="outline" onClick={onEqualizeShifts} disabled={equalizing || !hasGeneratedSchedule}>
-              {equalizing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Scale className="h-4 w-4 mr-2" />}
-              {equalizing ? t('scheduling.grid.equalizingShifts') : t('scheduling.grid.equalizeShifts')}
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" title={t('scheduling.grid.moreActions')}>
-                  <MoreHorizontal className="h-4 w-4" />
+                {totalBridgeDaysCount > 0 && (
+                  <span>
+                    <span className="text-muted-foreground">{t('scheduling.grid.bridgeDaysThisMonth') + ': '}</span>
+                    <Badge variant="outline" className="bg-amber-50 dark:bg-amber-900/30">
+                      {totalBridgeDaysCount}
+                    </Badge>
+                  </span>
+                )}
+              </div>
+              <div className="flex">
+                <Button variant="outline" size="icon" className="rounded-r-none border-r-0" onClick={onUndo} disabled={!canUndo} title={t('scheduling.grid.undo') + ' (Ctrl+Z)'}>
+                  <Undo2 className="h-4 w-4" />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setClearDialogOpen(true)}>
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  {t('scheduling.grid.clearMonth')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={onAssignDispatch} disabled={dispatchAssigning || !hasGeneratedSchedule}>
-                  <Phone className="h-4 w-4 mr-2" />
-                  {dispatchAssigning ? t('scheduling.grid.assigningDispatch') : t('scheduling.grid.assignDispatch')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={onExportPdf} disabled={!hasGeneratedSchedule}>
-                  <FileDown className="h-4 w-4 mr-2" />
-                  {t('scheduling.grid.exportPdf')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={onSendSchedule} disabled={sendingSchedule || !hasGeneratedSchedule || !doctorsWithEmail}>
-                  <Mail className="h-4 w-4 mr-2" />
-                  {sendingSchedule ? t('scheduling.grid.sendingSchedule') : t('scheduling.grid.sendSchedule')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <Button variant="outline" size="icon" className="rounded-l-none" onClick={onRedo} disabled={!canRedo} title={t('scheduling.grid.redo') + ' (Ctrl+Y)'}>
+                  <Redo2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <Button onClick={onGenerate} disabled={generating}>
+                {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                {generating ? t('scheduling.grid.generating') : t('scheduling.grid.generate')}
+              </Button>
+              <Button variant="outline" onClick={onEqualizeShifts} disabled={equalizing || !hasGeneratedSchedule}>
+                {equalizing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Scale className="h-4 w-4 mr-2" />}
+                {equalizing ? t('scheduling.grid.equalizingShifts') : t('scheduling.grid.equalizeShifts')}
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" title={t('scheduling.grid.moreActions')}>
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setClearDialogOpen(true)}>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    {t('scheduling.grid.clearMonth')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onAssignDispatch} disabled={dispatchAssigning || !hasGeneratedSchedule}>
+                    <Phone className="h-4 w-4 mr-2" />
+                    {dispatchAssigning ? t('scheduling.grid.assigningDispatch') : t('scheduling.grid.assignDispatch')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onExportPdf} disabled={!hasGeneratedSchedule}>
+                    <FileDown className="h-4 w-4 mr-2" />
+                    {t('scheduling.grid.exportPdf')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onExportExcel} disabled={!hasGeneratedSchedule}>
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    {t('scheduling.grid.exportExcel')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onSendSchedule} disabled={sendingSchedule || !hasGeneratedSchedule || !doctorsWithEmail}>
+                    <Mail className="h-4 w-4 mr-2" />
+                    {sendingSchedule ? t('scheduling.grid.sendingSchedule') : t('scheduling.grid.sendSchedule')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
       </CardHeader>

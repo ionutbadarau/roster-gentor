@@ -28,6 +28,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.0.4",
     "embla-carousel-react": "^8.5.2",
+    "exceljs": "^4.4.0",
     "framer-motion": "^12.5.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",

@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu'
 import { Button } from './ui/button'
-import { UserCircle, MessageSquare } from 'lucide-react'
+import { UserCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useTranslation } from '@/lib/i18n'
 import { ThemeSwitcher } from './theme-switcher'
@@ -46,12 +46,6 @@ export default function DashboardNavbar() {
           >
             {language === 'ro' ? 'EN' : 'RO'}
           </Button>
-          <Link
-            href="/contact"
-            className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition-colors"
-          >
-            {t('marketing.footer.contact')}
-          </Link>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">

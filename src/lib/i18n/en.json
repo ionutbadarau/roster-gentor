@@ -95,6 +95,7 @@
       "manualDispatchNight": "Dispatch Night (Y)",
       "manualDispatchApplied": "Dispatch assigned manually",
       "exportPdf": "Export PDF",
+      "exportExcel": "Export Excel",
       "moreActions": "More actions",
       "sendSchedule": "Send to Doctors",
       "sendingSchedule": "Sending...",

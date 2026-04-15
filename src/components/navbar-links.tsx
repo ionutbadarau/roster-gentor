@@ -1,7 +1,14 @@
 'use client'
 
 import Link from 'next/link'
+import { Menu } from 'lucide-react'
 import { Button } from './ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu'
 import { useTranslation } from '@/lib/i18n'
 import UserProfile from './user-profile'
 import { ThemeSwitcher } from './theme-switcher'
@@ -21,30 +28,47 @@ export function NavbarLinks({ isLoggedIn }: { isLoggedIn: boolean }) {
       >
         {language === 'ro' ? 'EN' : 'RO'}
       </Button>
-      <Link
-        href="/contact"
-        className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition-colors"
-      >
-        {t('marketing.footer.contact')}
-      </Link>
       {isLoggedIn ? (
         <UserProfile />
       ) : (
         <>
-          <Link
-            href="/sign-in"
-            className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
-          >
-            {t('nav.signIn')}
-          </Link>
-          {signUpsEnabled && (
+          {/* Desktop */}
+          <div className="hidden sm:flex items-center gap-4">
             <Link
-              href="/sign-up"
-              className="px-4 py-2 text-sm font-medium text-white bg-black rounded-md hover:bg-gray-800"
+              href="/sign-in"
+              className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
             >
-              {t('nav.signUp')}
+              {t('nav.signIn')}
             </Link>
-          )}
+            {signUpsEnabled && (
+              <Link
+                href="/sign-up"
+                className="px-4 py-2 text-sm font-medium text-white bg-black rounded-md hover:bg-gray-800"
+              >
+                {t('nav.signUp')}
+              </Link>
+            )}
+          </div>
+          {/* Mobile */}
+          <div className="sm:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href="/sign-in">{t('nav.signIn')}</Link>
+                </DropdownMenuItem>
+                {signUpsEnabled && (
+                  <DropdownMenuItem asChild>
+                    <Link href="/sign-up">{t('nav.signUp')}</Link>
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </>
       )}
     </div>

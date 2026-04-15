@@ -93,6 +93,7 @@
       "manualDispatchNight": "Dispecerat Noapte (Y)",
       "manualDispatchApplied": "Dispecerat atribuit manual",
       "exportPdf": "Export PDF",
+      "exportExcel": "Export Excel",
       "manualShiftTooltip": "Selecție manuală — păstrată la regenerare",
       "manualShiftLegend": "Manual (fixat)",
       "moreActions": "Mai multe acțiuni",

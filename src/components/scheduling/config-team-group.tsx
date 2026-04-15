@@ -119,7 +119,7 @@ export default function ConfigTeamGroup({
         onDrop={onTeamDrop}
       >
         {/* Team Header */}
-        <div className="flex items-center justify-between p-3 gap-2">
+        <div className="flex flex-wrap items-center justify-between p-3 gap-2">
           <div className="flex items-center gap-2 min-w-0">
             {teamDragHandleProps && (
               <TooltipProvider>
@@ -154,13 +154,13 @@ export default function ConfigTeamGroup({
             ) : (
               <span className="font-semibold truncate">{team.name}</span>
             )}
-
-            <Badge variant="secondary" className="text-xs shrink-0">
-              {sortedDoctors.length}
-            </Badge>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            <Badge variant="secondary" className="text-xs shrink-0">
+              {sortedDoctors.length}
+            </Badge>
+
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>

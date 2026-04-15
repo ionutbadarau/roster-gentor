@@ -16,6 +16,7 @@ import { equalizeShifts } from '@/lib/scheduling/equalize-shifts';
 import { upsertShift, createLeaveDay, deleteRecord, deleteMonthShifts, deleteMonthLeaveDays, restoreShift, restoreLeaveDay } from '@/lib/scheduling/shift-data-service';
 import { useUndoHistory, type UndoEntry, type DispatchChange } from '@/lib/scheduling/use-undo-history';
 import { exportSchedulePdf } from '@/lib/scheduling/export-pdf';
+import { exportScheduleExcel } from '@/lib/scheduling/export-excel';
 import ShiftGridHeader from './shift-grid-header';
 import ShiftGridDoctorRow from './shift-grid-doctor-row';
 import ShiftSelectionPopup, { type SelectionPopupData } from './shift-selection-popup';
@@ -1117,6 +1118,28 @@ export default function ShiftGridCalendar({
     });
   };
 
+  const handleExportExcel = () => {
+    exportScheduleExcel({
+      doctors,
+      teams,
+      shifts,
+      leaveDays,
+      nationalHolidays,
+      currentMonth,
+      currentYear,
+      monthName: monthNames[currentMonth],
+      dayNames: tArray('daysShort'),
+      labels: {
+        dayShiftLetter,
+        nightShiftLetter,
+        leaveLetter,
+        shift24hLetter,
+        doctorColumn: t('scheduling.grid.doctorColumn'),
+        title: t('scheduling.grid.title'),
+      },
+    });
+  };
+
   // --- Send schedule to doctors ---
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [sendingSchedule, setSendingSchedule] = useState(false);
@@ -1162,6 +1185,7 @@ export default function ShiftGridCalendar({
           onAssignDispatch={handleAssignDispatch}
           onEqualizeShifts={handleEqualizeShifts}
           onExportPdf={handleExportPdf}
+          onExportExcel={handleExportExcel}
           onSendSchedule={() => setSendDialogOpen(true)}
           sendingSchedule={sendingSchedule}
           doctorsWithEmail={doctors.filter(d => d.email?.trim()).length}
