@@ -2,9 +2,11 @@
 
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { Calendar as CalendarIcon } from 'lucide-react';
+import { Calendar as CalendarIcon, FileDown } from 'lucide-react';
+import { exportSchedulePdf } from '@/lib/scheduling/export-pdf';
 import { useTranslation } from '@/lib/i18n';
 import { formatDateString, getMonthPrefix, groupShiftsByDoctor, getShiftStartMs, getShiftEndMs, getRestHours } from '@/lib/scheduling/shift-utils';
 import { SchedulingEngine, SCHEDULING_CONSTANTS } from '@/lib/scheduling-engine';
@@ -163,6 +165,28 @@ export default function ReadOnlyScheduleView({
   const leaveLetter = extractCellLetter(t('scheduling.grid.leaveLabel'), 'C');
   const shift24hLetter = extractCellLetter(t('scheduling.grid.shift24hLabel'), 'DN');
 
+  const handleExportPdf = () => {
+    exportSchedulePdf({
+      doctors,
+      teams,
+      shifts,
+      leaveDays,
+      nationalHolidays,
+      currentMonth: month,
+      currentYear: year,
+      monthName: monthNames[month],
+      dayNames,
+      labels: {
+        dayShiftLetter,
+        nightShiftLetter,
+        leaveLetter,
+        shift24hLetter,
+        doctorColumn: t('scheduling.grid.doctorColumn'),
+        title: t('scheduling.grid.title'),
+      },
+    });
+  };
+
   const viewingDoctor = doctors.find(d => d.id === viewingDoctorId);
   const noop = () => {};
 
@@ -185,8 +209,14 @@ export default function ReadOnlyScheduleView({
                 )}
               </CardDescription>
             </div>
-            <div className="text-lg font-semibold">
-              {monthNames[month]} {year}
+            <div className="flex items-center gap-3">
+              <Button variant="outline" size="sm" onClick={handleExportPdf}>
+                <FileDown className="h-4 w-4 mr-2" />
+                {t('scheduling.grid.exportPdf')}
+              </Button>
+              <div className="text-lg font-semibold">
+                {monthNames[month]} {year}
+              </div>
             </div>
           </div>
         </CardHeader>
