@@ -35,7 +35,11 @@ export async function middleware(req: NextRequest) {
       req.nextUrl.pathname.startsWith('/sign-up') ||
       req.nextUrl.pathname.startsWith('/forgot-password')
 
-    if (!isAuthPage) {
+    const isPublicPage = req.nextUrl.pathname === '/' ||
+      req.nextUrl.pathname.startsWith('/contact') ||
+      req.nextUrl.pathname.startsWith('/schedule/view')
+
+    if (!isAuthPage && !isPublicPage) {
       const redirectUrl = req.nextUrl.clone()
       redirectUrl.pathname = '/sign-in'
       return NextResponse.redirect(redirectUrl)
@@ -55,6 +59,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public (public files)
      */
-    '/((?!_next/static|_next/image|favicon.ico|public|api).*)',
+    '/((?!_next/static|_next/image|favicon.ico|icon.svg|plangarzi-logo.svg|public|api).*)',
   ],
 }

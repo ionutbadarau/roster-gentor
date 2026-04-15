@@ -23,9 +23,6 @@ export default async function DashboardLayout({
       <DashboardNavbar />
       <main className="w-full min-h-screen bg-background">
         <div className="container mx-auto px-4 py-6 max-w-[100rem]">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold mb-2">Doctor Shift Scheduling</h1>
-          </div>
           <DashboardTabs />
           {children}
         </div>

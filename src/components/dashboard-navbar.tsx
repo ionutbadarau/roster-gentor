@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '../../supabase/client'
 import {
   DropdownMenu,
@@ -31,8 +32,8 @@ export default function DashboardNavbar() {
     <nav className="w-full border-b border-border bg-background py-4">
       <div className="container mx-auto px-4 flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <Link href="/" prefetch className="text-xl font-bold">
-            Logo
+          <Link href="/" prefetch>
+            <Image src="/plangarzi-logo.svg" alt="PlanGarzi" width={160} height={48} priority />
           </Link>
         </div>
         <div className="flex gap-4 items-center">

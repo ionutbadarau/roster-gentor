@@ -19,11 +19,7 @@ export function NavbarLinks({ isLoggedIn }: { isLoggedIn: boolean }) {
         onClick={() => setLanguage(language === 'ro' ? 'en' : 'ro')}
         className="text-xs font-semibold px-2 gap-1"
       >
-        {language === 'ro' ? (
-          <><span className="text-base leading-none">🇬🇧</span> EN</>
-        ) : (
-          <><span className="text-base leading-none">🇷🇴</span> RO</>
-        )}
+        {language === 'ro' ? 'EN' : 'RO'}
       </Button>
       <Link
         href="/contact"

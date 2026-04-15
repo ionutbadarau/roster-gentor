@@ -9,7 +9,6 @@
   "daysShort": ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"],
   "scheduling": {
     "dashboard": {
-      "title": "Doctor Shift Scheduling",
       "description": "Manage medical staff schedules with automatic generation and conflict detection",
       "tabGrid": "Grid",
       "tabConfig": "Configuration"

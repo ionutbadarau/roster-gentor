@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 130" width="440" height="130">
+  <!-- Calendar icon -->
+  <g>
+    <!-- Calendar body -->
+    <rect x="0" y="16" width="120" height="110" rx="14" fill="#0F6E56" />
+    <!-- Calendar top bar -->
+    <rect x="0" y="16" width="120" height="32" rx="14" fill="#1D9E75" />
+    <rect x="0" y="34" width="120" height="14" fill="#1D9E75" />
+    <!-- Calendar rings -->
+    <rect x="30" y="8" width="8" height="22" rx="4" fill="#085041" />
+    <rect x="82" y="8" width="8" height="22" rx="4" fill="#085041" />
+    <!-- Grid dots representing shifts -->
+    <circle cx="30" cy="70" r="5" fill="#9FE1CB" />
+    <circle cx="60" cy="70" r="5" fill="#5DCAA5" />
+    <circle cx="90" cy="70" r="5" fill="#9FE1CB" />
+    <circle cx="30" cy="95" r="5" fill="#5DCAA5" />
+    <!-- Medical cross in calendar -->
+    <rect x="52" y="85" width="16" height="36" rx="3" fill="#E1F5EE" />
+    <rect x="42" y="95" width="36" height="16" rx="3" fill="#E1F5EE" />
+    <!-- Bottom row dot -->
+    <circle cx="30" cy="115" r="4" fill="#5DCAA5" opacity="0.5" />
+  </g>
+
+  <!-- Wordmark -->
+  <text x="140" y="72" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="42" font-weight="600" fill="#0F6E56" letter-spacing="-1">Plan</text>
+  <text x="225" y="72" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="42" font-weight="600" fill="#1D9E75" letter-spacing="-1">Garzi</text>
+  <text x="140" y="96" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#5DCAA5" letter-spacing="3.5">.RO</text>
+</svg>

@@ -9,7 +9,6 @@
   "daysShort": ["D", "L", "Ma", "Mi", "J", "V", "S"],
   "scheduling": {
     "dashboard": {
-      "title": "Planificare Ture Medici",
       "description": "Gestioneaz\u0103 programul personalului medical cu generare automat\u0103 \u0219i detectare conflicte",
       "tabGrid": "Tabel",
       "tabConfig": "Configurare"
