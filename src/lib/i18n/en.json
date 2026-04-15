@@ -311,7 +311,8 @@
       "sending": "Sending...",
       "successMessage": "Message sent successfully! We'll get back to you soon.",
       "errorMessage": "Failed to send message. Please try again.",
-      "alternativeEmail": "Alternatively, you can email us at"
+      "alternativeEmail": "Alternatively, you can email us at",
+      "optional": "optional"
     },
     "footer": {
       "dashboard": "Dashboard",

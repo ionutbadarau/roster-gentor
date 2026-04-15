@@ -61,8 +61,8 @@ export function ContactContent() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">{t('marketing.contact.emailLabel')}</Label>
-            <Input id="email" name="email" type="email" required />
+            <Label htmlFor="email">{t('marketing.contact.emailLabel')} <span className="text-gray-400 dark:text-gray-500 font-normal">({t('marketing.contact.optional')})</span></Label>
+            <Input id="email" name="email" type="email" />
           </div>
 
           <div className="space-y-2">

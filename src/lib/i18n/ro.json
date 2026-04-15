@@ -311,7 +311,8 @@
       "sending": "Se trimite...",
       "successMessage": "Mesajul a fost trimis cu succes! Vom reveni cu un r\u0103spuns \u00een cur\u00e2nd.",
       "errorMessage": "Trimiterea mesajului a e\u0219uat. V\u0103 rug\u0103m s\u0103 \u00eencerca\u021bi din nou.",
-      "alternativeEmail": "Alternativ, ne pute\u021bi trimite un email la"
+      "alternativeEmail": "Alternativ, ne pute\u021bi trimite un email la",
+      "optional": "op\u021bional"
     },
     "footer": {
       "dashboard": "Dashboard",
