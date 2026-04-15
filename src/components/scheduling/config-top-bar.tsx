@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Plus, Settings, UserPlus } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
+import { InfoTooltip } from './info-tooltip';
 
 interface ConfigTopBarProps {
   shiftsPerDay: number;
@@ -56,6 +57,7 @@ export default function ConfigTopBar({
           <Label htmlFor="topbar-day" className="text-sm whitespace-nowrap">
             {t('scheduling.config.doctorsPerDayShift')}:
           </Label>
+          <InfoTooltip text={t('scheduling.config.doctorsPerDayShiftTooltip')} />
           <Input
             id="topbar-day"
             type="number"
@@ -73,6 +75,7 @@ export default function ConfigTopBar({
           <Label htmlFor="topbar-night" className="text-sm whitespace-nowrap">
             {t('scheduling.config.doctorsPerNightShift')}:
           </Label>
+          <InfoTooltip text={t('scheduling.config.doctorsPerNightShiftTooltip')} />
           <Input
             id="topbar-night"
             type="number"

@@ -3,10 +3,11 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Pencil, Check, X, Trash2, Loader2, GripVertical, Mail } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Doctor, Team } from '@/types/scheduling';
 
 interface ConfigDoctorCardProps {
@@ -71,12 +72,21 @@ export default function ConfigDoctorCard({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
           {dragHandleProps && (
-            <div
-              className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
-              {...dragHandleProps}
-            >
-              <GripVertical className="h-4 w-4" />
-            </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div
+                    className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
+                    {...dragHandleProps}
+                  >
+                    <GripVertical className="h-4 w-4" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{t('scheduling.config.dragToReorderTooltip')}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
           {team && (
             <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: team.color }} />
@@ -156,35 +166,53 @@ export default function ConfigDoctorCard({
           </SelectContent>
         </Select>
 
-        <div className="flex items-center gap-1.5">
-          <Switch
-            id={`optional-${doctor.id}`}
-            checked={doctor.is_optional ?? false}
-            onCheckedChange={(checked) => onToggleOptional(doctor.id, checked)}
-            className="scale-75"
-          />
-          <Label htmlFor={`optional-${doctor.id}`} className="text-xs text-muted-foreground cursor-pointer">
-            {t('scheduling.config.optionalLabel')}
-          </Label>
-        </div>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-1.5">
+                <Switch
+                  id={`optional-${doctor.id}`}
+                  checked={doctor.is_optional ?? false}
+                  onCheckedChange={(checked) => onToggleOptional(doctor.id, checked)}
+                  className="scale-75"
+                />
+                <label htmlFor={`optional-${doctor.id}`} className="text-xs text-muted-foreground cursor-pointer">
+                  {t('scheduling.config.optionalLabel')}
+                </label>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{t('scheduling.config.optionalTooltip')}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
 
-        <div className="flex items-center gap-1.5">
-          <Switch
-            id={`dispatch-${doctor.id}`}
-            checked={doctor.can_dispatch ?? false}
-            onCheckedChange={(checked) => onToggleDispatch(doctor.id, checked)}
-            className="scale-75"
-          />
-          <Label htmlFor={`dispatch-${doctor.id}`} className="text-xs text-muted-foreground cursor-pointer">
-            {t('scheduling.config.dispatchLabel')}
-          </Label>
-        </div>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-1.5">
+                <Switch
+                  id={`dispatch-${doctor.id}`}
+                  checked={doctor.can_dispatch ?? false}
+                  onCheckedChange={(checked) => onToggleDispatch(doctor.id, checked)}
+                  className="scale-75"
+                />
+                <label htmlFor={`dispatch-${doctor.id}`} className="text-xs text-muted-foreground cursor-pointer">
+                  {t('scheduling.config.dispatchLabel')}
+                </label>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{t('scheduling.config.dispatchTooltip')}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
 
-        <div className="flex items-center gap-1.5">
-          <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <div className="relative">
+          <Mail className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input
             type="email"
-            className="h-7 text-xs w-44"
+            className="h-7 text-xs w-44 pl-7"
             placeholder={t('scheduling.config.emailPlaceholder')}
             defaultValue={doctor.email ?? ''}
             onBlur={(e) => {

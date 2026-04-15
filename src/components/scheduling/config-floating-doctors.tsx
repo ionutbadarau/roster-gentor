@@ -7,6 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ChevronDown, ChevronRight, Plus, Users } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
+import { InfoTooltip } from './info-tooltip';
 import { Doctor, Team } from '@/types/scheduling';
 import ConfigDoctorCard from './config-doctor-card';
 
@@ -81,6 +82,7 @@ export default function ConfigFloatingDoctors({
           <div className="flex items-center gap-2 min-w-0">
             <Users className="h-4 w-4 text-muted-foreground" />
             <span className="font-semibold truncate">{t('scheduling.config.floatingStaff')}</span>
+            <InfoTooltip text={t('scheduling.config.floatingStaffTooltip')} />
             <Badge variant="secondary" className="text-xs shrink-0">
               {sortedDoctors.length}
             </Badge>

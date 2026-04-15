@@ -32,9 +32,7 @@ export default function ConfigPage() {
         shiftsPerDay={config?.shiftsPerDay ?? 3}
         shiftsPerNight={config?.shiftsPerNight ?? 3}
         userId={userId}
-        onUpdate={() => {
-          queryClient.invalidateQueries();
-        }}
+        onUpdate={() => queryClient.invalidateQueries()}
       />
     </div>
   );

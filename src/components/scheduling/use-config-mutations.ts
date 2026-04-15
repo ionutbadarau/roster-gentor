@@ -1,16 +1,19 @@
 'use client';
 
 import { useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
 import { useTranslation } from '@/lib/i18n';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Doctor, Team } from '@/types/scheduling';
+import { queryKeys } from '@/lib/queries';
 
 export function useConfigMutations(
   supabase: SupabaseClient,
   userId: string | null,
   onUpdate: () => void | Promise<void>,
 ) {
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const { t } = useTranslation();
 
@@ -90,19 +93,28 @@ export function useConfigMutations(
   }, [supabase, onUpdate, toast, t]);
 
   const toggleMaxPerShift = useCallback(async (teamId: string, enabled: boolean) => {
+    const dbValue = enabled ? 1 : null;
+    // Optimistic update for instant UI feedback
+    queryClient.setQueryData<Team[]>(queryKeys.teams, (old) =>
+      old?.map(t => t.id === teamId ? { ...t, max_doctors_per_shift: dbValue ?? undefined } : t)
+    );
     try {
       const { error } = await supabase
         .from('teams')
-        .update({ max_doctors_per_shift: enabled ? 1 : null })
+        .update({ max_doctors_per_shift: dbValue })
         .eq('id', teamId);
       if (error) throw error;
       toast({ title: t('common.success'), description: t('scheduling.config.maxPerShiftChanged') });
       await onUpdate();
     } catch (error) {
       console.error('Error updating max doctors per shift:', error);
+      // Rollback on failure
+      queryClient.setQueryData<Team[]>(queryKeys.teams, (old) =>
+        old?.map(t => t.id === teamId ? { ...t, max_doctors_per_shift: enabled ? undefined : 1 } : t)
+      );
       toast({ title: t('common.error'), description: t('scheduling.config.maxPerShiftError'), variant: 'destructive' });
     }
-  }, [supabase, onUpdate, toast, t]);
+  }, [supabase, queryClient, onUpdate, toast, t]);
 
   // ── Doctors ────────────────────────────────────────────
 

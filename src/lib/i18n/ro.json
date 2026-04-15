@@ -175,7 +175,13 @@
       "emailLabel": "Email",
       "emailPlaceholder": "doctor@exemplu.ro",
       "emailUpdatedSuccess": "Emailul a fost actualizat",
-      "emailUpdateError": "Nu s-a putut actualiza emailul"
+      "emailUpdateError": "Nu s-a putut actualiza emailul",
+      "doctorsPerDayShiftTooltip": "Câți doctori trebuie programați pentru fiecare tură de zi (08:00–20:00).",
+      "doctorsPerNightShiftTooltip": "Câți doctori trebuie programați pentru fiecare tură de noapte (20:00–08:00).",
+      "optionalTooltip": "Doctorii opționali sunt programați doar când nu sunt suficienți doctori titulari disponibili.",
+      "dispatchTooltip": "Doctorii eligibili pentru dispecerat pot fi repartizați la urgențe în timpul turei.",
+      "floatingStaffTooltip": "Doctorii flotanți nu aparțin unei echipe și pot înlocui în orice echipă la nevoie.",
+      "dragToReorderTooltip": "Trage pentru a reordona"
     },
     "engine": {
       "normWarning": "Norma de baza nu poate fi indeplinita pentru {{name}}.",

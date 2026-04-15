@@ -122,12 +122,21 @@ export default function ConfigTeamGroup({
         <div className="flex items-center justify-between p-3 gap-2">
           <div className="flex items-center gap-2 min-w-0">
             {teamDragHandleProps && (
-              <div
-                className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
-                {...teamDragHandleProps}
-              >
-                <GripVertical className="h-4 w-4" />
-              </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
+                      {...teamDragHandleProps}
+                    >
+                      <GripVertical className="h-4 w-4" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{t('scheduling.config.dragToReorderTooltip')}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
             <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: team.color }} />
 

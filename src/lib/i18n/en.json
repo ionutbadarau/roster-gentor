@@ -175,7 +175,13 @@
       "emailLabel": "Email",
       "emailPlaceholder": "doctor@example.com",
       "emailUpdatedSuccess": "Email updated",
-      "emailUpdateError": "Could not update email"
+      "emailUpdateError": "Could not update email",
+      "doctorsPerDayShiftTooltip": "How many doctors must be scheduled for each day shift (08:00–20:00).",
+      "doctorsPerNightShiftTooltip": "How many doctors must be scheduled for each night shift (20:00–08:00).",
+      "optionalTooltip": "Optional doctors are only scheduled when there aren't enough regular doctors available.",
+      "dispatchTooltip": "Dispatch-eligible doctors can be assigned to emergency dispatch duty during their shift.",
+      "floatingStaffTooltip": "Floating doctors aren't assigned to a team and can fill in for any team when needed.",
+      "dragToReorderTooltip": "Drag to reorder"
     },
     "engine": {
       "normWarning": "Base norm cannot be met for {{name}}.",
