@@ -28,17 +28,7 @@ export function NavbarLinks({ isLoggedIn }: { isLoggedIn: boolean }) {
         {t('marketing.footer.contact')}
       </Link>
       {isLoggedIn ? (
-        <>
-          <Link
-            href="/grid"
-            className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
-          >
-            <Button>
-              {t('nav.dashboard')}
-            </Button>
-          </Link>
-          <UserProfile />
-        </>
+        <UserProfile />
       ) : (
         <>
           <Link

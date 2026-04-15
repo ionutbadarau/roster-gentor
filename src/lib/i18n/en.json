@@ -260,8 +260,7 @@
   "nav": {
     "signIn": "Sign In",
     "signUp": "Sign Up",
-    "signOut": "Sign out",
-    "dashboard": "Dashboard"
+    "signOut": "Sign out"
   },
   "marketing": {
     "appName": "PlanGarzi",
@@ -300,10 +299,19 @@
       "v1": "Ready to simplify your scheduling?"
     },
     "contact": {
-      "title": "Contact",
+      "title": "Contact Us",
       "phone": "Phone",
       "email": "Email",
-      "description": "Have questions about PlanGarzi? Get in touch."
+      "description": "Have questions about PlanGarzi? Get in touch.",
+      "nameLabel": "Name",
+      "emailLabel": "Email",
+      "subjectLabel": "Subject",
+      "messageLabel": "Message",
+      "submitButton": "Send Message",
+      "sending": "Sending...",
+      "successMessage": "Message sent successfully! We'll get back to you soon.",
+      "errorMessage": "Failed to send message. Please try again.",
+      "alternativeEmail": "Alternatively, you can email us at"
     },
     "footer": {
       "dashboard": "Dashboard",

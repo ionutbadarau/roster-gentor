@@ -260,8 +260,7 @@
   "nav": {
     "signIn": "Autentificare",
     "signUp": "\u00cenregistrare",
-    "signOut": "Deconectare",
-    "dashboard": "Dashboard"
+    "signOut": "Deconectare"
   },
   "marketing": {
     "appName": "PlanGarzi",
@@ -300,10 +299,19 @@
       "v1": "Gata s\u0103-\u021bi simplifici planificarea?"
     },
     "contact": {
-      "title": "Contact",
+      "title": "Contacteaz\u0103-ne",
       "phone": "Telefon",
       "email": "Email",
-      "description": "Ai \u00eentreb\u0103ri despre PlanGarzi? Ia leg\u0103tura cu noi."
+      "description": "Ai \u00eentreb\u0103ri despre PlanGarzi? Ia leg\u0103tura cu noi.",
+      "nameLabel": "Nume",
+      "emailLabel": "Email",
+      "subjectLabel": "Subiect",
+      "messageLabel": "Mesaj",
+      "submitButton": "Trimite mesajul",
+      "sending": "Se trimite...",
+      "successMessage": "Mesajul a fost trimis cu succes! Vom reveni cu un r\u0103spuns \u00een cur\u00e2nd.",
+      "errorMessage": "Trimiterea mesajului a e\u0219uat. V\u0103 rug\u0103m s\u0103 \u00eencerca\u021bi din nou.",
+      "alternativeEmail": "Alternativ, ne pute\u021bi trimite un email la"
     },
     "footer": {
       "dashboard": "Dashboard",

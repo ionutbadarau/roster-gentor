@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { CalendarDays } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 
-export default function Footer() {
+export default function Footer({ isLoggedIn = false }: { isLoggedIn?: boolean }) {
   const { t } = useTranslation();
   const currentYear = new Date().getFullYear();
 
@@ -24,9 +24,11 @@ export default function Footer() {
             <Link href="/contact" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
               {t('marketing.footer.contact')}
             </Link>
-            <Link href="/sign-in" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-              {t('marketing.footer.signIn')}
-            </Link>
+            {!isLoggedIn && (
+              <Link href="/sign-in" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                {t('marketing.footer.signIn')}
+              </Link>
+            )}
           </div>
         </div>
       </div>
