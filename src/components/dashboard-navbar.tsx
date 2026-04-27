@@ -11,12 +11,16 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu'
 import { Button } from './ui/button'
-import { UserCircle } from 'lucide-react'
+import { UserCircle, CreditCard, User } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useTranslation } from '@/lib/i18n'
 import { ThemeSwitcher } from './theme-switcher'
 
-export default function DashboardNavbar() {
+export default function DashboardNavbar({
+  showBilling = false,
+}: {
+  showBilling?: boolean
+}) {
   const supabase = createClient()
   const router = useRouter()
   const { t, language, setLanguage } = useTranslation()
@@ -58,6 +62,16 @@ export default function DashboardNavbar() {
                   {userEmail}
                 </DropdownMenuItem>
               )}
+              {showBilling && (
+                <DropdownMenuItem onClick={() => router.push('/billing')}>
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  {t('billing.billingMenuLabel')}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => router.push('/account')}>
+                <User className="h-4 w-4 mr-2" />
+                {t('nav.account')}
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={async () => {
                 await supabase.auth.signOut()
                 router.refresh()

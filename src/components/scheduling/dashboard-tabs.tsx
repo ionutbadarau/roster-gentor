@@ -15,6 +15,8 @@ export default function DashboardTabs() {
   const pathname = usePathname();
   const { t } = useTranslation();
 
+  if (pathname === '/billing') return null;
+
   return (
     <div className="grid w-full grid-cols-2 mb-6 bg-muted p-1 rounded-lg">
       {tabs.map(({ href, key, icon: Icon }) => {

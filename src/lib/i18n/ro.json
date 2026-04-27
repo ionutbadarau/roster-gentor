@@ -261,7 +261,8 @@
   "nav": {
     "signIn": "Autentificare",
     "signUp": "\u00cenregistrare",
-    "signOut": "Deconectare"
+    "signOut": "Deconectare",
+    "account": "Cont"
   },
   "marketing": {
     "appName": "PlanGarzi",
@@ -328,6 +329,59 @@
     "yourRow": "Tu",
     "expired": "Acest link a expirat sau nu este valid.",
     "expiredDescription": "Contactează administratorul pentru un link nou."
+  },
+  "billing": {
+    "trialBanner": "Perioadă de probă gratuită — {{days}} zile rămase",
+    "trialExpiringSoon": "Perioada de probă expiră în {{days}} zile",
+    "subscribe": "Abonează-te",
+    "updatePaymentMethod": "Actualizează metoda de plată",
+    "manageSubscription": "Gestionează abonamentul",
+    "planName": "PlanGarzi",
+    "priceMonthly": "€7/lună",
+    "month": "lună",
+    "year": "an",
+    "monthly": "Lunar",
+    "yearly": "Anual",
+    "yearlyBadge": "Economisești 29%",
+    "yearlyBilled": "Facturat $60 anual",
+    "billingMenuLabel": "Facturare",
+    "billingTitle": "Facturare & Abonament",
+    "billingDescription": "Gestionează abonamentul și metoda de plată.",
+    "pastDue": "Plata a eșuat — actualizează metoda de plată",
+    "cancelAtPeriodEnd": "Abonamentul tău se va încheia pe {{date}}",
+    "paywall": {
+      "title": "Perioada de probă gratuită a expirat",
+      "description": "Abonează-te la PlanGarzi pentru a continua gestionarea programului de ture medicale.",
+      "titleTrial": "Abonează-te la PlanGarzi",
+      "descriptionTrial": "Mai ai {{days}} zile din perioada de probă. Abonează-te acum pentru acces neîntrerupt.",
+      "cta": "Abonează-te — €7/lună",
+      "ctaMonthly": "Abonează-te — $7/lună",
+      "ctaYearly": "Abonează-te — $60/an",
+      "processing": "Se redirecționează...",
+      "feature1": "Generare automată a programului",
+      "feature2": "Detectare și rezolvare a conflictelor",
+      "feature3": "Export PDF și Excel",
+      "feature4": "Trimite programul prin email echipei",
+      "contactSupport": "Ai nevoie de ajutor?",
+      "contactLink": "Contactează-ne"
+    }
+  },
+  "account": {
+    "title": "Cont",
+    "description": "Gestionează contul tău.",
+    "dangerZone": "Zonă periculoasă",
+    "deleteTitle": "Șterge contul",
+    "deleteDescription": "Șterge permanent contul și toate datele asociate. Această acțiune nu poate fi anulată.",
+    "deleteButton": "Șterge contul",
+    "confirmTitle": "Ștergi contul?",
+    "confirmMessage": "Această acțiune va șterge permanent contul, va anula orice abonament activ și va elimina toate datele tale: medici, echipe, ture, zile de concediu, sărbători și link-uri de program partajate. Acțiunea nu poate fi anulată.",
+    "confirmEmailLabel": "Scrie adresa ta de email pentru a confirma:",
+    "confirmEmailPlaceholder": "tu@exemplu.com",
+    "cancel": "Anulează",
+    "confirmDeleteButton": "Șterge contul meu",
+    "deleting": "Se șterge…",
+    "deleteFailed": "Ștergerea contului a eșuat. Încearcă din nou.",
+    "deletedToast": "Contul tău a fost șters."
   },
   "errors": {
     "notFound": {

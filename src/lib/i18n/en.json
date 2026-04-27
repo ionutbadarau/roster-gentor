@@ -261,7 +261,8 @@
   "nav": {
     "signIn": "Sign In",
     "signUp": "Sign Up",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "account": "Account"
   },
   "marketing": {
     "appName": "PlanGarzi",
@@ -328,6 +329,59 @@
     "yourRow": "You",
     "expired": "This schedule link has expired or is invalid.",
     "expiredDescription": "Please contact your administrator for a new link."
+  },
+  "billing": {
+    "trialBanner": "Free trial — {{days}} days remaining",
+    "trialExpiringSoon": "Your trial ends in {{days}} days",
+    "subscribe": "Subscribe",
+    "updatePaymentMethod": "Update Payment Method",
+    "manageSubscription": "Manage Subscription",
+    "planName": "PlanGarzi",
+    "priceMonthly": "€7/month",
+    "month": "month",
+    "year": "year",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "yearlyBadge": "Save 29%",
+    "yearlyBilled": "Billed $60 yearly",
+    "billingMenuLabel": "Billing",
+    "billingTitle": "Billing & Subscription",
+    "billingDescription": "Manage your subscription and payment method.",
+    "pastDue": "Payment failed — please update your payment method",
+    "cancelAtPeriodEnd": "Your subscription will end on {{date}}",
+    "paywall": {
+      "title": "Your free trial has ended",
+      "description": "Subscribe to PlanGarzi to continue managing your medical shift schedules.",
+      "titleTrial": "Subscribe to PlanGarzi",
+      "descriptionTrial": "You have {{days}} days left in your trial. Subscribe now to keep uninterrupted access.",
+      "cta": "Subscribe — €7/month",
+      "ctaMonthly": "Subscribe — $7/month",
+      "ctaYearly": "Subscribe — $60/year",
+      "processing": "Redirecting...",
+      "feature1": "Automatic schedule generation",
+      "feature2": "Conflict detection & resolution",
+      "feature3": "PDF & Excel export",
+      "feature4": "Email schedules to your team",
+      "contactSupport": "Need help?",
+      "contactLink": "Contact us"
+    }
+  },
+  "account": {
+    "title": "Account",
+    "description": "Manage your account.",
+    "dangerZone": "Danger zone",
+    "deleteTitle": "Delete account",
+    "deleteDescription": "Permanently delete your account and all associated data. This action cannot be undone.",
+    "deleteButton": "Delete account",
+    "confirmTitle": "Delete your account?",
+    "confirmMessage": "This will permanently delete your account, cancel any active subscription, and remove all your data: doctors, teams, shifts, leave days, holidays, and shared schedule links. This cannot be undone.",
+    "confirmEmailLabel": "Type your email address to confirm:",
+    "confirmEmailPlaceholder": "you@example.com",
+    "cancel": "Cancel",
+    "confirmDeleteButton": "Delete my account",
+    "deleting": "Deleting…",
+    "deleteFailed": "Failed to delete account. Please try again.",
+    "deletedToast": "Your account has been deleted."
   },
   "errors": {
     "notFound": {

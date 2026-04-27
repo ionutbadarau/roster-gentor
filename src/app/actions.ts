@@ -1,9 +1,11 @@
 "use server";
 
 import { encodedRedirect } from "@/utils/utils";
+import { stripe } from "@/lib/stripe";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "../../supabase/server";
+import { supabaseAdmin } from "../../supabase/admin";
 
 export const signUpAction = async (formData: FormData) => {
   if (process.env.NEXT_PUBLIC_SIGNUPS_ENABLED !== 'true') {
@@ -32,7 +34,7 @@ export const signUpAction = async (formData: FormData) => {
     email,
     password,
     options: {
-      emailRedirectTo: `${origin}/auth/callback`,
+      emailRedirectTo: `${origin}/grid`,
       data: {
         full_name: fullName,
         email: email,
@@ -40,18 +42,26 @@ export const signUpAction = async (formData: FormData) => {
     },
   });
 
-  console.log("After signUp", error);
-
   if (error) {
     console.error(error.code + " " + error.message);
     return encodedRedirect("error", "/sign-up", error.message);
   }
 
+  // Supabase returns an obfuscated user with empty identities[] when the
+  // email is already registered (no error, for enumeration protection).
+  if (user && Array.isArray(user.identities) && user.identities.length === 0) {
+    return encodedRedirect(
+      "error",
+      "/sign-up",
+      "An account with this email already exists. If you forgot your password, please reset it.",
+    );
+  }
+
   if (user) {
     try {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await supabaseAdmin
         .from('users')
-        .insert({
+        .upsert({
           id: user.id,
           name: fullName,
           full_name: fullName,
@@ -59,10 +69,32 @@ export const signUpAction = async (formData: FormData) => {
           user_id: user.id,
           token_identifier: user.id,
           created_at: new Date().toISOString()
-        });
+        }, { onConflict: 'id' });
 
       if (updateError) {
         console.error('Error updating user profile:', updateError);
+      }
+
+      // Create Stripe customer and subscription row for trial
+      try {
+        const customer = await stripe.customers.create({
+          email: email,
+          metadata: { supabase_user_id: user.id },
+        });
+
+        const trialEndsAt = new Date(
+          Date.now() + 90 * 24 * 60 * 60 * 1000,
+        ).toISOString();
+
+        await supabaseAdmin.from("subscriptions").insert({
+          user_id: user.id,
+          stripe_customer_id: customer.id,
+          status: "trialing",
+          trial_ends_at: trialEndsAt,
+        });
+      } catch (stripeErr) {
+        // Non-blocking: lazy provisioning in getSubscriptionStatus() handles this
+        console.error("Error creating Stripe customer:", stripeErr);
       }
     } catch (err) {
       console.error('Error in user profile creation:', err);

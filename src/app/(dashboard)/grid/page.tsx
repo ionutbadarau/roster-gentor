@@ -56,6 +56,7 @@ export default function GridPage() {
         }}
         onNationalHolidaysUpdate={(newHolidays: NationalHoliday[]) => {
           queryClient.setQueryData(queryKeys.nationalHolidays(currentYear, currentMonth), newHolidays);
+          queryClient.invalidateQueries({ queryKey: queryKeys.nationalHolidays(currentYear, currentMonth) });
         }}
       />
     </div>

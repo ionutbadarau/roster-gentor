@@ -81,6 +81,14 @@ The scheduling engine lives in **`src/lib/scheduling/`** (re-exported from `src/
 - **LeaveDay** — `doctor_id, leave_date`
 - **ScheduleConflict** — `type ('rest_violation'|'understaffed'|'overstaffed'), date, doctor_id, message`
 
+### Subscriptions / Billing
+
+Stripe-backed gating with 90-day trial. See [`src/lib/SUBSCRIPTIONS.md`](src/lib/SUBSCRIPTIONS.md) for full state machine, files, webhook events, and env vars.
+
+### Account Deletion
+
+`/account` page (top-level, outside `(dashboard)` group to bypass the subscription gate so canceled users can still delete) → `POST /api/account/delete`. Route order: cancel Stripe subscription → delete Stripe customer → send goodbye email via Resend → delete `public.users` row → `supabaseAdmin.auth.admin.deleteUser`. The `auth.users` deletion cascades to `subscriptions`, `doctors`, `teams`, `national_holidays`, `schedule_config`, `schedule_share_tokens`; `shifts` and `leave_days` cascade transitively via `doctors`. Confirmation requires the user to type their own email. After success the client signs out and redirects to `/?deleted=1`, where `<AccountDeletedToast />` shows a one-shot banner.
+
 ### Auth & Database
 
 - Supabase handles both auth and PostgreSQL

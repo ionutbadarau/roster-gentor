@@ -3,6 +3,21 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export async function middleware(req: NextRequest) {
+  // Email confirmation links may land on the wrong path if the Supabase email
+  // template points somewhere other than /auth/confirm. Forward the token to
+  // the verify route so the OTP exchange still runs.
+  const tokenHash = req.nextUrl.searchParams.get('token_hash')
+  const otpType = req.nextUrl.searchParams.get('type')
+  if (
+    tokenHash &&
+    otpType &&
+    !req.nextUrl.pathname.startsWith('/auth/confirm')
+  ) {
+    const url = req.nextUrl.clone()
+    url.pathname = '/auth/confirm'
+    return NextResponse.redirect(url)
+  }
+
   const res = NextResponse.next()
 
   const supabase = createServerClient(
@@ -33,7 +48,8 @@ export async function middleware(req: NextRequest) {
     // Invalid/deleted user — clear session cookies and redirect to sign-in
     const isAuthPage = req.nextUrl.pathname.startsWith('/sign-in') ||
       req.nextUrl.pathname.startsWith('/sign-up') ||
-      req.nextUrl.pathname.startsWith('/forgot-password')
+      req.nextUrl.pathname.startsWith('/forgot-password') ||
+      req.nextUrl.pathname.startsWith('/auth/')
 
     const isPublicPage = req.nextUrl.pathname === '/' ||
       req.nextUrl.pathname.startsWith('/contact') ||
