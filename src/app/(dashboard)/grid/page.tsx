@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import ShiftGridCalendar from '@/components/scheduling/shift-grid-calendar';
+import PasswordChangedToast from '@/components/password-changed-toast';
 import { useDoctors, useTeams, useShifts, useLeaveDays, useNationalHolidays, useScheduleConfig, useUserId, queryKeys } from '@/lib/queries';
 import type { Shift, LeaveDay, NationalHoliday } from '@/types/scheduling';
 
@@ -32,8 +33,12 @@ export default function GridPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <ShiftGridCalendar
+    <>
+      <Suspense fallback={null}>
+        <PasswordChangedToast />
+      </Suspense>
+      <div className="space-y-4">
+        <ShiftGridCalendar
         doctors={doctors}
         teams={teams}
         shifts={shifts}
@@ -59,6 +64,7 @@ export default function GridPage() {
           queryClient.invalidateQueries({ queryKey: queryKeys.nationalHolidays(currentYear, currentMonth) });
         }}
       />
-    </div>
+      </div>
+    </>
   );
 }

@@ -239,12 +239,25 @@
     "resetPassword": {
       "title": "Resetare parol\u0103",
       "description": "Introdu noua ta parol\u0103 mai jos.",
+      "titleInApp": "Schimb\u0103 parola",
+      "descriptionInApp": "Introdu o parol\u0103 nou\u0103 pentru contul t\u0103u.",
       "newPassword": "Parol\u0103 nou\u0103",
       "newPasswordPlaceholder": "Parol\u0103 nou\u0103",
       "confirmPassword": "Confirm\u0103 parola",
       "confirmPasswordPlaceholder": "Confirm\u0103 parola",
       "resetting": "Se reseteaz\u0103...",
-      "resetButton": "Resetare parol\u0103"
+      "resetButton": "Resetare parol\u0103",
+      "successToast": "Parola a fost schimbat\u0103."
+    },
+    "passwordRequirements": {
+      "title": "Parola trebuie s\u0103 con\u021bin\u0103:",
+      "minLength": "Cel pu\u021bin 10 caractere",
+      "uppercase": "O liter\u0103 mare",
+      "lowercase": "O liter\u0103 mic\u0103",
+      "digit": "O cifr\u0103",
+      "symbol": "Un caracter special",
+      "notCommon": "S\u0103 nu fie o parol\u0103 comun\u0103",
+      "mismatch": "Parolele nu se potrivesc"
     },
     "actions": {
       "emailPasswordRequired": "Emailul \u0219i parola sunt obligatorii",
@@ -255,6 +268,7 @@
       "passwordsDoNotMatch": "Parolele nu se potrivesc",
       "passwordUpdateFailed": "Actualizarea parolei a e\u0219uat",
       "passwordUpdated": "Parola a fost actualizat\u0103",
+      "passwordTooWeak": "Parola nu \u00eendepline\u0219te cerin\u021bele de securitate.",
       "signUpSuccess": "Mul\u021bumim pentru \u00eenregistrare! Verific\u0103-\u021bi emailul pentru linkul de verificare."
     }
   },
@@ -369,6 +383,9 @@
   "account": {
     "title": "Cont",
     "description": "Gestionează contul tău.",
+    "changePasswordTitle": "Schimbă parola",
+    "changePasswordDescription": "Setează o parolă nouă pentru contul tău.",
+    "changePasswordLink": "Schimbă parola",
     "dangerZone": "Zonă periculoasă",
     "deleteTitle": "Șterge contul",
     "deleteDescription": "Șterge permanent contul și toate datele asociate. Această acțiune nu poate fi anulată.",

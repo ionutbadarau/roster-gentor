@@ -14,6 +14,17 @@ After any deletion or removal of components, pages, modules, or significant code
 
 Do all of this as part of the same change, without being asked.
 
+## Adding New Routes
+
+Whenever a new page or route is added under `src/app/`, decide whether it belongs in the `src/middleware.ts` allowlist:
+
+- **Auth-related route** (sign-in, sign-up, password recovery, OAuth callback, etc.) → add path prefix to `isAuthPage` in middleware. These routes must be reachable without a session.
+- **Public route** (landing, marketing, public-token shares, contact, etc.) → add path prefix to `isPublicPage`.
+- **Protected route** (requires signed-in user) → do **not** add to either list. Middleware will redirect unauthenticated users to `/sign-in`.
+- **API route** under `src/app/api/` → already excluded by the middleware matcher; no change needed.
+
+Make this decision as part of the same change, without being asked.
+
 ## Commands
 
 ```bash

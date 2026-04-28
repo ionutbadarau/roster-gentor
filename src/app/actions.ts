@@ -2,10 +2,14 @@
 
 import { encodedRedirect } from "@/utils/utils";
 import { stripe } from "@/lib/stripe";
+import { isPasswordStrong } from "@/lib/password-validation";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "../../supabase/server";
 import { supabaseAdmin } from "../../supabase/admin";
+
+const PASSWORD_TOO_WEAK_MESSAGE =
+  "Password does not meet security requirements (min 10 chars, with uppercase, lowercase, digit, and special character).";
 
 export const signUpAction = async (formData: FormData) => {
   if (process.env.NEXT_PUBLIC_SIGNUPS_ENABLED !== 'true') {
@@ -28,6 +32,10 @@ export const signUpAction = async (formData: FormData) => {
       "/sign-up",
       "Email and password are required",
     );
+  }
+
+  if (!isPasswordStrong(password)) {
+    return encodedRedirect("error", "/sign-up", PASSWORD_TOO_WEAK_MESSAGE);
   }
 
   const { data: { user }, error } = await supabase.auth.signUp({
@@ -148,20 +156,17 @@ export const resetPasswordAction = async (formData: FormData) => {
 
   const password = formData.get("password") as string;
   const confirmPassword = formData.get("confirmPassword") as string;
-  const code = formData.get("code") as string;
+  const code = ((formData.get("code") as string | null) ?? "").trim();
 
-  if (!code) {
-    return encodedRedirect(
-      "error",
-      "/sign-in",
-      "Invalid or expired password reset link. Please request a new one.",
-    );
-  }
+  const inApp = code.length === 0;
+  const errorRedirectPath = inApp
+    ? "/reset-password"
+    : `/reset-password?code=${encodeURIComponent(code)}`;
 
   if (!password || !confirmPassword) {
     return encodedRedirect(
       "error",
-      `/reset-password?code=${encodeURIComponent(code)}`,
+      errorRedirectPath,
       "Password and confirm password are required",
     );
   }
@@ -169,20 +174,40 @@ export const resetPasswordAction = async (formData: FormData) => {
   if (password !== confirmPassword) {
     return encodedRedirect(
       "error",
-      `/reset-password?code=${encodeURIComponent(code)}`,
+      errorRedirectPath,
       "Passwords do not match",
     );
   }
 
-  const { error: exchangeError } =
-    await supabase.auth.exchangeCodeForSession(code);
-
-  if (exchangeError) {
+  if (!isPasswordStrong(password)) {
     return encodedRedirect(
       "error",
-      "/sign-in",
-      "Invalid or expired password reset link. Please request a new one.",
+      errorRedirectPath,
+      PASSWORD_TOO_WEAK_MESSAGE,
     );
+  }
+
+  if (inApp) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return encodedRedirect(
+        "error",
+        "/sign-in",
+        "Please sign in to change your password.",
+      );
+    }
+  } else {
+    const { error: exchangeError } =
+      await supabase.auth.exchangeCodeForSession(code);
+    if (exchangeError) {
+      return encodedRedirect(
+        "error",
+        "/sign-in",
+        "Invalid or expired password reset link. Please request a new one.",
+      );
+    }
   }
 
   const { error: updateError } = await supabase.auth.updateUser({
@@ -190,7 +215,14 @@ export const resetPasswordAction = async (formData: FormData) => {
   });
 
   if (updateError) {
-    await supabase.auth.signOut();
+    if (inApp) {
+      return encodedRedirect(
+        "error",
+        "/reset-password",
+        "Password update failed. Please try again.",
+      );
+    }
+    await supabase.auth.signOut({ scope: "global" });
     return encodedRedirect(
       "error",
       "/forgot-password",
@@ -198,7 +230,12 @@ export const resetPasswordAction = async (formData: FormData) => {
     );
   }
 
-  await supabase.auth.signOut();
+  if (inApp) {
+    await supabase.auth.signOut({ scope: "others" });
+    return redirect("/grid?passwordChanged=1");
+  }
+
+  await supabase.auth.signOut({ scope: "global" });
   return encodedRedirect(
     "success",
     "/sign-in",

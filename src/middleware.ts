@@ -49,11 +49,13 @@ export async function middleware(req: NextRequest) {
     const isAuthPage = req.nextUrl.pathname.startsWith('/sign-in') ||
       req.nextUrl.pathname.startsWith('/sign-up') ||
       req.nextUrl.pathname.startsWith('/forgot-password') ||
+      req.nextUrl.pathname.startsWith('/reset-password') ||
       req.nextUrl.pathname.startsWith('/auth/')
 
     const isPublicPage = req.nextUrl.pathname === '/' ||
       req.nextUrl.pathname.startsWith('/contact') ||
-      req.nextUrl.pathname.startsWith('/schedule/view')
+      req.nextUrl.pathname.startsWith('/schedule/view') ||
+      req.nextUrl.pathname.startsWith('/subscribe')
 
     if (!isAuthPage && !isPublicPage) {
       const redirectUrl = req.nextUrl.clone()

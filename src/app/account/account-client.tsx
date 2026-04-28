@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,6 +60,18 @@ export default function AccountClient({ userEmail }: { userEmail: string }) {
         <p className="text-muted-foreground mt-1">
           {t("account.description")}
         </p>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+        <div>
+          <p className="font-medium">{t("account.changePasswordTitle")}</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {t("account.changePasswordDescription")}
+          </p>
+        </div>
+        <Button asChild variant="outline">
+          <Link href="/reset-password">{t("account.changePasswordLink")}</Link>
+        </Button>
       </div>
 
       <div className="rounded-xl border border-destructive/50 bg-card p-6 space-y-4">

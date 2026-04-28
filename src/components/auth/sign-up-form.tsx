@@ -6,10 +6,15 @@ import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useTranslation } from "@/lib/i18n";
+import { isPasswordStrong, PASSWORD_MIN_LENGTH } from "@/lib/password-validation";
 import Link from "next/link";
+import { useState } from "react";
+import { PasswordRequirements } from "@/components/auth/password-requirements";
 
 export function SignUpForm({ message }: { message: Message }) {
   const { t } = useTranslation();
+  const [password, setPassword] = useState("");
+  const strong = isPasswordStrong(password);
 
   return (
     <form className="flex flex-col space-y-6">
@@ -64,10 +69,13 @@ export function SignUpForm({ message }: { message: Message }) {
             type="password"
             name="password"
             placeholder={t('auth.signUp.passwordPlaceholder')}
-            minLength={6}
+            minLength={PASSWORD_MIN_LENGTH}
             required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             className="w-full"
           />
+          <PasswordRequirements password={password} />
         </div>
       </div>
 
@@ -75,6 +83,7 @@ export function SignUpForm({ message }: { message: Message }) {
         formAction={signUpAction}
         pendingText={t('auth.signUp.signingUp')}
         className="w-full"
+        disabled={!strong}
       >
         {t('auth.signUp.signUpButton')}
       </SubmitButton>

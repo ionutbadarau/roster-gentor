@@ -239,12 +239,25 @@
     "resetPassword": {
       "title": "Reset password",
       "description": "Please enter your new password below.",
+      "titleInApp": "Change password",
+      "descriptionInApp": "Enter a new password for your account.",
       "newPassword": "New password",
       "newPasswordPlaceholder": "New password",
       "confirmPassword": "Confirm password",
       "confirmPasswordPlaceholder": "Confirm password",
       "resetting": "Resetting password...",
-      "resetButton": "Reset password"
+      "resetButton": "Reset password",
+      "successToast": "Password was changed."
+    },
+    "passwordRequirements": {
+      "title": "Password must contain:",
+      "minLength": "At least 10 characters",
+      "uppercase": "An uppercase letter",
+      "lowercase": "A lowercase letter",
+      "digit": "A digit",
+      "symbol": "A special character",
+      "notCommon": "Not a commonly used password",
+      "mismatch": "Passwords do not match"
     },
     "actions": {
       "emailPasswordRequired": "Email and password are required",
@@ -255,6 +268,7 @@
       "passwordsDoNotMatch": "Passwords do not match",
       "passwordUpdateFailed": "Password update failed",
       "passwordUpdated": "Password updated",
+      "passwordTooWeak": "Password does not meet security requirements.",
       "signUpSuccess": "Thanks for signing up! Please check your email for a verification link."
     }
   },
@@ -369,6 +383,9 @@
   "account": {
     "title": "Account",
     "description": "Manage your account.",
+    "changePasswordTitle": "Change password",
+    "changePasswordDescription": "Set a new password for your account.",
+    "changePasswordLink": "Change password",
     "dangerZone": "Danger zone",
     "deleteTitle": "Delete account",
     "deleteDescription": "Permanently delete your account and all associated data. This action cannot be undone.",
