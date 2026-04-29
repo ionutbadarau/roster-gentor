@@ -30,8 +30,12 @@ function makeDoctor(
   };
 }
 
-function makeLeaveDay(doctorId: string, date: string): LeaveDay {
-  return { id: uid(), doctor_id: doctorId, leave_date: date };
+function makeLeaveDay(
+  doctorId: string,
+  date: string,
+  leaveType: 'regular' | 'bridge' = 'regular',
+): LeaveDay {
+  return { id: uid(), doctor_id: doctorId, leave_date: date, leave_type: leaveType };
 }
 
 function makeHoliday(date: string, description = ''): NationalHoliday {
@@ -1956,6 +1960,230 @@ describe('SchedulingEngine', () => {
         }
         expect(understaffedDays, `Order ${oi} has understaffed days`).toHaveLength(0);
       }
+    });
+  });
+
+  // ── May 2026 — 5 teams (Purple = 24h) + 3 optional doctors, 4/4 shifts ────
+  // Reproduces the configuration from the May-2026 UI screenshot:
+  // 4 teams of 3 (12h) + 1 team of 5 (24h, Purple) + 3 optional doctors.
+  // 4 day slots + 4 night slots per day. Heavy leave + bridge days included.
+  describe('Real world! - May 2026 — 5 teams + 3 optional doctors, 4/4 shifts', () => {
+    const MAY = 4; // 0-indexed
+    const YEAR = 2026;
+
+    const teamBlue   = makeTeam('mb', 'Blue',   1, '#00f');
+    const teamRed    = makeTeam('mr', 'Red',    2, '#f00');
+    const teamGreen  = makeTeam('mg', 'Green',  3, '#0f0');
+    const teamYellow = makeTeam('my', 'Yellow', 4, '#ff0');
+    const teamPurple = makeTeam('mp', 'Purple', 5, '#a0f');
+    const allTeams = [teamBlue, teamRed, teamGreen, teamYellow, teamPurple];
+
+    // 12 team doctors (12h mode, default)
+    const teamDoctors: DoctorWithTeam[] = [
+      makeDoctor('m1',  'Stancu',    'mb', false, teamBlue),
+      makeDoctor('m2',  'Lebada',    'mb', false, teamBlue),
+      makeDoctor('m3',  'Poroch',    'mb', false, teamBlue),
+      makeDoctor('m4',  'Merticaru', 'mr', false, teamRed),
+      makeDoctor('m5',  'Achitei',   'mr', false, teamRed),
+      makeDoctor('m6',  'Himiniuc',  'mr', false, teamRed),
+      makeDoctor('m7',  'Abalasei',  'mg', false, teamGreen),
+      makeDoctor('m8',  'Sararu',    'mg', false, teamGreen),
+      makeDoctor('m9',  'Munteanu',  'mg', false, teamGreen),
+      makeDoctor('m10', 'Donose',    'my', false, teamYellow),
+      makeDoctor('m11', 'Niculita',  'my', false, teamYellow),
+      makeDoctor('m12', 'Dorneanu',  'my', false, teamYellow),
+    ];
+
+    // 5 Purple-team doctors with shift_mode '24h'
+    const purpleDoctors24h: DoctorWithTeam[] = [
+      { ...makeDoctor('m13', 'Dr. Ionut Barsan', 'mp', false, teamPurple), shift_mode: '24h' },
+      { ...makeDoctor('m14', 'dr. Bassam',       'mp', false, teamPurple), shift_mode: '24h' },
+      { ...makeDoctor('m15', 'dr. Radu',         'mp', false, teamPurple), shift_mode: '24h' },
+      { ...makeDoctor('m16', 'dr. Lazar',        'mp', false, teamPurple), shift_mode: '24h' },
+      { ...makeDoctor('m17', 'dr. Mercore',      'mp', false, teamPurple), shift_mode: '24h' },
+    ];
+
+    // 3 optional doctors (no team, is_optional=true)
+    const optionalDoctors: DoctorWithTeam[] = [
+      { ...makeDoctor('mo1', 'Teodorovici', undefined, true), is_optional: true },
+      { ...makeDoctor('mo2', 'dr. Morari',  undefined, true), is_optional: true },
+      { ...makeDoctor('mo3', 'dr. Tomsa',   undefined, true), is_optional: true },
+    ];
+
+    const allDoctors = [...teamDoctors, ...purpleDoctors24h, ...optionalDoctors];
+
+    const bridge = (id: string, d: number) =>
+      makeLeaveDay(id, formatDate(YEAR, MAY, d), 'bridge');
+
+    const leaveDays: LeaveDay[] = [
+      // Stancu: 1, 4-8, 11
+      ...[1, 4, 5, 6, 7, 8, 11].map(d => makeLeaveDay('m1', formatDate(YEAR, MAY, d))),
+      // Lebada: 1, 26-29
+      ...[1, 26, 27, 28, 29].map(d => makeLeaveDay('m2', formatDate(YEAR, MAY, d))),
+      // Poroch: 7, 8
+      ...[7, 8].map(d => makeLeaveDay('m3', formatDate(YEAR, MAY, d))),
+      // Merticaru: 1, 4
+      ...[1, 4].map(d => makeLeaveDay('m4', formatDate(YEAR, MAY, d))),
+      // Achitei: 19-22
+      ...[19, 20, 21, 22].map(d => makeLeaveDay('m5', formatDate(YEAR, MAY, d))),
+      // Himiniuc: 13-15
+      ...[13, 14, 15].map(d => makeLeaveDay('m6', formatDate(YEAR, MAY, d))),
+      // Munteanu: 14
+      ...[14].map(d => makeLeaveDay('m9', formatDate(YEAR, MAY, d))),
+      // Donose: 5-8, 11-14
+      ...[5, 6, 7, 8, 11, 12, 13, 14].map(d => makeLeaveDay('m10', formatDate(YEAR, MAY, d))),
+      // Niculita: 11-15, 18
+      ...[11, 12, 13, 14, 15, 18].map(d => makeLeaveDay('m11', formatDate(YEAR, MAY, d))),
+      // Dorneanu: 20-22, 25-26
+      ...[20, 21, 22, 25, 26].map(d => makeLeaveDay('m12', formatDate(YEAR, MAY, d))),
+      // Dr. Ionut Barsan: 13-15
+      ...[13, 14, 15].map(d => makeLeaveDay('m13', formatDate(YEAR, MAY, d))),
+      // dr. Bassam: 28, 29
+      ...[28, 29].map(d => makeLeaveDay('m14', formatDate(YEAR, MAY, d))),
+      // dr. Radu: 1, 4-7
+      ...[1, 4, 5, 6, 7].map(d => makeLeaveDay('m15', formatDate(YEAR, MAY, d))),
+      // dr. Lazar: 25
+      ...[25].map(d => makeLeaveDay('m16', formatDate(YEAR, MAY, d))),
+      // dr. Mercore: 14, 15, 18, 19
+      ...[14, 15, 18, 19].map(d => makeLeaveDay('m17', formatDate(YEAR, MAY, d))),
+      // dr. Tomsa (OPT): 4-8
+      ...[4, 5, 6, 7, 8].map(d => makeLeaveDay('mo3', formatDate(YEAR, MAY, d))),
+
+      // Bridge days (weekend cells '·' between two leave periods)
+      bridge('m1', 2), bridge('m1', 3), bridge('m1', 9), bridge('m1', 10),
+      bridge('m2', 2), bridge('m2', 3), bridge('m2', 30), bridge('m2', 31),
+      bridge('m3', 9), bridge('m3', 16),
+      bridge('m4', 2), bridge('m4', 3),
+      bridge('m5', 23), bridge('m5', 24),
+      bridge('m6', 16),
+      bridge('m8', 2), bridge('m8', 16), bridge('m8', 17),
+      bridge('m10', 9), bridge('m10', 10),
+      bridge('m11', 16), bridge('m11', 17),
+      bridge('m12', 2), bridge('m12', 23), bridge('m12', 24),
+      bridge('m13', 16),
+      bridge('m14', 30),
+      bridge('m15', 2), bridge('m15', 3),
+      bridge('m16', 23), bridge('m16', 24),
+      bridge('m17', 16), bridge('m17', 17),
+    ];
+
+    it('completes without hanging and produces valid schedule', { timeout: 90_000 }, () => {
+      const engine = new SchedulingEngine({
+        month: MAY,
+        year: YEAR,
+        doctors: allDoctors,
+        teams: allTeams,
+        shiftsPerDay: 4,
+        shiftsPerNight: 4,
+        leaveDays,
+      });
+
+      const start = performance.now();
+      const result = engine.generateSchedule();
+      const elapsed = performance.now() - start;
+
+      expect(elapsed).toBeLessThan(120_000);
+      expect(result.shifts.length).toBeGreaterThan(0);
+    });
+
+    it('no rest violations except on forced-coverage shifts', { timeout: 90_000 }, () => {
+      const engine = new SchedulingEngine({
+        month: MAY,
+        year: YEAR,
+        doctors: allDoctors,
+        teams: allTeams,
+        shiftsPerDay: 4,
+        shiftsPerNight: 4,
+        leaveDays,
+      });
+
+      const result = engine.generateSchedule();
+      const nonForcedViolations = result.conflicts.filter(c =>
+        c.type === 'rest_violation' && !c.is_forced_coverage
+      );
+      expect(nonForcedViolations).toHaveLength(0);
+    });
+
+    it('leave days are respected — no shifts on leave or bridge dates', { timeout: 90_000 }, () => {
+      const engine = new SchedulingEngine({
+        month: MAY,
+        year: YEAR,
+        doctors: allDoctors,
+        teams: allTeams,
+        shiftsPerDay: 4,
+        shiftsPerNight: 4,
+        leaveDays,
+      });
+
+      const result = engine.generateSchedule();
+
+      for (const leave of leaveDays) {
+        const shiftsOnLeave = result.shifts.filter(
+          s => s.doctor_id === leave.doctor_id && s.shift_date === leave.leave_date
+        );
+        expect(
+          shiftsOnLeave,
+          `${leave.doctor_id} should not work on ${leave.leave_date} (${leave.leave_type})`
+        ).toHaveLength(0);
+      }
+    });
+
+    it('24h Purple doctors get 24h shift types', { timeout: 90_000 }, () => {
+      const engine = new SchedulingEngine({
+        month: MAY,
+        year: YEAR,
+        doctors: allDoctors,
+        teams: allTeams,
+        shiftsPerDay: 4,
+        shiftsPerNight: 4,
+        leaveDays,
+      });
+
+      const result = engine.generateSchedule();
+
+      const purpleIds = new Set(purpleDoctors24h.map(d => d.id));
+      const purpleShifts = result.shifts.filter(s => purpleIds.has(s.doctor_id));
+      for (const s of purpleShifts) {
+        expect(s.shift_type, `Purple doctor ${s.doctor_id} on ${s.shift_date} should have 24h shift`).toBe('24h');
+      }
+
+      for (const doc of purpleDoctors24h) {
+        const docShifts = purpleShifts.filter(s => s.doctor_id === doc.id);
+        expect(docShifts.length, `${doc.name} should have at least one shift`).toBeGreaterThanOrEqual(1);
+      }
+    });
+
+    // ── HEADLINE TEST: no overstaffing ─────────────────────────────────────
+    it('no day has more than 4 doctors on day or night shift', { timeout: 90_000 }, () => {
+      const engine = new SchedulingEngine({
+        month: MAY,
+        year: YEAR,
+        doctors: allDoctors,
+        teams: allTeams,
+        shiftsPerDay: 4,
+        shiftsPerNight: 4,
+        leaveDays,
+      });
+
+      const result = engine.generateSchedule();
+
+      const overstaffed: string[] = [];
+      for (let d = 1; d <= 31; d++) {
+        const dateStr = formatDate(YEAR, MAY, d);
+        // 24h shift counts toward BOTH day and night coverage
+        const dayCount = result.shifts.filter(
+          s => s.shift_date === dateStr && (s.shift_type === 'day' || s.shift_type === '24h')
+        ).length;
+        const nightCount = result.shifts.filter(
+          s => s.shift_date === dateStr && (s.shift_type === 'night' || s.shift_type === '24h')
+        ).length;
+        if (dayCount > 4) overstaffed.push(`May ${d}: day=${dayCount}/4`);
+        if (nightCount > 4) overstaffed.push(`May ${d}: night=${nightCount}/4`);
+      }
+      expect(
+        overstaffed,
+        `Overstaffed days found:\n${overstaffed.join('\n')}`
+      ).toHaveLength(0);
     });
   });
 

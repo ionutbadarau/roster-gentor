@@ -53,12 +53,6 @@ function getCellClassName(
     state = 'ring-2 ring-primary ring-inset bg-primary/20';
   } else if (violation) {
     state = 'bg-red-200 dark:bg-red-900/60 text-red-800 dark:text-red-200 ring-2 ring-red-500 ring-inset';
-  } else if (bridge) {
-    state = 'bg-amber-50 dark:bg-amber-900/30 text-amber-500 dark:text-amber-400';
-  } else if (isLeave) {
-    state = nonWorking
-      ? 'bg-orange-50 dark:bg-orange-900/50 text-orange-600 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-800/70'
-      : 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-800';
   } else if (shift?.shift_type === '24h') {
     state = nonWorking
       ? 'bg-purple-50 dark:bg-purple-900/50 text-purple-600 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-800/70'
@@ -71,6 +65,12 @@ function getCellClassName(
     state = nonWorking
       ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-800/70'
       : 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800';
+  } else if (bridge) {
+    state = 'bg-amber-50 dark:bg-amber-900/30 text-amber-500 dark:text-amber-400';
+  } else if (isLeave) {
+    state = nonWorking
+      ? 'bg-orange-50 dark:bg-orange-900/50 text-orange-600 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-800/70'
+      : 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-800';
   } else {
     state = nonWorking ? 'bg-muted/60 hover:bg-muted/80' : 'hover:bg-accent';
   }
@@ -140,18 +140,21 @@ function ShiftGridDoctorRow({
         const nonWorking = isNonWorkingDay(day);
 
         // Build cell label: show combined types when multiple shifts on same day
+        // Shift takes precedence over bridge/leave so manual assignments are visible
         let cellLabel = '';
-        if (bridge) {
-          cellLabel = '·';
+        if (shift) {
+          if (hasMultipleShifts) {
+            const types = allShifts.map(s => s.shift_type);
+            const hasDay = types.includes('day');
+            const hasNight = types.includes('night');
+            cellLabel = hasDay && hasNight ? `${dayShiftLetter}${nightShiftLetter}` : shift.shift_type === '24h' ? shift24hLetter : shift.shift_type === 'day' ? dayShiftLetter : shift.shift_type === 'night' ? nightShiftLetter : '';
+          } else {
+            cellLabel = shift.shift_type === '24h' ? shift24hLetter : shift.shift_type === 'day' ? dayShiftLetter : shift.shift_type === 'night' ? nightShiftLetter : '';
+          }
         } else if (leave) {
           cellLabel = leaveLetter;
-        } else if (hasMultipleShifts) {
-          const types = allShifts.map(s => s.shift_type);
-          const hasDay = types.includes('day');
-          const hasNight = types.includes('night');
-          cellLabel = hasDay && hasNight ? `${dayShiftLetter}${nightShiftLetter}` : shift?.shift_type === '24h' ? shift24hLetter : shift?.shift_type === 'day' ? dayShiftLetter : shift?.shift_type === 'night' ? nightShiftLetter : '';
-        } else {
-          cellLabel = shift?.shift_type === '24h' ? shift24hLetter : shift?.shift_type === 'day' ? dayShiftLetter : shift?.shift_type === 'night' ? nightShiftLetter : '';
+        } else if (bridge) {
+          cellLabel = '·';
         }
 
         // Override label with dispatch indicator
@@ -171,7 +174,7 @@ function ShiftGridDoctorRow({
             <button
               className={getCellClassName(selected, violation, bridge, leave, shift, nonWorking, !!shift?.is_manual)}
 
-              title={shift?.is_manual ? t('scheduling.grid.manualShiftTooltip') : violation ? t('scheduling.grid.insufficientRestTooltip') : bridge ? t('scheduling.grid.bridgeDayTooltip') : t('scheduling.grid.multiSelectTooltip')}
+              title={shift?.is_manual ? t('scheduling.grid.manualShiftTooltip') : violation ? t('scheduling.grid.insufficientRestTooltip') : (!shift && bridge) ? t('scheduling.grid.bridgeDayTooltip') : t('scheduling.grid.multiSelectTooltip')}
               onMouseDown={(e) => onCellMouseDown(day, e)}
               onMouseEnter={() => onCellMouseEnter(day)}
               onMouseMove={onCellMouseMove ? (e) => onCellMouseMove(day, e) : undefined}

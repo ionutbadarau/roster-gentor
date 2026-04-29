@@ -46,9 +46,33 @@ export class SchedulingEngine implements EngineContext {
   private idCounter = 0;
 
   constructor(options: ScheduleGenerationOptions) {
-    this.doctors = [...options.doctors].sort((a, b) =>
-      (a.display_order ?? 0) - (b.display_order ?? 0) || a.name.localeCompare(b.name)
-    );
+    // Canonical doctor ordering — independent of input array position and of
+    // user-controlled UI fields (display_order). Two callers passing the same
+    // doctors / teams / leaves must produce the same schedule regardless of the
+    // order they happen to list doctors in.
+    //   1. Non-optional first, optional last (optionals only enter Phase 2d)
+    //   2. By team.order; doctors without a team go after teamed doctors
+    //   3. 12h before 24h within a team (cadence vs rigid 24h cycle)
+    //   4. By name (case-insensitive) — stable across the same dataset
+    //   5. By id — final tiebreaker, guaranteed unique
+    this.doctors = [...options.doctors].sort((a, b) => {
+      const aOpt = a.is_optional ? 1 : 0;
+      const bOpt = b.is_optional ? 1 : 0;
+      if (aOpt !== bOpt) return aOpt - bOpt;
+
+      const aTeamOrder = a.team?.order ?? Number.POSITIVE_INFINITY;
+      const bTeamOrder = b.team?.order ?? Number.POSITIVE_INFINITY;
+      if (aTeamOrder !== bTeamOrder) return aTeamOrder - bTeamOrder;
+
+      const aMode24 = a.shift_mode === '24h' ? 1 : 0;
+      const bMode24 = b.shift_mode === '24h' ? 1 : 0;
+      if (aMode24 !== bMode24) return aMode24 - bMode24;
+
+      const nameCmp = a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+      if (nameCmp !== 0) return nameCmp;
+
+      return a.id.localeCompare(b.id);
+    });
     this.teams = options.teams.sort((a, b) => a.order - b.order);
     this.month = options.month;
     this.year = options.year;

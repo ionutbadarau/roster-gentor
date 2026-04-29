@@ -36,7 +36,7 @@ export default function MarketingV1() {
               </Link>
 
               <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-6 text-sm text-gray-600 dark:text-gray-400">
-                {[t('marketing.hero.v1.check1'), t('marketing.hero.v1.check2'), t('marketing.hero.v1.check3')].map((text) => (
+                {[t('marketing.hero.v1.check1'), t('marketing.hero.v1.check2'), t('marketing.hero.v1.check3'), t('marketing.hero.v1.check4')].map((text) => (
                   <div key={text} className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
                     <span>{text}</span>
@@ -119,6 +119,8 @@ export default function MarketingV1() {
                 t('marketing.featureList.leaveManagement'),
                 t('marketing.featureList.conflictDetection'),
                 t('marketing.featureList.pdfExport'),
+                t('marketing.featureList.emailDoctors'),
+                t('marketing.featureList.mobileReady'),
                 t('marketing.featureList.multiLanguage'),
               ].map((item) => (
                 <li key={item} className="flex items-start gap-3">

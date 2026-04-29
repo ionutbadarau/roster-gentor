@@ -93,15 +93,20 @@ export default function ShiftGridCalendar({
     return date.getMonth() === currentMonth && date.getFullYear() === currentYear && l.leave_type !== 'bridge';
   }).length;
 
-  // Count bridge days across all doctors for display
+  // Count bridge days across all doctors for display (computed + persisted)
   const totalBridgeDaysCount = useMemo(() => {
     let count = 0;
     for (const doctor of doctors) {
-      const bridgeDays = SchedulingEngine.computeDoctorBridgeDays(doctor.id, leaveDays, currentMonth, currentYear, nationalHolidays);
-      count += bridgeDays.size;
+      const computed = SchedulingEngine.computeDoctorBridgeDays(doctor.id, leaveDays, currentMonth, currentYear, nationalHolidays);
+      const manual = leaveDays.filter(l =>
+        l.doctor_id === doctor.id &&
+        l.leave_type === 'bridge' &&
+        l.leave_date.startsWith(monthPrefix)
+      ).length;
+      count += computed.size + manual;
     }
     return count;
-  }, [doctors, leaveDays, currentMonth, currentYear, nationalHolidays]);
+  }, [doctors, leaveDays, currentMonth, currentYear, nationalHolidays, monthPrefix]);
 
   // Check if a schedule has been generated for the current month
   const hasGeneratedForMonth = useMemo(() => {
@@ -156,7 +161,6 @@ export default function ShiftGridCalendar({
       else if (s.shift_type === 'day') counts.day++;
       else if (s.shift_type === 'night') counts.night++;
     }
-
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = formatDateString(currentYear, currentMonth, d);
       const counts = byDate.get(dateStr);
