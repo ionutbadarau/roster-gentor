@@ -2,6 +2,7 @@ import Footer from '@/components/footer';
 import Navbar from '@/components/navbar';
 import MarketingV1 from '@/components/marketing-v1';
 import AccountDeletedToast from '@/components/account-deleted-toast';
+import StructuredData from '@/components/seo/structured-data';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { createClient } from '../../supabase/server';
@@ -16,6 +17,7 @@ export default async function Home() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
+      <StructuredData />
       <Suspense fallback={null}>
         <AccountDeletedToast />
       </Suspense>

@@ -69,6 +69,43 @@ export default function MarketingV1() {
         </div>
       </section>
 
+      {/* SEO Long-Form Section — keyword targets */}
+      <section className="py-16 sm:py-24 bg-white dark:bg-gray-950">
+        <div className="container mx-auto px-4">
+          <div className="max-w-3xl mx-auto">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white mb-12 text-center tracking-tight">
+              {t('marketing.seo.sectionTitle')}
+            </h2>
+            <div className="space-y-10">
+              <article>
+                <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-3">
+                  {t('marketing.seo.garziTitle')}
+                </h3>
+                <p className="text-gray-700 dark:text-gray-300 text-lg leading-relaxed">
+                  {t('marketing.seo.garziDesc')}
+                </p>
+              </article>
+              <article>
+                <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-3">
+                  {t('marketing.seo.tureTitle')}
+                </h3>
+                <p className="text-gray-700 dark:text-gray-300 text-lg leading-relaxed">
+                  {t('marketing.seo.tureDesc')}
+                </p>
+              </article>
+              <article>
+                <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-3">
+                  {t('marketing.seo.legeTitle')}
+                </h3>
+                <p className="text-gray-700 dark:text-gray-300 text-lg leading-relaxed">
+                  {t('marketing.seo.legeDesc')}
+                </p>
+              </article>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Features Section — 3 Cards */}
       <section className="py-16 sm:py-24 bg-gray-50 dark:bg-gray-900">
         <div className="container mx-auto px-4">

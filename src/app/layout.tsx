@@ -11,8 +11,53 @@ import QueryProvider from "@/components/query-provider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "PlanGarzi — Planificarea Turelor Medicale",
-  description: "Program lunar de ture automat pentru echipele din spital. Configurează echipe, generează programe echitabile și exportă în PDF.",
+  metadataBase: new URL("https://plangarzi.ro"),
+  title: {
+    default: "PlanGarzi — Planificare Gărzi și Ture pentru Medici",
+    template: "%s | PlanGarzi",
+  },
+  description:
+    "Planificare gărzi și ture medicale automat. Generează programul lunar al spitalului în câteva secunde — distribuție echitabilă, conform legii, export PDF și Excel.",
+  keywords: [
+    "planificare garzi",
+    "planificare gărzi",
+    "planificare ture",
+    "program garzi medici",
+    "program ture spital",
+    "generator ture medicale",
+    "planificare medici",
+    "program garzi automat",
+  ],
+  applicationName: "PlanGarzi",
+  alternates: {
+    canonical: "/",
+    languages: { "ro-RO": "/", "x-default": "/" },
+  },
+  openGraph: {
+    type: "website",
+    locale: "ro_RO",
+    url: "https://plangarzi.ro",
+    siteName: "PlanGarzi",
+    title: "PlanGarzi — Planificare Gărzi și Ture pentru Medici",
+    description:
+      "Generează programul lunar de gărzi și ture automat. Distribuție echitabilă, conform legii, export PDF/Excel.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "PlanGarzi — Planificare Gărzi și Ture",
+    description: "Generează programul lunar de gărzi automat.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
 };
 
 export default function RootLayout({
