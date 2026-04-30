@@ -55,7 +55,9 @@ export async function middleware(req: NextRequest) {
     const isPublicPage = req.nextUrl.pathname === '/' ||
       req.nextUrl.pathname.startsWith('/contact') ||
       req.nextUrl.pathname.startsWith('/schedule/view') ||
-      req.nextUrl.pathname.startsWith('/subscribe')
+      req.nextUrl.pathname.startsWith('/subscribe') ||
+      req.nextUrl.pathname === '/opengraph-image' ||
+      req.nextUrl.pathname === '/twitter-image'
 
     if (!isAuthPage && !isPublicPage) {
       const redirectUrl = req.nextUrl.clone()

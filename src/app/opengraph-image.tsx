@@ -31,10 +31,13 @@ export default async function OpengraphImage() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '40px',
+              color: '#1e3a8a',
+              fontSize: '36px',
+              fontWeight: 800,
+              letterSpacing: '-1px',
             }}
           >
-            📅
+            PG
           </div>
           <div style={{ color: 'white', fontSize: '36px', fontWeight: 700, letterSpacing: '-0.5px' }}>
             PlanGarzi
