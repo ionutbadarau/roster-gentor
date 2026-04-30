@@ -18,7 +18,7 @@ export default function MarketingV1() {
             <div className="text-center max-w-3xl mx-auto">
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 dark:text-white mb-6 tracking-tight leading-tight">
                 {t('marketing.hero.v1.headline')}{' '}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#0F6E56] to-[#1D9E75]">
                   {t('marketing.hero.v1.headlineAccent')}
                 </span>
               </h1>
@@ -29,7 +29,7 @@ export default function MarketingV1() {
 
               <Link
                 href="/sign-in"
-                className="inline-flex items-center px-8 py-4 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors text-lg font-medium shadow-lg shadow-blue-600/25"
+                className="inline-flex items-center px-8 py-4 text-white bg-[#0F6E56] rounded-lg hover:bg-[#0A3D31] transition-colors text-lg font-medium shadow-lg shadow-[#0F6E56]/30"
               >
                 {t('marketing.hero.v1.cta')}
                 <ArrowRight className="ml-2 w-5 h-5" />
@@ -178,7 +178,7 @@ export default function MarketingV1() {
           </h2>
           <Link
             href="/sign-in"
-            className="inline-flex items-center px-8 py-4 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors text-lg font-medium"
+            className="inline-flex items-center px-8 py-4 text-white bg-[#0F6E56] rounded-lg hover:bg-[#0A3D31] transition-colors text-lg font-medium shadow-lg shadow-[#0F6E56]/30"
           >
             {t('marketing.hero.v1.cta')}
             <ArrowRight className="ml-2 w-5 h-5" />

@@ -40,12 +40,13 @@ export const metadata: Metadata = {
     siteName: "PlanGarzi",
     title: "PlanGarzi — Planificare Gărzi și Ture pentru Medici",
     description:
-      "Generează programul lunar de gărzi și ture automat. Distribuție echitabilă, conform legii, export PDF/Excel.",
+      "Aplicație web pentru planificarea gărzilor și turelor medicale. Generează programul lunar automat — echitabil, conform legii, export PDF și Excel.",
   },
   twitter: {
     card: "summary_large_image",
     title: "PlanGarzi — Planificare Gărzi și Ture",
-    description: "Generează programul lunar de gărzi automat.",
+    description:
+      "Planifică gărzile și turele medicale automat. Distribuție echitabilă, conform legii, export PDF și Excel în câteva secunde.",
   },
   robots: {
     index: true,
