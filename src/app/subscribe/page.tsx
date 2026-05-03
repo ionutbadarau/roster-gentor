@@ -9,16 +9,20 @@ export default async function SubscribePage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return <SubscribeClient variant="expired" />;
+    return <SubscribeClient variant="expired" isAuthed={false} />;
   }
 
   const status = await getSubscriptionStatus(user.id);
 
   if (status.access === "trial") {
     return (
-      <SubscribeClient variant="trial" daysRemaining={status.daysRemaining} />
+      <SubscribeClient
+        variant="trial"
+        daysRemaining={status.daysRemaining}
+        isAuthed
+      />
     );
   }
 
-  return <SubscribeClient variant="expired" />;
+  return <SubscribeClient variant="expired" isAuthed />;
 }

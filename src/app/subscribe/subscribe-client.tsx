@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
@@ -12,17 +13,24 @@ type Plan = "monthly" | "yearly";
 interface SubscribeClientProps {
   variant: "trial" | "expired";
   daysRemaining?: number;
+  isAuthed: boolean;
 }
 
 export default function SubscribeClient({
   variant,
   daysRemaining,
+  isAuthed,
 }: SubscribeClientProps) {
   const { t } = useTranslation();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<Plan>("monthly");
 
   async function handleSubscribe() {
+    if (!isAuthed) {
+      router.push("/sign-up");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/stripe/checkout", {
@@ -151,9 +159,11 @@ export default function SubscribeClient({
             >
               {loading
                 ? t("billing.paywall.processing")
-                : plan === "yearly"
-                  ? t("billing.paywall.ctaYearly")
-                  : t("billing.paywall.ctaMonthly")}
+                : !isAuthed
+                  ? t("billing.paywall.ctaSignUp")
+                  : plan === "yearly"
+                    ? t("billing.paywall.ctaYearly")
+                    : t("billing.paywall.ctaMonthly")}
             </Button>
           </div>
 

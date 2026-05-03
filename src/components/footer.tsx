@@ -18,7 +18,7 @@ export default function Footer({ isLoggedIn = false }: { isLoggedIn?: boolean })
           </div>
 
           <div className="flex items-center gap-6 text-sm">
-            <Link href="/grid" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+            <Link href={isLoggedIn ? '/grid' : '/'} className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
               {t('marketing.footer.dashboard')}
             </Link>
             <Link href="/contact" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">

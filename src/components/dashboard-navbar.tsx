@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu'
 import { Button } from './ui/button'
-import { UserCircle, CreditCard, User } from 'lucide-react'
+import { UserCircle, CreditCard, User, LogOut } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useTranslation } from '@/lib/i18n'
 import { ThemeSwitcher } from './theme-switcher'
@@ -76,6 +76,7 @@ export default function DashboardNavbar({
                 await supabase.auth.signOut()
                 router.refresh()
               }}>
+                <LogOut className="h-4 w-4 mr-2" />
                 {t('nav.signOut')}
               </DropdownMenuItem>
             </DropdownMenuContent>

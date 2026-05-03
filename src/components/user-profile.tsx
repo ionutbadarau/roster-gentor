@@ -1,5 +1,5 @@
 'use client'
-import { UserCircle } from 'lucide-react'
+import { UserCircle, LogOut } from 'lucide-react'
 import { Button } from './ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu'
 import { createClient } from '../../supabase/client'
@@ -24,6 +24,7 @@ export default function UserProfile() {
                     await supabase.auth.signOut()
                     window.location.href = '/sign-in'
                 }}>
+                    <LogOut className="h-4 w-4 mr-2" />
                     {t('nav.signOut')}
                 </DropdownMenuItem>
             </DropdownMenuContent>

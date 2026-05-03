@@ -383,6 +383,7 @@
       "cta": "Subscribe — €7/month",
       "ctaMonthly": "Subscribe — $7/month",
       "ctaYearly": "Subscribe — $60/year",
+      "ctaSignUp": "Sign up to subscribe",
       "processing": "Redirecting...",
       "feature1": "Automatic schedule generation",
       "feature2": "Conflict detection & resolution",
