@@ -5,8 +5,29 @@
     "success": "Success",
     "optional": "optional"
   },
-  "months": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
-  "daysShort": ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"],
+  "months": [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December"
+  ],
+  "daysShort": [
+    "Su",
+    "Mo",
+    "Tu",
+    "We",
+    "Th",
+    "Fr",
+    "Sa"
+  ],
   "scheduling": {
     "dashboard": {
       "description": "Manage medical staff schedules with automatic generation and conflict detection",
@@ -43,7 +64,7 @@
       "selectedSingular": "day selected",
       "selectedPlural": "days selected",
       "clearedTitle": "Selection cleared",
-      "clearedDesc": "Days {{start}}\u2013{{end}} {{month}} have been cleared",
+      "clearedDesc": "Days {{start}}–{{end}} {{month}} have been cleared",
       "clearedMonthTitle": "Month cleared",
       "clearedMonthDesc": "All shifts and leaves for {{month}} {{year}} have been deleted",
       "undo": "Undo",
@@ -60,8 +81,8 @@
       "toastClearCellsError": "Could not update cells",
       "toastClearError": "Could not clear cells",
       "toastClearMonthError": "Could not clear month",
-      "batchApplied": "{{label}} \u2014 {{count}} days",
-      "batchAppliedDesc": "{{label}} applied for days {{start}}\u2013{{end}} {{month}}",
+      "batchApplied": "{{label}} — {{count}} days",
+      "batchAppliedDesc": "{{label}} applied for days {{start}}–{{end}} {{month}}",
       "dayShift": "Day Shift",
       "nightShift": "Night Shift",
       "shift24h": "24h Shift",
@@ -347,7 +368,67 @@
       "dashboard": "Dashboard",
       "contact": "Contact",
       "signIn": "Sign In",
-      "allRightsReserved": "All rights reserved."
+      "allRightsReserved": "All rights reserved.",
+      "pricing": "Pricing"
+    },
+    "pricing": {
+      "metaTitle": "PlanGarzi Pricing — From $5/month",
+      "metaDescription": "Transparent pricing for PlanGarzi: $7/month monthly or $5/month billed yearly. 90-day free trial. Cancel anytime.",
+      "h1": "Simple, transparent pricing",
+      "subtitle": "All features included. No user limits. Cancel anytime.",
+      "trialBadge": "90-day free trial — no credit card required",
+      "monthlyLabel": "Monthly",
+      "yearlyLabel": "Yearly",
+      "yearlyBadge": "Save 29%",
+      "perMonth": "/month",
+      "yearlyBilledNote": "Billed $60 annually",
+      "ctaSignUp": "Start free trial",
+      "ctaSecondary": "View demo",
+      "noCardRequired": "No credit card required for trial",
+      "featuresTitle": "All features included",
+      "feature1": "Automatic monthly schedule generation",
+      "feature2": "Rest violation detection (24h day / 48h night)",
+      "feature3": "Fair shift distribution",
+      "feature4": "Leave and bridge day management",
+      "feature5": "PDF and Excel export",
+      "feature6": "Email schedules to doctors",
+      "feature7": "Rotating teams + floating doctors",
+      "feature8": "Multi-language (Romanian & English)",
+      "faqTitle": "Frequently asked questions",
+      "faqs": [
+        {
+          "q": "How long does it take to generate a monthly schedule?",
+          "a": "The algorithm builds the monthly schedule in seconds regardless of team size. For a department with 20 doctors and complex constraints, the maximum runtime is under 90 seconds."
+        },
+        {
+          "q": "Can I cancel anytime?",
+          "a": "Yes. Cancel from the billing page via the Stripe Customer Portal or directly from your PlanGarzi account. Access remains active until the end of the paid period, no penalties."
+        },
+        {
+          "q": "Does it work for any hospital department?",
+          "a": "Yes. PlanGarzi supports 12-hour shifts (day/night), 24-hour on-call duty and combinations. You configure doctors per shift, rest rules and rotating teams per department."
+        },
+        {
+          "q": "Is there a free trial?",
+          "a": "Yes — 90 full days with full feature access. No credit card required to start. You receive a notification 7 days before the trial expires."
+        },
+        {
+          "q": "How is doctor data protected?",
+          "a": "Data is stored encrypted in Supabase (PostgreSQL) with authentication-gated access. GDPR compliant. You can delete your account and all data anytime from the account page."
+        },
+        {
+          "q": "How does PDF / Excel export work?",
+          "a": "One click from the grid view: pick the month and format (PDF for posting, Excel for reporting). You can also email the schedule directly to doctors — each gets a personal view link."
+        },
+        {
+          "q": "How many doctors and teams can I add?",
+          "a": "No limit. The subscription includes unlimited doctors, teams and schedule months. Price is fixed regardless of hospital size."
+        },
+        {
+          "q": "Can I edit the schedule manually after generation?",
+          "a": "Yes. Any cell can be edited manually. Manual edits are marked as 'pinned' and preserved on subsequent regenerations. Rest conflicts appear as visual warnings."
+        }
+      ]
     }
   },
   "scheduleView": {

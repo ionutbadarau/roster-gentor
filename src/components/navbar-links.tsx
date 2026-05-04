@@ -35,8 +35,14 @@ export function NavbarLinks({ isLoggedIn }: { isLoggedIn: boolean }) {
           {/* Desktop */}
           <div className="hidden sm:flex items-center gap-4">
             <Link
+              href="/pricing"
+              className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+            >
+              {t('marketing.footer.pricing')}
+            </Link>
+            <Link
               href="/sign-in"
-              className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+              className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
             >
               {t('nav.signIn')}
             </Link>
@@ -58,6 +64,9 @@ export function NavbarLinks({ isLoggedIn }: { isLoggedIn: boolean }) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href="/pricing">{t('marketing.footer.pricing')}</Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/sign-in">{t('nav.signIn')}</Link>
                 </DropdownMenuItem>

@@ -18,7 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles, Trash2, Loader2, Phone, FileDown, FileSpreadsheet, Undo2, Redo2, MoreHorizontal, Scale, Mail } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Wand2, Trash2, Loader2, Phone, FileDown, FileSpreadsheet, Undo2, Redo2, MoreHorizontal, Scale, Mail } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 
 interface ShiftGridHeaderProps {
@@ -118,7 +118,7 @@ export default function ShiftGridHeader({
             </div>
             <div className="flex items-center gap-4">
               <Button onClick={onGenerate} disabled={generating}>
-                {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
                 {generating ? t('scheduling.grid.generating') : t('scheduling.grid.generate')}
               </Button>
               <Button variant="outline" onClick={onEqualizeShifts} disabled={equalizing || !hasGeneratedSchedule}>

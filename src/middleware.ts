@@ -56,6 +56,7 @@ export async function middleware(req: NextRequest) {
       req.nextUrl.pathname.startsWith('/contact') ||
       req.nextUrl.pathname.startsWith('/schedule/view') ||
       req.nextUrl.pathname.startsWith('/subscribe') ||
+      req.nextUrl.pathname.startsWith('/pricing') ||
       req.nextUrl.pathname === '/opengraph-image' ||
       req.nextUrl.pathname === '/twitter-image'
 
