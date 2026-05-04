@@ -369,7 +369,8 @@
       "contact": "Contact",
       "signIn": "Autentificare",
       "allRightsReserved": "Toate drepturile rezervate.",
-      "pricing": "Pre\u021buri"
+      "pricing": "Pre\u021buri",
+      "privacy": "Confiden\u021bialitate"
     },
     "pricing": {
       "metaTitle": "Pre\u021buri PlanGarzi \u2014 De la $5/lun\u0103",
@@ -429,6 +430,139 @@
           "a": "Da. Orice celul\u0103 poate fi modificat\u0103 manual. Modific\u0103rile manuale sunt marcate ca \"fixate\" \u0219i se p\u0103streaz\u0103 la regener\u0103ri ulterioare. Conflictele de odihn\u0103 apar ca avertismente vizuale."
         }
       ]
+    },
+    "consent": {
+      "banner": {
+        "title": "Folosim cookie-uri",
+        "description": "Folosim cookie-uri esen\u021biale pentru func\u021bionarea aplica\u021biei \u0219i, op\u021bional, cookie-uri de analiz\u0103 pentru a \u00een\u021belege cum este folosit site-ul. Po\u021bi accepta, refuza sau gestiona preferin\u021bele.",
+        "linkText": "Confiden\u021bialitate \u0219i cookie-uri"
+      },
+      "actions": {
+        "acceptAll": "Accept\u0103 tot",
+        "rejectAll": "Refuz\u0103 op\u021bionale",
+        "manage": "Gestioneaz\u0103 preferin\u021bele",
+        "save": "Salveaz\u0103",
+        "close": "\u00cenchide"
+      },
+      "dialog": {
+        "title": "Preferin\u021be cookie-uri",
+        "description": "Alege ce categorii de cookie-uri permi\u021bi. Cookie-urile strict necesare nu pot fi dezactivate, fiind esen\u021biale pentru func\u021bionarea aplica\u021biei."
+      },
+      "categories": {
+        "necessary": {
+          "name": "Strict necesare",
+          "description": "Cookie-uri pentru autentificare, sesiune, preferin\u021ba de limb\u0103 \u0219i p\u0103strarea acestei alegeri. F\u0103r\u0103 ele, aplica\u021bia nu func\u021bioneaz\u0103.",
+          "alwaysOn": "Mereu active"
+        },
+        "analytics": {
+          "name": "Analiz\u0103",
+          "description": "Vercel Analytics \u2014 m\u0103soar\u0103 traficul anonim al paginilor pentru a \u00eembun\u0103t\u0103\u021bi produsul. Dezactivat implicit."
+        }
+      }
+    },
+    "privacy": {
+      "metaTitle": "Politic\u0103 de confiden\u021bialitate \u2014 PlanGarzi",
+      "metaDescription": "Cum colecteaz\u0103, folose\u0219te \u0219i protejeaz\u0103 PlanGarzi datele tale personale. Drepturile tale conform GDPR \u0219i politica de cookie-uri.",
+      "title": "Politic\u0103 de confiden\u021bialitate",
+      "lastUpdated": "Ultima actualizare: 4 mai 2026",
+      "intro": "Aceast\u0103 politic\u0103 explic\u0103 ce date personale colect\u0103m, de ce, pe ce baz\u0103 legal\u0103, cui le transmitem \u0219i ce drepturi ai conform Regulamentului General privind Protec\u021bia Datelor (GDPR).",
+      "actions": {
+        "manageCookies": "Gestioneaz\u0103 preferin\u021bele cookie-uri"
+      },
+      "sections": {
+        "controller": {
+          "title": "Operator de date",
+          "body": "PlanGarzi este operatorul datelor colectate prin acest site. Pentru orice solicitare legat\u0103 de datele tale, ne po\u021bi contacta prin formularul de contact sau la adresa contact@plangarzi.ro."
+        },
+        "data": {
+          "title": "Ce date colect\u0103m",
+          "intro": "Colect\u0103m doar datele necesare pentru a furniza serviciul \u0219i a respecta obliga\u021biile legale:",
+          "items": {
+            "account": { "label": "Cont", "body": "email, nume complet, avatar (op\u021bional)." },
+            "doctors": { "label": "Medici", "body": "nume, email (op\u021bional), preferin\u021be de tur\u0103 \u2014 ad\u0103ugate de tine pentru generarea programului." },
+            "schedules": { "label": "Programe", "body": "ture generate, zile de concediu, zile punte, s\u0103rb\u0103tori legale, echipe." },
+            "billing": { "label": "Facturare", "body": "ID client Stripe, ID abonament, status \u0219i perioad\u0103. Pl\u0103\u021bile sunt procesate de Stripe \u2014 nu stoc\u0103m datele cardului." },
+            "contact": { "label": "Contact", "body": "nume, email, mesaj \u2014 atunci c\u00e2nd trimi\u021bi formularul de contact." }
+          }
+        },
+        "purposes": {
+          "title": "Scopurile prelucr\u0103rii",
+          "body": "Folosim aceste date pentru a furniza serviciul de planificare a g\u0103rzilor, pentru facturare prin Stripe, pentru a r\u0103spunde solicit\u0103rilor de suport \u0219i pentru a men\u021bine securitatea aplica\u021biei."
+        },
+        "legalBasis": {
+          "title": "Temeiul legal",
+          "contract": "Executarea contractului \u2014 pentru crearea contului, generarea programelor \u0219i facturare.",
+          "legitimate": "Interes legitim \u2014 pentru securitate, prevenirea abuzurilor \u0219i r\u0103spunsul la solicit\u0103rile de contact.",
+          "consent": "Consim\u021b\u0103m\u00e2nt \u2014 pentru cookie-urile de analiz\u0103 op\u021bionale (Vercel Analytics). Po\u021bi retrage consim\u021b\u0103m\u00e2ntul oric\u00e2nd."
+        },
+        "processors": {
+          "title": "Procesatori (sub\u00eemputernici\u021bi)",
+          "supabase": "Supabase \u2014 autentificare \u0219i baza de date PostgreSQL.",
+          "stripe": "Stripe \u2014 procesarea pl\u0103\u021bilor \u0219i gestionarea abonamentelor.",
+          "resend": "Resend \u2014 trimiterea emailurilor tranzac\u021bionale (confirmare cont, parol\u0103, partajare program).",
+          "vercel": "Vercel \u2014 g\u0103zduire \u0219i (op\u021bional, cu consim\u021b\u0103m\u00e2nt) Vercel Analytics."
+        },
+        "retention": {
+          "title": "Durata de p\u0103strare",
+          "body": "P\u0103str\u0103m datele c\u00e2t timp contul t\u0103u este activ. La \u0219tergerea contului din pagina /account, elimin\u0103m definitiv toate datele asociate (medici, echipe, ture, concedii, s\u0103rb\u0103tori, link-uri partajate). Stripe poate p\u0103stra datele de facturare pentru obliga\u021bii legale (ex.: 10 ani pentru contabilitate)."
+        },
+        "rights": {
+          "title": "Drepturile tale",
+          "intro": "Conform GDPR, ai urm\u0103toarele drepturi:",
+          "access": "Acces \u2014 s\u0103 afli ce date avem despre tine.",
+          "rectify": "Rectificare \u2014 s\u0103 corectezi datele inexacte.",
+          "erase": "\u0218tergere \u2014 s\u0103 ne ceri s\u0103 \u0219tergem datele tale.",
+          "portability": "Portabilitate \u2014 s\u0103 prime\u0219ti datele \u00eentr-un format structurat.",
+          "object": "Opozi\u021bie \u2014 s\u0103 te opui prelucr\u0103rii bazate pe interes legitim.",
+          "withdraw": "Retragerea consim\u021b\u0103m\u00e2ntului \u2014 pentru cookie-urile op\u021bionale, oric\u00e2nd, prin butonul de mai jos.",
+          "complaint": "Pl\u00e2ngere \u2014 la Autoritatea Na\u021bional\u0103 de Supraveghere a Prelucr\u0103rii Datelor cu Caracter Personal (ANSPDCP, www.dataprotection.ro)."
+        },
+        "exercise": {
+          "title": "Cum \u00ee\u021bi exerci\u021bi drepturile",
+          "body": "Po\u021bi \u0219terge contul \u0219i toate datele direct din pagina contului. Pentru orice alt\u0103 solicitare, folose\u0219te formularul de contact:"
+        },
+        "cookies": {
+          "title": "Cookie-uri folosite",
+          "intro": "Folosim un set minim de cookie-uri \u0219i de stocare local\u0103. Tabelul de mai jos enumer\u0103 tot ce este folosit:",
+          "headers": {
+            "name": "Nume",
+            "purpose": "Scop",
+            "type": "Tip",
+            "duration": "Durat\u0103"
+          },
+          "entries": {
+            "supabase": {
+              "name": "sb-* (Supabase)",
+              "purpose": "Autentificare \u0219i sesiune utilizator.",
+              "type": "Strict necesar",
+              "duration": "Sesiune / p\u00e2n\u0103 la deconectare"
+            },
+            "language": {
+              "name": "app-language",
+              "purpose": "Re\u021bine limba selectat\u0103 (RO/EN).",
+              "type": "Strict necesar",
+              "duration": "1 an"
+            },
+            "consent": {
+              "name": "pg-consent-v1 (localStorage)",
+              "purpose": "Re\u021bine alegerea ta privind cookie-urile.",
+              "type": "Strict necesar",
+              "duration": "Persist\u0103 p\u00e2n\u0103 la \u0219tergere"
+            },
+            "vercel": {
+              "name": "Vercel Analytics",
+              "purpose": "Statistici anonime de utilizare a paginilor.",
+              "type": "Analiz\u0103 (op\u021bional)",
+              "duration": "Activat doar cu consim\u021b\u0103m\u00e2nt"
+            }
+          }
+        },
+        "contact": {
+          "title": "Contact",
+          "body": "\u00centreb\u0103ri legate de aceast\u0103 politic\u0103? Scrie-ne la:",
+          "email": "contact@plangarzi.ro"
+        }
+      }
     }
   },
   "scheduleView": {

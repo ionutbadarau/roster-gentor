@@ -369,7 +369,8 @@
       "contact": "Contact",
       "signIn": "Sign In",
       "allRightsReserved": "All rights reserved.",
-      "pricing": "Pricing"
+      "pricing": "Pricing",
+      "privacy": "Privacy"
     },
     "pricing": {
       "metaTitle": "PlanGarzi Pricing — From $5/month",
@@ -429,6 +430,139 @@
           "a": "Yes. Any cell can be edited manually. Manual edits are marked as 'pinned' and preserved on subsequent regenerations. Rest conflicts appear as visual warnings."
         }
       ]
+    },
+    "consent": {
+      "banner": {
+        "title": "We use cookies",
+        "description": "We use essential cookies to run the app and, optionally, analytics cookies to understand how the site is used. You can accept, reject or manage your preferences.",
+        "linkText": "Privacy & Cookies"
+      },
+      "actions": {
+        "acceptAll": "Accept all",
+        "rejectAll": "Reject non-essential",
+        "manage": "Manage preferences",
+        "save": "Save",
+        "close": "Close"
+      },
+      "dialog": {
+        "title": "Cookie preferences",
+        "description": "Choose which categories of cookies you allow. Strictly necessary cookies cannot be disabled — they are essential for the app to work."
+      },
+      "categories": {
+        "necessary": {
+          "name": "Strictly necessary",
+          "description": "Cookies for authentication, session, language preference and remembering this choice. The app does not work without them.",
+          "alwaysOn": "Always on"
+        },
+        "analytics": {
+          "name": "Analytics",
+          "description": "Vercel Analytics — measures anonymous page traffic to help us improve the product. Off by default."
+        }
+      }
+    },
+    "privacy": {
+      "metaTitle": "Privacy Policy — PlanGarzi",
+      "metaDescription": "How PlanGarzi collects, uses and protects your personal data. Your rights under GDPR and our cookie policy.",
+      "title": "Privacy Policy",
+      "lastUpdated": "Last updated: 4 May 2026",
+      "intro": "This policy explains what personal data we collect, why, on what legal basis, who we share it with, and what rights you have under the General Data Protection Regulation (GDPR).",
+      "actions": {
+        "manageCookies": "Manage cookie preferences"
+      },
+      "sections": {
+        "controller": {
+          "title": "Data controller",
+          "body": "PlanGarzi is the controller of the data collected through this site. For any request relating to your data, contact us via the contact form or at contact@plangarzi.ro."
+        },
+        "data": {
+          "title": "What we collect",
+          "intro": "We collect only the data needed to provide the service and meet legal obligations:",
+          "items": {
+            "account": { "label": "Account", "body": "email, full name, avatar (optional)." },
+            "doctors": { "label": "Doctors", "body": "name, email (optional), shift preferences — added by you to generate the schedule." },
+            "schedules": { "label": "Schedules", "body": "generated shifts, leave days, bridge days, public holidays, teams." },
+            "billing": { "label": "Billing", "body": "Stripe customer ID, subscription ID, status and period. Payments are processed by Stripe — we do not store card details." },
+            "contact": { "label": "Contact", "body": "name, email, message — when you submit the contact form." }
+          }
+        },
+        "purposes": {
+          "title": "Purposes of processing",
+          "body": "We use this data to provide the on-call scheduling service, for billing through Stripe, to respond to support requests and to keep the application secure."
+        },
+        "legalBasis": {
+          "title": "Legal basis",
+          "contract": "Performance of contract — for account creation, schedule generation and billing.",
+          "legitimate": "Legitimate interest — for security, abuse prevention and replying to contact requests.",
+          "consent": "Consent — for optional analytics cookies (Vercel Analytics). You can withdraw consent at any time."
+        },
+        "processors": {
+          "title": "Processors (sub-processors)",
+          "supabase": "Supabase — authentication and PostgreSQL database.",
+          "stripe": "Stripe — payment processing and subscription management.",
+          "resend": "Resend — transactional email delivery (account confirmation, password resets, schedule sharing).",
+          "vercel": "Vercel — hosting and (optionally, with consent) Vercel Analytics."
+        },
+        "retention": {
+          "title": "Retention period",
+          "body": "We keep your data for as long as your account is active. When you delete your account from /account we permanently remove all associated data (doctors, teams, shifts, leave days, holidays, shared links). Stripe may retain billing data to meet legal obligations (e.g. 10 years for accounting)."
+        },
+        "rights": {
+          "title": "Your rights",
+          "intro": "Under GDPR you have the following rights:",
+          "access": "Access — find out what data we hold about you.",
+          "rectify": "Rectification — correct inaccurate data.",
+          "erase": "Erasure — ask us to delete your data.",
+          "portability": "Portability — receive your data in a structured format.",
+          "object": "Object — object to processing based on legitimate interest.",
+          "withdraw": "Withdraw consent — for optional cookies, at any time, via the button below.",
+          "complaint": "Complaint — to the Romanian DPA (ANSPDCP, www.dataprotection.ro) or your local supervisory authority."
+        },
+        "exercise": {
+          "title": "How to exercise your rights",
+          "body": "You can delete your account and all data directly from the account page. For any other request, use the contact form:"
+        },
+        "cookies": {
+          "title": "Cookies we use",
+          "intro": "We use a minimal set of cookies and local storage. The table below lists everything in use:",
+          "headers": {
+            "name": "Name",
+            "purpose": "Purpose",
+            "type": "Type",
+            "duration": "Duration"
+          },
+          "entries": {
+            "supabase": {
+              "name": "sb-* (Supabase)",
+              "purpose": "User authentication and session.",
+              "type": "Strictly necessary",
+              "duration": "Session / until sign-out"
+            },
+            "language": {
+              "name": "app-language",
+              "purpose": "Remembers selected language (RO/EN).",
+              "type": "Strictly necessary",
+              "duration": "1 year"
+            },
+            "consent": {
+              "name": "pg-consent-v1 (localStorage)",
+              "purpose": "Remembers your cookie choice.",
+              "type": "Strictly necessary",
+              "duration": "Persists until cleared"
+            },
+            "vercel": {
+              "name": "Vercel Analytics",
+              "purpose": "Anonymous page-usage statistics.",
+              "type": "Analytics (optional)",
+              "duration": "Only enabled with consent"
+            }
+          }
+        },
+        "contact": {
+          "title": "Contact",
+          "body": "Questions about this policy? Email us at:",
+          "email": "contact@plangarzi.ro"
+        }
+      }
     }
   },
   "scheduleView": {

@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Script from "next/script";
-import { Analytics } from "@vercel/analytics/react";
 import { TempoInit } from "@/components/tempo-init";
 import { ThemeProvider } from "@/components/theme-provider";
 import { I18nProvider } from "@/lib/i18n";
+import { ConsentProvider } from "@/lib/consent";
+import { CookieBanner } from "@/components/consent/cookie-banner";
+import { AnalyticsGate } from "@/components/consent/analytics-gate";
 import QueryProvider from "@/components/query-provider";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -78,11 +80,14 @@ export default function RootLayout({
         >
           <QueryProvider>
             <I18nProvider>
-              {children}
+              <ConsentProvider>
+                {children}
+                <CookieBanner />
+                <AnalyticsGate />
+              </ConsentProvider>
             </I18nProvider>
           </QueryProvider>
         </ThemeProvider>
-        <Analytics />
         {/* <TempoInit /> */}
       </body>
     </html>
