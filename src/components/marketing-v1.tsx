@@ -128,7 +128,7 @@ export default function MarketingV1() {
       {/* Demo Screenshot 2 — Config */}
       <section className="py-16 sm:py-24 bg-white dark:bg-gray-950">
         <div className="container mx-auto px-4">
-          <div className="max-w-3xl mx-auto">
+          <div className="max-w-5xl mx-auto">
             <div className="rounded-xl overflow-hidden shadow-xl border border-gray-200 dark:border-gray-700">
               <Image
                 src="/images/demo2.png"
