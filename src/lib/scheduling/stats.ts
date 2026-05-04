@@ -13,7 +13,7 @@ export function calculateBaseNorm(ctx: EngineContext, doctorId: string): number 
   const doctorLeaveDays = ctx.leaveDays.filter(l => {
     if (l.doctor_id !== doctorId) return false;
     if (!l.leave_date.startsWith(monthPrefix)) return false;
-    if (l.leave_type === 'bridge') return false;
+    if (l.leave_type === 'bridge' || l.leave_type === 'no_bridge') return false;
     // Leave days that fall on weekends or national holidays are treated as
     // bridge days — they don't reduce the norm (they weren't working days).
     const [y, m, d] = l.leave_date.split('-').map(Number);
@@ -165,7 +165,7 @@ export function calculateDoctorStats(ctx: EngineContext, shifts: Shift[]): Docto
     const baseNorm = doctor.is_optional ? 0 : calculateBaseNorm(ctx, doctor.id);
     const totalHours = ctx.doctorHours.get(doctor.id) || 0;
     const leaveDays = ctx.leaveDays.filter(
-      l => l.doctor_id === doctor.id && l.leave_date.startsWith(monthPrefix) && l.leave_type !== 'bridge'
+      l => l.doctor_id === doctor.id && l.leave_date.startsWith(monthPrefix) && l.leave_type !== 'bridge' && l.leave_type !== 'no_bridge'
     ).length;
 
     const doctorShifts = allShifts.filter(s => s.doctor_id === doctor.id);

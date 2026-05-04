@@ -37,7 +37,7 @@ export async function createLeaveDay(
   supabase: SupabaseClient,
   doctorId: string,
   dateStr: string,
-  leaveType: 'regular' | 'bridge' = 'regular',
+  leaveType: 'regular' | 'bridge' | 'no_bridge' = 'regular',
 ): Promise<LeaveDay> {
   const { data, error } = await supabase
     .from('leave_days')

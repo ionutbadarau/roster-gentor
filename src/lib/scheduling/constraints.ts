@@ -13,7 +13,12 @@ import { parseDateStr, formatDateString } from './shift-utils';
 
 export function isDoctorOnLeave(ctx: EngineContext, doctorId: string, date: Date): boolean {
   const dateStr = formatDate(date);
-  return ctx.leaveDays.some(l => l.doctor_id === doctorId && l.leave_date === dateStr);
+  return ctx.leaveDays.some(
+    l =>
+      l.doctor_id === doctorId &&
+      l.leave_date === dateStr &&
+      l.leave_type !== 'no_bridge'
+  );
 }
 
 export function isDoctorOnBridgeDay(ctx: EngineContext, doctorId: string, date: Date): boolean {

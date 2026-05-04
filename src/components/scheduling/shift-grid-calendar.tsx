@@ -90,7 +90,7 @@ export default function ShiftGridCalendar({
   // Count only explicit leave days (bridge days don't count as leave)
   const currentLeaveDaysCount = leaveDays.filter(l => {
     const date = new Date(l.leave_date);
-    return date.getMonth() === currentMonth && date.getFullYear() === currentYear && l.leave_type !== 'bridge';
+    return date.getMonth() === currentMonth && date.getFullYear() === currentYear && l.leave_type !== 'bridge' && l.leave_type !== 'no_bridge';
   }).length;
 
   // Count bridge days across all doctors for display (computed + persisted)
@@ -189,7 +189,7 @@ export default function ShiftGridCalendar({
       const nightCount = docShifts.filter(s => s.shift_type === 'night').length + shifts24h;
       const totalHours = (dayCount + nightCount) * SCHEDULING_CONSTANTS.SHIFT_DURATION;
 
-      const docLeave = leaveDays.filter(l => l.doctor_id === doc.id && l.leave_date.startsWith(monthPrefix) && l.leave_type !== 'bridge').length;
+      const docLeave = leaveDays.filter(l => l.doctor_id === doc.id && l.leave_date.startsWith(monthPrefix) && l.leave_type !== 'bridge' && l.leave_type !== 'no_bridge').length;
       const baseNorm = SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * (workingDays - docLeave);
 
       if (totalHours < baseNorm) {
@@ -503,7 +503,7 @@ export default function ShiftGridCalendar({
 
   const isLeaveDay = (doctorId: string, day: number): boolean => {
     const dateStr = formatDateString(currentYear, currentMonth, day);
-    return leaveDays.some(l => l.doctor_id === doctorId && l.leave_date === dateStr && l.leave_type !== 'bridge');
+    return leaveDays.some(l => l.doctor_id === doctorId && l.leave_date === dateStr && l.leave_type !== 'bridge' && l.leave_type !== 'no_bridge');
   };
 
   const isManualBridgeDay = (doctorId: string, day: number): boolean => {
@@ -581,7 +581,7 @@ export default function ShiftGridCalendar({
     const dayShifts = doctorShifts.filter(s => s.shift_type === 'day').length + shifts24h;
     const nightShifts = doctorShifts.filter(s => s.shift_type === 'night').length + shifts24h;
     const totalHours = (dayShifts + nightShifts) * SCHEDULING_CONSTANTS.SHIFT_DURATION;
-    const doctorLeaveDays = leaveDays.filter(l => l.doctor_id === doctorId && l.leave_date.startsWith(monthPrefix) && l.leave_type !== 'bridge').length;
+    const doctorLeaveDays = leaveDays.filter(l => l.doctor_id === doctorId && l.leave_date.startsWith(monthPrefix) && l.leave_type !== 'bridge' && l.leave_type !== 'no_bridge').length;
     const workingDays = SchedulingEngine.getWorkingDaysInMonthStatic(currentMonth, currentYear, nationalHolidays);
     const baseNorm = SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * (workingDays - doctorLeaveDays);
 
@@ -736,8 +736,14 @@ export default function ShiftGridCalendar({
     return selectedDays.some(day => isNonWorkingDay(day));
   }, [selectionPopup, currentYear, currentMonth, nationalHolidays]);
 
+  const selectionHasBridgeRemoveCandidates = useMemo(() => {
+    if (!selectionPopup) return false;
+    const { doctorId, days: selectedDays } = selectionPopup;
+    return selectedDays.some(day => isBridgeDay(doctorId, day));
+  }, [selectionPopup, leaveDays, currentYear, currentMonth, nationalHolidays]);
+
   // --- Batch actions ---
-  const handleBatchAction = async (action: 'day' | 'night' | '24h' | 'leave' | 'bridge') => {
+  const handleBatchAction = async (action: 'day' | 'night' | '24h' | 'leave' | 'bridge' | 'remove_bridge') => {
     if (!selectionPopup) return;
     const { doctorId, days: selectedDays } = selectionPopup;
     setSelectionPopup(null);
@@ -756,12 +762,13 @@ export default function ShiftGridCalendar({
         const dateStr = formatDateString(currentYear, currentMonth, day);
 
         if (action === 'bridge' && !isNonWorkingDay(day)) continue;
+        if (action === 'remove_bridge' && !isBridgeDay(doctorId, day)) continue;
 
         const existingShift = updatedShifts.find(s => s.doctor_id === doctorId && s.shift_date === dateStr);
         const existingLeave = updatedLeaveDays.find(l => l.doctor_id === doctorId && l.leave_date === dateStr);
 
         if (existingShift) {
-          if (action !== 'leave' && action !== 'bridge' && action === existingShift.shift_type) continue;
+          if (action !== 'leave' && action !== 'bridge' && action !== 'remove_bridge' && action === existingShift.shift_type) continue;
           snapshotShifts.push(existingShift);
           await deleteRecord(supabase, 'shifts', existingShift.id);
           updatedShifts = updatedShifts.filter(s => s.id !== existingShift.id);
@@ -769,15 +776,21 @@ export default function ShiftGridCalendar({
 
         if (existingLeave) {
           const existingType = existingLeave.leave_type || 'regular';
-          const targetType = action === 'bridge' ? 'bridge' : isNonWorkingDay(day) ? 'bridge' : 'regular';
-          if ((action === 'leave' || action === 'bridge') && existingType === targetType) continue;
+          const targetType =
+            action === 'bridge' ? 'bridge' :
+            action === 'remove_bridge' ? 'no_bridge' :
+            isNonWorkingDay(day) ? 'bridge' : 'regular';
+          if ((action === 'leave' || action === 'bridge' || action === 'remove_bridge') && existingType === targetType) continue;
           snapshotLeaves.push(existingLeave);
           await deleteRecord(supabase, 'leave_days', existingLeave.id);
           updatedLeaveDays = updatedLeaveDays.filter(l => l.id !== existingLeave.id);
         }
 
-        if (action === 'leave' || action === 'bridge') {
-          const leaveType = action === 'bridge' ? 'bridge' : isNonWorkingDay(day) ? 'bridge' : 'regular';
+        if (action === 'leave' || action === 'bridge' || action === 'remove_bridge') {
+          const leaveType =
+            action === 'bridge' ? 'bridge' :
+            action === 'remove_bridge' ? 'no_bridge' :
+            isNonWorkingDay(day) ? 'bridge' : 'regular';
           const data = await createLeaveDay(supabase, doctorId, dateStr, leaveType);
           createdLeaves.push(data);
           updatedLeaveDays = [...updatedLeaveDays, data];
@@ -792,7 +805,7 @@ export default function ShiftGridCalendar({
       onShiftsUpdate(updatedShifts);
       onLeaveDaysUpdate(updatedLeaveDays);
 
-      const label = action === '24h' ? t('scheduling.grid.shift24h') : action === 'day' ? t('scheduling.grid.dayShift') : action === 'night' ? t('scheduling.grid.nightShift') : action === 'bridge' ? t('scheduling.grid.bridgeDayLegend') : t('scheduling.grid.leave');
+      const label = action === '24h' ? t('scheduling.grid.shift24h') : action === 'day' ? t('scheduling.grid.dayShift') : action === 'night' ? t('scheduling.grid.nightShift') : action === 'bridge' ? t('scheduling.grid.bridgeDayLegend') : action === 'remove_bridge' ? t('scheduling.grid.bridgeDayRemoveLabel') : t('scheduling.grid.leave');
       toast({
         title: t('scheduling.grid.batchApplied', { label, count: selectedDays.length }),
         description: t('scheduling.grid.batchAppliedDesc', { label, start: selectedDays[0], end: selectedDays[selectedDays.length - 1], month: monthNames[currentMonth] }),
@@ -1287,6 +1300,7 @@ export default function ShiftGridCalendar({
               popup={selectionPopup}
               hasAssignments={selectionHasAssignments}
               hasBridgeCandidates={selectionHasBridgeCandidates}
+              hasBridgeRemoveCandidates={selectionHasBridgeRemoveCandidates}
               activeDispatchTypes={selectionDispatchTypes}
               shiftTypes={selectionShiftTypes}
               onBatchAction={handleBatchAction}

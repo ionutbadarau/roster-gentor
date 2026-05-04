@@ -304,6 +304,16 @@ export class SchedulingEngine implements EngineContext {
             if (count >= team.max_doctors_per_shift) return false;
           }
         }
+        // Slot cap: a 24h shift counts toward both day and night. Skip placement
+        // if either day or night is already at required capacity from cadence/fixed.
+        const dateStr = formatDate(new Date(this.year, this.month, day));
+        const dayCount =
+          (fixedShiftsByDateType.get(`${dateStr}:day`)?.length || 0) +
+          shifts.filter(s => s.shift_date === dateStr && (s.shift_type === 'day' || s.shift_type === '24h')).length;
+        const nightCount =
+          (fixedShiftsByDateType.get(`${dateStr}:night`)?.length || 0) +
+          shifts.filter(s => s.shift_date === dateStr && (s.shift_type === 'night' || s.shift_type === '24h')).length;
+        if (dayCount >= this.shiftsPerDay || nightCount >= this.shiftsPerNight) return false;
         return true;
       };
 
@@ -373,76 +383,28 @@ export class SchedulingEngine implements EngineContext {
         }
       }
 
-      // ── Unconstrained 24h doctors: primary/swing offset assignment ──
+      // ── Unconstrained 24h doctors: round-robin distribution ──
+      // Distributes cadence days across all doctors by picking the one with
+      // fewest shifts on each day. Ensures every doctor gets coverage instead
+      // of front-loading primary docs and starving swing docs (which the slot
+      // cap in canAssign24h would otherwise block).
       if (unconstrained24h.length > 0) {
-        const numPrimary = Math.min(unconstrained24h.length, minGap);
-        const permute = (arr: number[]): number[][] => {
-          if (arr.length <= 1) return [arr];
-          const result: number[][] = [];
-          for (let i = 0; i < arr.length; i++) {
-            const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
-            for (const perm of permute(rest)) result.push([arr[i], ...perm]);
-          }
-          return result;
-        };
-        const combinations = (items: number[], k: number): number[][] => {
-          if (k === 0) return [[]];
-          if (items.length < k) return [];
-          const result: number[][] = [];
-          for (let i = 0; i <= items.length - k; i++) {
-            for (const combo of combinations(items.slice(i + 1), k - 1)) result.push([items[i], ...combo]);
-          }
-          return result;
-        };
-
-        const doctorIndices = Array.from({ length: unconstrained24h.length }, (_, i) => i);
-        const primaryCombos = combinations(doctorIndices, numPrimary);
-        const offsetPerms = permute(offsets);
-
-        let bestAssignment: { docIdx: number; offset: number }[] = [];
-        let bestTotalShifts = -1;
-
-        for (const combo of primaryCombos) {
-          for (const perm of offsetPerms) {
-            let totalShifts = 0;
-            for (let i = 0; i < numPrimary; i++) {
-              totalShifts += countShiftsOnOffset(unconstrained24h[combo[i]].id, perm[i]);
-            }
-            if (totalShifts > bestTotalShifts) {
-              bestTotalShifts = totalShifts;
-              bestAssignment = combo.map((docIdx, i) => ({ docIdx, offset: perm[i] }));
-            }
-          }
-        }
-
-        // Place primary doctors
-        const primaryDocIds = new Set<string>();
-        for (const { docIdx, offset } of bestAssignment) {
-          const doc = unconstrained24h[docIdx];
-          primaryDocIds.add(doc.id);
+        const allCadenceDays: number[] = [];
+        for (const offset of offsets) {
           for (let day = offset; day <= daysInMonth; day += minGap) {
-            if (canAssign24h(doc, day)) {
-              place24hShift(doc, day);
-            }
+            allCadenceDays.push(day);
           }
         }
+        allCadenceDays.sort((a, b) => a - b);
 
-        // Swing doctors
-        const swingDocs = unconstrained24h.filter(d => !primaryDocIds.has(d.id));
-        for (const doc of swingDocs) {
-          let bestOffset = -1;
-          let bestShifts = -1;
-          for (const off of offsets) {
-            const sc = countShiftsOnOffset(doc.id, off);
-            if (sc > bestShifts) { bestShifts = sc; bestOffset = off; }
-          }
-          if (bestOffset > 0) {
-            for (let day = bestOffset; day <= daysInMonth; day += minGap) {
-              if (canAssign24h(doc, day)) {
-                place24hShift(doc, day);
-              }
-            }
-          }
+        for (const day of allCadenceDays) {
+          const available = unconstrained24h
+            .filter(doc => canAssign24h(doc, day))
+            .sort((a, b) =>
+              (workDays24h.get(a.id)?.length || 0) - (workDays24h.get(b.id)?.length || 0)
+            );
+          if (available.length === 0) continue;
+          place24hShift(available[0], day);
         }
       }
     }

@@ -96,7 +96,7 @@ export function exportSchedulePdf(options: ExportPdfOptions): void {
     const cells = days.map(day => {
       const dateStr = formatDateString(currentYear, currentMonth, day);
       const shift = shifts.find(s => s.doctor_id === doctor.id && s.shift_date === dateStr);
-      const isLeave = leaveDays.some(l => l.doctor_id === doctor.id && l.leave_date === dateStr && l.leave_type !== 'bridge');
+      const isLeave = leaveDays.some(l => l.doctor_id === doctor.id && l.leave_date === dateStr && l.leave_type !== 'bridge' && l.leave_type !== 'no_bridge');
       const bridge = isBridgeDay(doctor.id, day);
 
       if (shift) {

@@ -13,15 +13,16 @@ interface ShiftSelectionPopupProps {
   popup: SelectionPopupData;
   hasAssignments: boolean;
   hasBridgeCandidates: boolean;
+  hasBridgeRemoveCandidates: boolean;
   activeDispatchTypes: Set<'day' | 'night'>;
   shiftTypes: Set<string>;
-  onBatchAction: (action: 'day' | 'night' | '24h' | 'leave' | 'bridge') => void;
+  onBatchAction: (action: 'day' | 'night' | '24h' | 'leave' | 'bridge' | 'remove_bridge') => void;
   onDispatchAction: (dispatchType: 'day' | 'night') => void;
   onBatchClear: () => void;
 }
 
 const ShiftSelectionPopup = forwardRef<HTMLDivElement, ShiftSelectionPopupProps>(
-  ({ popup, hasAssignments, hasBridgeCandidates, activeDispatchTypes, shiftTypes, onBatchAction, onDispatchAction, onBatchClear }, ref) => {
+  ({ popup, hasAssignments, hasBridgeCandidates, hasBridgeRemoveCandidates, activeDispatchTypes, shiftTypes, onBatchAction, onDispatchAction, onBatchClear }, ref) => {
     const { t } = useTranslation();
 
     const canDispatchDay = hasAssignments && (shiftTypes.has('day') || shiftTypes.has('24h'));
@@ -30,6 +31,7 @@ const ShiftSelectionPopup = forwardRef<HTMLDivElement, ShiftSelectionPopupProps>
     const POPUP_W = 190;
     let baseH = 196;
     if (hasBridgeCandidates) baseH += 36;
+    if (hasBridgeRemoveCandidates) baseH += 36;
     if (dispatchCount > 0) baseH += 4 + dispatchCount * 36; // separator + buttons
     if (hasAssignments) baseH += 40;
     const POPUP_H = baseH;
@@ -80,6 +82,15 @@ const ShiftSelectionPopup = forwardRef<HTMLDivElement, ShiftSelectionPopupProps>
           >
             <span className="w-4 h-4 rounded bg-amber-500 flex-shrink-0" />
             {t('scheduling.grid.bridgeDayLabel')}
+          </button>
+        )}
+        {hasBridgeRemoveCandidates && (
+          <button
+            className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
+            onClick={() => onBatchAction('remove_bridge')}
+          >
+            <span className="w-4 h-4 rounded border border-amber-500 flex-shrink-0" />
+            {t('scheduling.grid.bridgeDayRemoveLabel')}
           </button>
         )}
         {dispatchCount > 0 && (

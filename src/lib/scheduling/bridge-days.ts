@@ -30,7 +30,13 @@ export function computeDoctorBridgeDays(
 
   const leaveDates = new Set(
     leaveDays
-      .filter(l => l.doctor_id === doctorId && l.leave_date.startsWith(monthPrefix))
+      .filter(l => l.doctor_id === doctorId && l.leave_date.startsWith(monthPrefix) && l.leave_type !== 'no_bridge')
+      .map(l => l.leave_date)
+  );
+
+  const suppressedDates = new Set(
+    leaveDays
+      .filter(l => l.doctor_id === doctorId && l.leave_date.startsWith(monthPrefix) && l.leave_type === 'no_bridge')
       .map(l => l.leave_date)
   );
 
@@ -47,7 +53,7 @@ export function computeDoctorBridgeDays(
     const date = new Date(year, month, day);
     const dateStr = fmt(date);
 
-    if (!isNonWorking(date) || leaveDates.has(dateStr)) continue;
+    if (!isNonWorking(date) || leaveDates.has(dateStr) || suppressedDates.has(dateStr)) continue;
 
     let hasLeaveBefore = false;
     let hasLeaveAfter = false;

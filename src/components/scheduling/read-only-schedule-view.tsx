@@ -70,7 +70,7 @@ export default function ReadOnlyScheduleView({
 
   const isLeaveDay = (doctorId: string, day: number): boolean => {
     const dateStr = formatDateString(year, month, day);
-    return leaveDays.some(l => l.doctor_id === doctorId && l.leave_date === dateStr && l.leave_type !== 'bridge');
+    return leaveDays.some(l => l.doctor_id === doctorId && l.leave_date === dateStr && l.leave_type !== 'bridge' && l.leave_type !== 'no_bridge');
   };
 
   const isManualBridgeDay = (doctorId: string, day: number): boolean => {
@@ -115,7 +115,7 @@ export default function ReadOnlyScheduleView({
     const dayShifts = doctorShifts.filter(s => s.shift_type === 'day').length + shifts24h;
     const nightShifts = doctorShifts.filter(s => s.shift_type === 'night').length + shifts24h;
     const totalHours = (dayShifts + nightShifts) * SCHEDULING_CONSTANTS.SHIFT_DURATION;
-    const doctorLeaveDays = leaveDays.filter(l => l.doctor_id === doctorId && l.leave_date.startsWith(monthPrefix) && l.leave_type !== 'bridge').length;
+    const doctorLeaveDays = leaveDays.filter(l => l.doctor_id === doctorId && l.leave_date.startsWith(monthPrefix) && l.leave_type !== 'bridge' && l.leave_type !== 'no_bridge').length;
     const workingDays = SchedulingEngine.getWorkingDaysInMonthStatic(month, year, nationalHolidays);
     const baseNorm = SCHEDULING_CONSTANTS.BASE_NORM_HOURS_PER_DAY * (workingDays - doctorLeaveDays);
     return { dayShifts, nightShifts, totalHours, baseNorm };
