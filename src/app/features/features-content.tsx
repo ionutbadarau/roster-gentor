@@ -47,7 +47,7 @@ export default function FeaturesContent({ isLoggedIn = false }: { isLoggedIn?: b
 
   return (
     <>
-      <section className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 py-16 sm:py-24">
+      <section className="relative overflow-hidden bg-gradient-to-br from-[#0F6E56]/5 via-white to-[#1D9E75]/10 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 py-16 sm:py-24">
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto text-center">
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 dark:text-white tracking-tight leading-tight mb-5">
@@ -59,7 +59,7 @@ export default function FeaturesContent({ isLoggedIn = false }: { isLoggedIn?: b
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link
                 href={ctaHref}
-                className="inline-flex items-center justify-center px-6 py-3 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors text-base font-medium shadow-lg shadow-blue-600/25"
+                className="inline-flex items-center justify-center px-6 py-3 text-white bg-[#0F6E56] rounded-lg hover:bg-[#0A3D31] transition-colors text-base font-medium shadow-lg shadow-[#0F6E56]/30"
               >
                 {ctaLabel}
                 <ArrowRight className="ml-2 w-4 h-4" />
@@ -83,7 +83,7 @@ export default function FeaturesContent({ isLoggedIn = false }: { isLoggedIn?: b
               return (
                 <article key={item.id} id={item.id} className="scroll-mt-24">
                   <div className="flex items-center gap-4 mb-4">
-                    <span className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 flex-shrink-0">
+                    <span className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-[#0F6E56]/10 dark:bg-[#0F6E56]/30 text-[#0F6E56] dark:text-[#1D9E75] flex-shrink-0">
                       <Icon className="w-6 h-6" />
                     </span>
                     <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
@@ -110,7 +110,7 @@ export default function FeaturesContent({ isLoggedIn = false }: { isLoggedIn?: b
           </p>
           <Link
             href={ctaHref}
-            className="inline-flex items-center px-8 py-4 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors text-lg font-medium shadow-lg shadow-blue-600/25"
+            className="inline-flex items-center px-8 py-4 text-white bg-[#0F6E56] rounded-lg hover:bg-[#0A3D31] transition-colors text-lg font-medium shadow-lg shadow-[#0F6E56]/30"
           >
             {ctaLabel}
             <ArrowRight className="ml-2 w-5 h-5" />

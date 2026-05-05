@@ -18,23 +18,26 @@ export default function Footer({ isLoggedIn = false }: { isLoggedIn?: boolean })
           </div>
 
           <div className="flex items-center gap-6 text-sm">
-            <Link href={isLoggedIn ? '/grid' : '/'} className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+            <Link href={isLoggedIn ? '/grid' : '/'} className="text-gray-600 dark:text-gray-400 hover:text-[#0F6E56] dark:hover:text-[#1D9E75] transition-colors">
               {t('marketing.footer.dashboard')}
             </Link>
-            <Link href="/features" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+            <Link href="/features" className="text-gray-600 dark:text-gray-400 hover:text-[#0F6E56] dark:hover:text-[#1D9E75] transition-colors">
               {t('marketing.footer.features')}
             </Link>
-            <Link href="/pricing" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+            <Link href="/pricing" className="text-gray-600 dark:text-gray-400 hover:text-[#0F6E56] dark:hover:text-[#1D9E75] transition-colors">
               {t('marketing.footer.pricing')}
             </Link>
-            <Link href="/contact" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+            <Link href="/blog" className="text-gray-600 dark:text-gray-400 hover:text-[#0F6E56] dark:hover:text-[#1D9E75] transition-colors">
+              {t('marketing.footer.blog')}
+            </Link>
+            <Link href="/contact" className="text-gray-600 dark:text-gray-400 hover:text-[#0F6E56] dark:hover:text-[#1D9E75] transition-colors">
               {t('marketing.footer.contact')}
             </Link>
-            <Link href="/privacy" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+            <Link href="/privacy" className="text-gray-600 dark:text-gray-400 hover:text-[#0F6E56] dark:hover:text-[#1D9E75] transition-colors">
               {t('marketing.footer.privacy')}
             </Link>
             {!isLoggedIn && (
-              <Link href="/sign-in" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+              <Link href="/sign-in" className="text-gray-600 dark:text-gray-400 hover:text-[#0F6E56] dark:hover:text-[#1D9E75] transition-colors">
                 {t('marketing.footer.signIn')}
               </Link>
             )}

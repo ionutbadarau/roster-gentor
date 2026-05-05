@@ -55,7 +55,7 @@ export default function PricingContent({
   return (
     <>
       {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 py-16 sm:py-24">
+      <section className="relative overflow-hidden bg-gradient-to-br from-[#0F6E56]/5 via-white to-[#1D9E75]/10 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 py-16 sm:py-24">
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto text-center">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 text-sm font-medium mb-6">
@@ -73,10 +73,10 @@ export default function PricingContent({
       </section>
 
       {/* Pricing card */}
-      <section className="pb-16 sm:pb-24 bg-white dark:bg-gray-950">
+      <section className="py-16 sm:py-24 bg-white dark:bg-gray-950 flex items-center">
         <div className="container mx-auto px-4">
-          <div className="max-w-md mx-auto -mt-10">
-            <div className="rounded-2xl border-2 border-blue-600 bg-white dark:bg-gray-900 shadow-2xl shadow-blue-600/10 p-8 space-y-6">
+          <div className="max-w-md mx-auto">
+            <div className="rounded-2xl border-2 border-[#0F6E56] bg-white dark:bg-gray-900 shadow-2xl shadow-[#0F6E56]/10 p-8 space-y-6">
               <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 p-1 bg-gray-50 dark:bg-gray-800 w-full">
                 <button
                   type="button"
@@ -122,7 +122,7 @@ export default function PricingContent({
 
               <Link
                 href={ctaHref}
-                className="flex items-center justify-center w-full px-8 py-4 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors text-base font-medium shadow-lg shadow-blue-600/25"
+                className="flex items-center justify-center w-full px-8 py-4 text-white bg-[#0F6E56] rounded-lg hover:bg-[#0A3D31] transition-colors text-base font-medium shadow-lg shadow-[#0F6E56]/30"
               >
                 {ctaLabel}
                 <ArrowRight className="ml-2 w-5 h-5" />
@@ -188,7 +188,7 @@ export default function PricingContent({
           </h2>
           <Link
             href={ctaHref}
-            className="inline-flex items-center px-8 py-4 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors text-lg font-medium"
+            className="inline-flex items-center px-8 py-4 text-white bg-[#0F6E56] rounded-lg hover:bg-[#0A3D31] transition-colors text-lg font-medium shadow-lg shadow-[#0F6E56]/30"
           >
             {ctaLabel}
             <ArrowRight className="ml-2 w-5 h-5" />

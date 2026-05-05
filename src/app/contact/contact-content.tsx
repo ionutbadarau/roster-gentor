@@ -72,7 +72,7 @@ export function ContactContent() {
 
           <div className="space-y-2">
             <Label htmlFor="message">{t('marketing.contact.messageLabel')}</Label>
-            <Textarea id="message" name="message" rows={5} required />
+            <Textarea id="message" name="message" rows={5} required className="bg-background" />
           </div>
 
           <Button type="submit" disabled={sending} className="w-full">
@@ -103,14 +103,14 @@ export function ContactContent() {
             {t('marketing.contact.alternativeEmail')}{' '}
             <a
               href="mailto:contact@plangarzi.ro"
-              className="font-medium text-blue-600 dark:text-blue-400 hover:underline"
+              className="font-medium text-[#0F6E56] dark:text-[#1D9E75] hover:underline"
             >
               contact@plangarzi.ro
             </a>
           </p>
 
           <div className="flex items-center gap-4">
-            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#0F6E56]/10 dark:bg-[#0F6E56]/30 text-[#0F6E56] dark:text-[#1D9E75]">
               <Phone className="w-5 h-5" />
             </div>
             <div>
@@ -119,7 +119,7 @@ export function ContactContent() {
               </p>
               <a
                 href="tel:0749284221"
-                className="text-gray-900 dark:text-white font-medium hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                className="text-gray-900 dark:text-white font-medium hover:text-[#0F6E56] dark:hover:text-[#1D9E75] transition-colors"
               >
                 0749 284 221
               </a>

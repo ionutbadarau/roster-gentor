@@ -373,6 +373,7 @@
       "allRightsReserved": "Toate drepturile rezervate.",
       "pricing": "Pre\u021buri",
       "features": "Func\u021bionalit\u0103\u021bi",
+      "blog": "Blog",
       "privacy": "Confiden\u021bialitate"
     },
     "pricing": {
@@ -495,6 +496,21 @@
       ],
       "ctaSectionTitle": "Gata s\u0103 \u00eencerci PlanGarzi?",
       "ctaSectionSubtitle": "90 de zile prob\u0103 gratuit\u0103. F\u0103r\u0103 card. Anulezi oric\u00e2nd."
+    },
+    "blog": {
+      "metaTitle": "Blog PlanGarzi \u2014 Ghiduri planificare g\u0103rzi pe sec\u021bie",
+      "metaDescription": "Articole despre planificarea g\u0103rzilor la nivel de sec\u021bie, legisla\u021bie, bune practici \u0219i optimizare program ture pentru medici.",
+      "h1": "Blog PlanGarzi",
+      "intro": "Ghiduri \u0219i sfaturi pentru planificarea g\u0103rzilor \u00eentr-o sec\u021bie de spital.",
+      "readMore": "Cite\u0219te articolul",
+      "minutesRead": "min citire",
+      "publishedOn": "Publicat",
+      "updatedOn": "Actualizat",
+      "by": "de",
+      "backToBlog": "\u2190 \u00cenapoi la blog",
+      "ctaTitle": "\u00cencepe acum cu PlanGarzi",
+      "ctaBody": "Genereaz\u0103 automat programul de g\u0103rzi pentru sec\u021bia ta \u00een c\u00e2teva minute. 90 de zile prob\u0103 gratuit\u0103.",
+      "ctaButton": "\u00cencepe gratuit"
     },
     "consent": {
       "banner": {

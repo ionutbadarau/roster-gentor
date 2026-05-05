@@ -117,5 +117,11 @@ Keys are nested by feature area (e.g. `scheduling.config.teamName`). Always upda
 
 - **shadcn/ui** components live in `src/components/ui/` — do not modify these directly; regenerate via `npx shadcn-ui add <component>`
 - **Tailwind CSS** with class-based dark mode; colors are HSL CSS variables defined in the global stylesheet
+- **Brand palette** (main theme — used on the marketing landing page and across all marketing surfaces; keep consistent for new public pages):
+  - Primary green: `#0F6E56`
+  - Accent green: `#1D9E75`
+  - Dark green (hover / deep): `#0A3D31`
+  - Reference gradient: `bg-gradient-to-r from-[#0F6E56] to-[#1D9E75]`
+  - Reference primary CTA: `bg-[#0F6E56] hover:bg-[#0A3D31] text-white shadow-lg shadow-[#0F6E56]/30`
 - **Lucide React** for all icons. Do **not** use `Sparkles` or `Wand2` (the "AI" icons) unless the user explicitly asks for an AI-themed icon — this product is not pitched as AI, and those icons read as generic AI marketing.
 - `src/app/tempobook/` — Tempo DevTools storyboards for component development; not production code

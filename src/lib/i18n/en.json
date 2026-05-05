@@ -373,6 +373,7 @@
       "allRightsReserved": "All rights reserved.",
       "pricing": "Pricing",
       "features": "Features",
+      "blog": "Blog",
       "privacy": "Privacy"
     },
     "pricing": {
@@ -495,6 +496,21 @@
       ],
       "ctaSectionTitle": "Ready to try PlanGarzi?",
       "ctaSectionSubtitle": "90-day free trial. No card. Cancel anytime."
+    },
+    "blog": {
+      "metaTitle": "PlanGarzi Blog — Hospital section on-call scheduling guides",
+      "metaDescription": "Articles on planning on-call duty at the hospital section level, legislation, best practices and shift schedule optimization for doctors.",
+      "h1": "PlanGarzi Blog",
+      "intro": "Guides and tips for planning on-call duty within a hospital section.",
+      "readMore": "Read article",
+      "minutesRead": "min read",
+      "publishedOn": "Published",
+      "updatedOn": "Updated",
+      "by": "by",
+      "backToBlog": "← Back to blog",
+      "ctaTitle": "Get started with PlanGarzi",
+      "ctaBody": "Generate your section's on-call schedule in minutes. 90-day free trial.",
+      "ctaButton": "Start free"
     },
     "consent": {
       "banner": {
