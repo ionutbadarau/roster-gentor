@@ -325,7 +325,22 @@
     },
     "demo": {
       "gridCaption": "Vizualizarea lunar\u0103 \u00een gril\u0103 \u2014 vezi turele fiec\u0103rui doctor dintr-o singur\u0103 privire",
-      "configCaption": "Configurarea echipelor \u2014 organizeaz\u0103 doctorii \u00een echipe cu reguli personalizate"
+      "configCaption": "Configurarea echipelor \u2014 organizeaz\u0103 doctorii \u00een echipe cu reguli personalizate",
+      "captionLine": "5 medici \u00b7 4 echipe rotative \u00b7 caden\u021b\u0103 D-N-R-R \u00b7 1 medic flotant",
+      "metaTitle": "Demo planificare g\u0103rzi medicale \u2014 exemplu live | PlanGarzi",
+      "metaDescription": "Vezi un exemplu real de program de g\u0103rzi generat automat pentru o sec\u021bie de spital. Echipe rotative, distribu\u021bie echitabil\u0103, f\u0103r\u0103 cont.",
+      "badge": "Demo public \u2014 f\u0103r\u0103 \u00eenregistrare",
+      "h1": "Demo: program de g\u0103rzi generat automat",
+      "subtitle": "Exemplu real al modului \u00een care PlanGarzi planific\u0103 turele unei echipe de medici pentru o lun\u0103 \u00eentreag\u0103.",
+      "intro": "Mai jos vezi un exemplu de planificare a g\u0103rzilor pentru 4 echipe rotative (c\u00e2te un medic pe echip\u0103) plus un medic flotant care acoper\u0103 concediile, generat automat pentru luna noiembrie 2025. Programul respect\u0103 pauzele obligatorii \u2014 24 de ore dup\u0103 o tur\u0103 de zi, 48 de ore dup\u0103 o tur\u0103 de noapte \u2014 \u0219i plafonul s\u0103pt\u0103m\u00e2nal de 48h. Acela\u0219i algoritm folose\u0219te PlanGarzi pentru orice spital: defini\u021bi echipele, marca\u021bi zilele de concediu, iar generatorul construie\u0219te programul \u00een c\u00e2teva secunde. Acest exemplu de program ture spital este complet vizibil pentru orice vizitator, f\u0103r\u0103 cont sau abonament \u2014 ca s\u0103 vezi rezultatul \u00eenainte s\u0103-l \u00eencerci pe datele tale.",
+      "monthLabel": "Noiembrie 2025",
+      "explainerTitle": "Cum cite\u0219ti grila",
+      "explainerColumns": "Fiecare r\u00e2nd reprezint\u0103 un medic, iar fiecare coloan\u0103 o zi a lunii. Punctul colorat din dreptul numelui indic\u0103 echipa (cele 4 echipe roteaz\u0103 dup\u0103 modelul D-N-R-R: zi, noapte, dou\u0103 zile libere). Bara din dreapta arat\u0103 diferen\u021ba fa\u021b\u0103 de norma lunar\u0103 (140 ore pentru noiembrie).",
+      "explainerColors": "Albastru = tur\u0103 de zi (08:00\u201320:00). Indigo = tur\u0103 de noapte (20:00\u201308:00). Portocaliu = concediu (Dr. Elena, 12\u201314 noiembrie). Cadrul galben marcheaz\u0103 turele setate manual peste cele generate automat. Medicul flotant (badge F) intervine s\u0103 acopere golurile create de concedii.",
+      "explainerHolidays": "Coloanele cu fundal verde sunt s\u0103rb\u0103tori legale (\u00een acest exemplu, 30 noiembrie \u2014 Sf. Andrei). Coloanele \u00een gri sunt week-end-uri. Algoritmul \u021bine cont de toate la calculul orelor \u0219i asigur\u0103 acoperire f\u0103r\u0103 conflicte de odihn\u0103.",
+      "ctaTitle": "Vrei programul t\u0103u, generat automat?",
+      "ctaPrimary": "\u00cencepe gratuit",
+      "ctaSecondary": "Vezi pre\u021burile"
     },
     "features": {
       "configureTeams": "Configureaz\u0103-\u021bi Echipele",
@@ -374,6 +389,7 @@
       "pricing": "Pre\u021buri",
       "features": "Func\u021bionalit\u0103\u021bi",
       "blog": "Blog",
+      "demo": "Demo",
       "privacy": "Confiden\u021bialitate"
     },
     "pricing": {

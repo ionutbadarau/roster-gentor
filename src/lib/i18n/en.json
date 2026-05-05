@@ -325,7 +325,22 @@
     },
     "demo": {
       "gridCaption": "The monthly grid view — see every doctor's shifts at a glance",
-      "configCaption": "Team configuration — organize doctors into teams with custom rules"
+      "configCaption": "Team configuration — organize doctors into teams with custom rules",
+      "captionLine": "5 doctors · 4 rotating teams · D-N-R-R cadence · 1 floating doctor",
+      "metaTitle": "Live demo: medical shift scheduling | PlanGarzi",
+      "metaDescription": "See a real example of an automatically generated shift roster — rotating teams, fair distribution, no signup required.",
+      "badge": "Public demo — no signup",
+      "h1": "Demo: an automatically generated shift schedule",
+      "subtitle": "A real example of how PlanGarzi schedules a doctor team across an entire month.",
+      "intro": "Below is a sample shift schedule for 4 rotating teams (one doctor each) plus a floating doctor who covers leave gaps, generated automatically for November 2025. The schedule honours mandatory rest — 24 hours after a day shift, 48 hours after a night shift — and the 48-hour weekly cap. The same algorithm powers PlanGarzi for any hospital: define your teams, mark leave days, and the generator builds the month in seconds. This live demo is fully visible to any visitor — no account needed — so you can preview the result before trying it on your own data.",
+      "monthLabel": "November 2025",
+      "explainerTitle": "How to read the grid",
+      "explainerColumns": "Each row is one doctor; each column is one day of the month. The colored dot next to the name marks the team (the 4 teams rotate through a D-N-R-R pattern: day, night, two days off). The right-hand bar shows the delta vs. the monthly norm (140 hours for November).",
+      "explainerColors": "Blue = day shift (08:00–20:00). Indigo = night shift (20:00–08:00). Orange = leave (Dr. Elena, Nov 12–14). The yellow ring marks shifts manually overridden on top of the auto-generated ones. The floating doctor (F badge) steps in to cover gaps left by leave.",
+      "explainerHolidays": "Columns with a green background are public holidays (here, Nov 30 — St. Andrew's Day). Grey columns are weekends. The algorithm factors both into the monthly hours and ensures coverage with no rest conflicts.",
+      "ctaTitle": "Want your own schedule, generated automatically?",
+      "ctaPrimary": "Start free",
+      "ctaSecondary": "See pricing"
     },
     "features": {
       "configureTeams": "Configure Your Teams",
@@ -374,6 +389,7 @@
       "pricing": "Pricing",
       "features": "Features",
       "blog": "Blog",
+      "demo": "Demo",
       "privacy": "Privacy"
     },
     "pricing": {

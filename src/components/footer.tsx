@@ -30,6 +30,9 @@ export default function Footer({ isLoggedIn = false }: { isLoggedIn?: boolean })
             <Link href="/blog" className="text-gray-600 dark:text-gray-400 hover:text-[#0F6E56] dark:hover:text-[#1D9E75] transition-colors">
               {t('marketing.footer.blog')}
             </Link>
+            <Link href="/demo" className="text-gray-600 dark:text-gray-400 hover:text-[#0F6E56] dark:hover:text-[#1D9E75] transition-colors">
+              {t('marketing.footer.demo')}
+            </Link>
             <Link href="/contact" className="text-gray-600 dark:text-gray-400 hover:text-[#0F6E56] dark:hover:text-[#1D9E75] transition-colors">
               {t('marketing.footer.contact')}
             </Link>
