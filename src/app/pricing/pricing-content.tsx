@@ -15,7 +15,13 @@ import en from '@/lib/i18n/en.json';
 
 type Plan = 'monthly' | 'yearly';
 
-export default function PricingContent() {
+export default function PricingContent({
+  isLoggedIn = false,
+  isSubscribed = false,
+}: {
+  isLoggedIn?: boolean;
+  isSubscribed?: boolean;
+}) {
   const { t, language } = useTranslation();
   const [plan, setPlan] = useState<Plan>('yearly');
 
@@ -23,6 +29,17 @@ export default function PricingContent() {
     language === 'en'
       ? en.marketing.pricing.faqs
       : ro.marketing.pricing.faqs;
+
+  const ctaHref = !isLoggedIn
+    ? '/sign-up'
+    : isSubscribed
+      ? '/grid'
+      : `/subscribe?plan=${plan}`;
+  const ctaLabel = !isLoggedIn
+    ? t('marketing.pricing.ctaSignUp')
+    : isSubscribed
+      ? t('marketing.cta.openDashboard')
+      : t('marketing.cta.subscribeNow');
 
   const featureKeys = [
     'feature1',
@@ -104,10 +121,10 @@ export default function PricingContent() {
               </div>
 
               <Link
-                href="/sign-up"
+                href={ctaHref}
                 className="flex items-center justify-center w-full px-8 py-4 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors text-base font-medium shadow-lg shadow-blue-600/25"
               >
-                {t('marketing.pricing.ctaSignUp')}
+                {ctaLabel}
                 <ArrowRight className="ml-2 w-5 h-5" />
               </Link>
 
@@ -170,10 +187,10 @@ export default function PricingContent() {
             {t('marketing.cta.v1')}
           </h2>
           <Link
-            href="/sign-up"
+            href={ctaHref}
             className="inline-flex items-center px-8 py-4 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors text-lg font-medium"
           >
-            {t('marketing.pricing.ctaSignUp')}
+            {ctaLabel}
             <ArrowRight className="ml-2 w-5 h-5" />
           </Link>
         </div>

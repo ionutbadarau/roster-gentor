@@ -21,6 +21,9 @@ export default function Footer({ isLoggedIn = false }: { isLoggedIn?: boolean })
             <Link href={isLoggedIn ? '/grid' : '/'} className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
               {t('marketing.footer.dashboard')}
             </Link>
+            <Link href="/features" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+              {t('marketing.footer.features')}
+            </Link>
             <Link href="/pricing" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
               {t('marketing.footer.pricing')}
             </Link>

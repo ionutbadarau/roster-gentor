@@ -117,5 +117,5 @@ Keys are nested by feature area (e.g. `scheduling.config.teamName`). Always upda
 
 - **shadcn/ui** components live in `src/components/ui/` — do not modify these directly; regenerate via `npx shadcn-ui add <component>`
 - **Tailwind CSS** with class-based dark mode; colors are HSL CSS variables defined in the global stylesheet
-- **Lucide React** for all icons
+- **Lucide React** for all icons. Do **not** use `Sparkles` or `Wand2` (the "AI" icons) unless the user explicitly asks for an AI-themed icon — this product is not pitched as AI, and those icons read as generic AI marketing.
 - `src/app/tempobook/` — Tempo DevTools storyboards for component development; not production code

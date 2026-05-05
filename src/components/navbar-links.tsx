@@ -13,7 +13,15 @@ import { useTranslation } from '@/lib/i18n'
 import UserProfile from './user-profile'
 import { ThemeSwitcher } from './theme-switcher'
 
-export function NavbarLinks({ isLoggedIn }: { isLoggedIn: boolean }) {
+export function NavbarLinks({
+  isLoggedIn,
+  email,
+  showBilling,
+}: {
+  isLoggedIn: boolean
+  email?: string | null
+  showBilling?: boolean
+}) {
   const { t, language, setLanguage } = useTranslation()
   const signUpsEnabled = process.env.NEXT_PUBLIC_SIGNUPS_ENABLED === 'true'
 
@@ -29,7 +37,7 @@ export function NavbarLinks({ isLoggedIn }: { isLoggedIn: boolean }) {
         {language === 'ro' ? 'EN' : 'RO'}
       </Button>
       {isLoggedIn ? (
-        <UserProfile />
+        <UserProfile email={email} showBilling={showBilling} />
       ) : (
         <>
           {/* Desktop */}

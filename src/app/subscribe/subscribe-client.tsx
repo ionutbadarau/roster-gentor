@@ -14,17 +14,19 @@ interface SubscribeClientProps {
   variant: "trial" | "expired";
   daysRemaining?: number;
   isAuthed: boolean;
+  initialPlan?: Plan;
 }
 
 export default function SubscribeClient({
   variant,
   daysRemaining,
   isAuthed,
+  initialPlan,
 }: SubscribeClientProps) {
   const { t } = useTranslation();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [plan, setPlan] = useState<Plan>("monthly");
+  const [plan, setPlan] = useState<Plan>(initialPlan ?? "monthly");
 
   async function handleSubscribe() {
     if (!isAuthed) {

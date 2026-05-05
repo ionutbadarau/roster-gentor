@@ -3,6 +3,8 @@ import Navbar from '@/components/navbar';
 import Footer from '@/components/footer';
 import PricingContent from './pricing-content';
 import ro from '@/lib/i18n/ro.json';
+import { createClient } from '../../../supabase/server';
+import { getSubscriptionStatus } from '@/lib/subscription';
 
 const SITE_URL = 'https://plangarzi.ro';
 
@@ -63,7 +65,17 @@ const productJsonLd = {
   ],
 };
 
-export default function PricingPage() {
+export default async function PricingPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const isLoggedIn = !!user;
+
+  let isSubscribed = false;
+  if (user) {
+    const subscriptionStatus = await getSubscriptionStatus(user.id);
+    isSubscribed = subscriptionStatus.access === 'active';
+  }
+
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 flex flex-col">
       <script
@@ -76,9 +88,9 @@ export default function PricingPage() {
       />
       <Navbar />
       <main className="flex-1">
-        <PricingContent />
+        <PricingContent isLoggedIn={isLoggedIn} isSubscribed={isSubscribed} />
       </main>
-      <Footer />
+      <Footer isLoggedIn={isLoggedIn} />
     </div>
   );
 }

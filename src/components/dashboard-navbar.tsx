@@ -4,17 +4,10 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '../../supabase/client'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu'
 import { Button } from './ui/button'
-import { UserCircle, CreditCard, User, LogOut } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import { useTranslation } from '@/lib/i18n'
 import { ThemeSwitcher } from './theme-switcher'
+import UserProfile from './user-profile'
 
 export default function DashboardNavbar({
   showBilling = false,
@@ -22,8 +15,7 @@ export default function DashboardNavbar({
   showBilling?: boolean
 }) {
   const supabase = createClient()
-  const router = useRouter()
-  const { t, language, setLanguage } = useTranslation()
+  const { language, setLanguage } = useTranslation()
   const [userEmail, setUserEmail] = useState<string | null>(null)
 
   useEffect(() => {
@@ -50,37 +42,7 @@ export default function DashboardNavbar({
           >
             {language === 'ro' ? 'EN' : 'RO'}
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <UserCircle className="h-6 w-6" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {userEmail && (
-                <DropdownMenuItem disabled className="text-xs text-muted-foreground">
-                  {userEmail}
-                </DropdownMenuItem>
-              )}
-              {showBilling && (
-                <DropdownMenuItem onClick={() => router.push('/billing')}>
-                  <CreditCard className="h-4 w-4 mr-2" />
-                  {t('billing.billingMenuLabel')}
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onClick={() => router.push('/account')}>
-                <User className="h-4 w-4 mr-2" />
-                {t('nav.account')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={async () => {
-                await supabase.auth.signOut()
-                router.refresh()
-              }}>
-                <LogOut className="h-4 w-4 mr-2" />
-                {t('nav.signOut')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <UserProfile email={userEmail} showBilling={showBilling} />
         </div>
       </div>
     </nav>

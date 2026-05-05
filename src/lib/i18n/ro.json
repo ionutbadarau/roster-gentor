@@ -39,7 +39,7 @@
       "description": "Vizualizeaz\u0103 \u0219i editeaz\u0103 turele pentru fiecare doctor",
       "generate": "Genereaz\u0103 Program",
       "generating": "Se genereaz\u0103...",
-      "generatingMessage": "Generarea poate dura p\u00e2n\u0103 la 90 de secunde, v\u0103 rug\u0103m a\u0219tepta\u021bi...",
+      "generatingMessage": "Generarea poate dura p\u00e2n\u0103 la 10 secunde, v\u0103 rug\u0103m a\u0219tepta\u021bi...",
       "clearMonth": "Gole\u0219te Luna",
       "clearMonthConfirmTitle": "Gole\u0219ti toat\u0103 luna?",
       "clearMonthConfirmDescription": "Aceasta va \u0219terge toate turele pentru luna aceasta. Aceast\u0103 ac\u021biune nu poate fi anulat\u0103.",
@@ -346,7 +346,9 @@
       "multiLanguage": "Suport multilingv (rom\u00e2n\u0103 \u0219i englez\u0103)"
     },
     "cta": {
-      "v1": "Gata s\u0103-\u021bi simplifici planificarea?"
+      "v1": "Gata s\u0103-\u021bi simplifici planificarea?",
+      "openDashboard": "Deschide dashboard",
+      "subscribeNow": "Aboneaz\u0103-te acum"
     },
     "contact": {
       "title": "Contacteaz\u0103-ne",
@@ -370,6 +372,7 @@
       "signIn": "Autentificare",
       "allRightsReserved": "Toate drepturile rezervate.",
       "pricing": "Pre\u021buri",
+      "features": "Func\u021bionalit\u0103\u021bi",
       "privacy": "Confiden\u021bialitate"
     },
     "pricing": {
@@ -399,7 +402,7 @@
       "faqs": [
         {
           "q": "C\u00e2t dureaz\u0103 generarea unui program lunar de g\u0103rzi?",
-          "a": "Algoritmul genereaz\u0103 programul lunar \u00een c\u00e2teva secunde, indiferent de m\u0103rimea echipei. Pentru o sec\u021bie cu 20 de medici \u0219i constr\u00e2ngeri complexe, durata maxim\u0103 este sub 90 de secunde."
+          "a": "Algoritmul genereaz\u0103 programul lunar \u00een c\u00e2teva secunde, indiferent de m\u0103rimea echipei. Pentru o sec\u021bie cu 20 de medici \u0219i constr\u00e2ngeri complexe, durata maxim\u0103 r\u0103m\u00e2ne sub 10 secunde."
         },
         {
           "q": "Pot anula abonamentul oric\u00e2nd?",
@@ -430,6 +433,68 @@
           "a": "Da. Orice celul\u0103 poate fi modificat\u0103 manual. Modific\u0103rile manuale sunt marcate ca \"fixate\" \u0219i se p\u0103streaz\u0103 la regener\u0103ri ulterioare. Conflictele de odihn\u0103 apar ca avertismente vizuale."
         }
       ]
+    },
+    "featuresPage": {
+      "metaTitle": "Func\u021bionalit\u0103\u021bi PlanGarzi \u2014 generator program g\u0103rzi pentru spitale",
+      "metaDescription": "Toate func\u021bionalit\u0103\u021bile PlanGarzi: generare automat\u0103 a programului lunar, detectare conflicte de odihn\u0103, egalizare ture, gestionare concedii, export PDF/Excel \u0219i trimitere pe email.",
+      "h1": "Func\u021bionalit\u0103\u021bi PlanGarzi",
+      "subtitle": "Tot ce ai nevoie ca s\u0103 planifici g\u0103rzile unei sec\u021bii \u00eentr-o jum\u0103tate de or\u0103 \u00een loc de dou\u0103 zile.",
+      "ctaPrimary": "\u00cencepe planificarea",
+      "ctaSecondary": "Vezi pre\u021buri",
+      "items": [
+        {
+          "id": "auto-generate",
+          "title": "Generare automat\u0103 a programului de g\u0103rzi",
+          "body": "Algoritmul caden\u021b\u0103-first construie\u0219te programul lunar \u00een c\u00e2teva secunde. Tu configurezi echipele, regulile de odihn\u0103 \u0219i disponibilitatea fiec\u0103rui medic \u2014 restul se face automat. Programul respect\u0103 caden\u021ba zi-noapte-odihn\u0103-odihn\u0103 per echip\u0103, distribuie turele echitabil \u0219i completeaz\u0103 golurile cu rota\u021bie inteligent\u0103. Pentru o sec\u021bie cu 20 de medici \u0219i 30 de zile, generarea dureaz\u0103 doar c\u00e2teva secunde. Po\u021bi regenera oric\u00e2nd: edit\u0103rile manuale r\u0103m\u00e2n fixate \u0219i sunt p\u0103strate la regener\u0103ri ulterioare."
+        },
+        {
+          "id": "rest-conflicts",
+          "title": "Detectare conflicte odihn\u0103 (24h zi / 48h noapte / 48h s\u0103pt\u0103m\u00e2n\u0103)",
+          "body": "Fiecare conflict de odihn\u0103 apare imediat ca avertisment vizual pe celula afectat\u0103. Algoritmul aplic\u0103 automat regulile legislative din Rom\u00e2nia: 24h pauz\u0103 dup\u0103 ture de zi, 48h dup\u0103 ture de noapte, maximum 48h de munc\u0103 pe s\u0103pt\u0103m\u00e2n\u0103 per medic. Dac\u0103 for\u021bezi o tur\u0103 care \u00eencalc\u0103 o regul\u0103, prime\u0219ti aten\u021bionare clar\u0103: tipul conflictului, doctorul implicat \u0219i data. Astfel evi\u021bi erorile de planificare ce pot duce la oboseal\u0103, accidente sau probleme legale la control."
+        },
+        {
+          "id": "equalize",
+          "title": "Egalizare ture \u00eentre medici",
+          "body": "Dup\u0103 generare, motorul de egalizare schimb\u0103 turele \u00eentre medicii cu norm\u0103 echivalent\u0103 pentru a echilibra deltele +/- fa\u021b\u0103 de norma lunar\u0103. Niciun doctor nu are mai multe nop\u021bi dec\u00e2t altul f\u0103r\u0103 motiv. Algoritmul \u021bine cont de doctorii flotan\u021bi, de echipele cu constr\u00e2ngeri \u0219i de preferin\u021bele individuale. Rezultatul: program echitabil, f\u0103r\u0103 favoritisme, f\u0103r\u0103 ore extra acumulate pe c\u00e2teva persoane. Statisticile per medic \u2014 ore lucrate, ture de zi/noapte, delta fa\u021b\u0103 de norm\u0103 \u2014 sunt afi\u0219ate al\u0103turi de gridul calendarului."
+        },
+        {
+          "id": "leave-bridge",
+          "title": "Gestionare concedii \u0219i zile punte",
+          "body": "Marchezi zilele de concediu ale fiec\u0103rui medic dintr-un calendar simplu. Algoritmul exclude automat ace\u0219ti medici de la planificare \u0219i ajusteaz\u0103 norma lunar\u0103. Zilele punte \u2014 weekend-uri \u0219i s\u0103rb\u0103tori legale prinse \u00eentre concedii \u2014 sunt detectate \u0219i pot fi tratate ca odihn\u0103 suplimentar\u0103 sau ca zile lucr\u0103toare, dup\u0103 preferin\u021b\u0103. Fiecare doctor vede c\u00e2te zile de concediu i-au mai r\u0103mas, cu validare pentru a preveni dep\u0103\u0219irea limitei legale. S\u0103rb\u0103torile na\u021bionale se import\u0103 automat pentru anul curent."
+        },
+        {
+          "id": "export",
+          "title": "Export PDF \u0219i Excel",
+          "body": "Expor\u021bi programul lunar cu un click \u00een PDF (pentru afi\u0219are la avizier) sau Excel (pentru raportare c\u0103tre resurse umane). Formatul PDF include numele sec\u021biei, luna, lista medicilor \u0219i grilele colorate per echip\u0103. Excel-ul export\u0103 datele tabular, u\u0219or de filtrat \u0219i sortat. Ambele respect\u0103 regulile de paginare pentru tip\u0103rire A4 sau A3. Po\u021bi exporta \u0219i statistici per doctor: ore lucrate, ture de zi/noapte \u0219i deltele fa\u021b\u0103 de norm\u0103 pentru raport\u0103rile lunare."
+        },
+        {
+          "id": "email",
+          "title": "Trimitere program pe email cu link personal",
+          "body": "Cu un singur click trimi\u021bi programul lunar c\u0103tre to\u021bi medicii \u2014 fiecare prime\u0219te un email cu link personal de vizualizare. Linkul nu cere autentificare: doctorul \u00eel deschide \u0219i vede direct turele lui din luna respectiv\u0103, \u00een format mobil-friendly. Linkurile sunt unice per doctor, semnate criptografic \u0219i expir\u0103 la sf\u00e2r\u0219itul lunii. Astfel medicii nu mai sun\u0103 la coordonator s\u0103 \u00eentrebe \u201eeu c\u00e2nd lucrez?\u201d. Tu actualizezi programul, ei primesc instant noile detalii."
+        },
+        {
+          "id": "rotating-teams",
+          "title": "Configurare echipe rotative",
+          "body": "Define\u0219ti c\u00e2te echipe vrei, ce culoare are fiecare \u0219i ordinea lor de rota\u021bie. Algoritmul aplic\u0103 caden\u021ba zi-noapte-odihn\u0103-odihn\u0103 staggered: echipa A intr\u0103 luni diminea\u021ba, echipa B luni noaptea, echipa C mar\u021bi diminea\u021ba \u0219i a\u0219a mai departe. Astfel acoperi zilele cu num\u0103rul fix de medici per tur\u0103 f\u0103r\u0103 overlap nedorit. Po\u021bi defini echipe constr\u00e2nse (de exemplu, doar membri seniori) sau echipe flexibile cu rota\u021bie liber\u0103. Fiecare echip\u0103 are propriul set de medici, culoare \u0219i reguli."
+        },
+        {
+          "id": "floating-doctors",
+          "title": "Doctori flotan\u021bi",
+          "body": "Doctorii flotan\u021bi nu apar\u021bin unei echipe fixe \u2014 sunt folosi\u021bi de algoritm pentru a umple golurile r\u0103mase dup\u0103 ce rota\u021bia principal\u0103 termin\u0103. Ideali pentru reziden\u021bi, medici part-time sau speciali\u0219ti care acoper\u0103 mai multe sec\u021bii. Configurezi disponibilitatea fiec\u0103ruia (zile preferate, zile de evitat) \u0219i algoritmul \u00eei distribuie automat acolo unde este nevoie, cu prioritate la echilibrarea normei. Astfel acoperi golurile f\u0103r\u0103 a strica rota\u021bia echipelor principale \u0219i f\u0103r\u0103 s\u0103 suprasolici\u021bi c\u00e2\u021biva medici."
+        },
+        {
+          "id": "click-drag",
+          "title": "Editare prin click & drag",
+          "body": "Editezi gridul ca pe o foaie de calcul: \u021bii ap\u0103sat butonul mouse-ului pe o celul\u0103, tragi peste mai multe zile sau medici \u0219i aplici aceea\u0219i tur\u0103 pe toat\u0103 zona selectat\u0103. Pentru schimb\u0103ri rapide la nivel de s\u0103pt\u0103m\u00e2n\u0103 sau echip\u0103, click & drag e mult mai eficient dec\u00e2t editarea celul\u0103 cu celul\u0103. Func\u021bioneaz\u0103 identic \u0219i pentru \u0219tergere: selectezi zona \u0219i o gole\u0219ti dintr-o mi\u0219care. Ideal c\u00e2nd reorganizezi programul dup\u0103 modific\u0103ri de ultim moment, c\u00e2nd o echip\u0103 \u00eentreag\u0103 schimb\u0103 rota\u021bia sau c\u00e2nd marchezi concedii pe perioade lungi."
+        },
+        {
+          "id": "undo-redo",
+          "title": "Istoric modific\u0103ri (undo / redo)",
+          "body": "Fiecare modificare manual\u0103 este salvat\u0103 \u00een istoric. Cu Ctrl+Z anulezi ultima schimbare, cu Ctrl+Y o aplici din nou. Func\u021bioneaz\u0103 pentru edit\u0103ri individuale, pentru selec\u021bii f\u0103cute prin click & drag \u0219i pentru regener\u0103ri complete ale programului. Astfel po\u021bi experimenta liber: \u00eencerci o variant\u0103, dac\u0103 nu \u00ee\u021bi place revii la cea anterioar\u0103, f\u0103r\u0103 s\u0103 pierzi orele de munc\u0103 investite. Istoricul se p\u0103streaz\u0103 pe durata sesiunii \u0219i acoper\u0103 zeci de pa\u0219i \u00een spate, suficient pentru orice planificare lunar\u0103."
+        }
+      ],
+      "ctaSectionTitle": "Gata s\u0103 \u00eencerci PlanGarzi?",
+      "ctaSectionSubtitle": "90 de zile prob\u0103 gratuit\u0103. F\u0103r\u0103 card. Anulezi oric\u00e2nd."
     },
     "consent": {
       "banner": {

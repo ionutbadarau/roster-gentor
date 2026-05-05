@@ -39,7 +39,7 @@
       "description": "View and edit shifts for each doctor",
       "generate": "Generate Schedule",
       "generating": "Generating...",
-      "generatingMessage": "Generation might take up to 90 seconds, please wait...",
+      "generatingMessage": "Generation might take up to 10 seconds, please wait...",
       "clearMonth": "Clear Month",
       "clearMonthConfirmTitle": "Clear entire month?",
       "clearMonthConfirmDescription": "This will remove all shifts for this month. This action cannot be undone.",
@@ -346,7 +346,9 @@
       "multiLanguage": "Multi-language support (Romanian & English)"
     },
     "cta": {
-      "v1": "Ready to simplify your scheduling?"
+      "v1": "Ready to simplify your scheduling?",
+      "openDashboard": "Open dashboard",
+      "subscribeNow": "Subscribe now"
     },
     "contact": {
       "title": "Contact Us",
@@ -370,6 +372,7 @@
       "signIn": "Sign In",
       "allRightsReserved": "All rights reserved.",
       "pricing": "Pricing",
+      "features": "Features",
       "privacy": "Privacy"
     },
     "pricing": {
@@ -399,7 +402,7 @@
       "faqs": [
         {
           "q": "How long does it take to generate a monthly schedule?",
-          "a": "The algorithm builds the monthly schedule in seconds regardless of team size. For a department with 20 doctors and complex constraints, the maximum runtime is under 90 seconds."
+          "a": "The algorithm builds the monthly schedule in seconds regardless of team size. For a department with 20 doctors and complex constraints, the maximum runtime stays under 10 seconds."
         },
         {
           "q": "Can I cancel anytime?",
@@ -430,6 +433,68 @@
           "a": "Yes. Any cell can be edited manually. Manual edits are marked as 'pinned' and preserved on subsequent regenerations. Rest conflicts appear as visual warnings."
         }
       ]
+    },
+    "featuresPage": {
+      "metaTitle": "PlanGarzi Features — hospital on-call schedule generator",
+      "metaDescription": "All PlanGarzi features: automatic monthly schedule generation, rest conflict detection, shift equalization, leave management, PDF/Excel export and email delivery.",
+      "h1": "PlanGarzi Features",
+      "subtitle": "Everything you need to plan a department's on-call schedule in half an hour instead of two days.",
+      "ctaPrimary": "Start planning",
+      "ctaSecondary": "See pricing",
+      "items": [
+        {
+          "id": "auto-generate",
+          "title": "Automatic on-call schedule generation",
+          "body": "The cadence-first algorithm builds the monthly schedule in seconds. You configure the teams, rest rules and per-doctor availability — the rest is automatic. The schedule respects a day-night-rest-rest cadence per team, distributes shifts fairly between doctors and fills gaps with smart rotation. For a department with 20 doctors and 30 days, generation runs in just a few seconds. You can regenerate anytime: manual edits stay pinned and are preserved on subsequent regenerations."
+        },
+        {
+          "id": "rest-conflicts",
+          "title": "Rest conflict detection (24h day / 48h night / 48h week)",
+          "body": "Every rest conflict appears immediately as a visual warning on the affected cell. The algorithm enforces the legal rules automatically: 24h rest after day shifts, 48h after night shifts, max 48h of work per week per doctor. If you force a shift that breaks a rule, you get a clear warning: conflict type, doctor and date. This way you avoid scheduling errors that lead to fatigue, accidents or compliance issues during inspections."
+        },
+        {
+          "id": "equalize",
+          "title": "Shift equalization between doctors",
+          "body": "After generation, the equalization engine swaps shifts between doctors with equivalent norms to balance the +/- deltas against the monthly target. No doctor ends up with more nights than another without reason. The algorithm accounts for floating doctors, constrained teams and individual preferences. Result: a fair schedule, no favoritism, no overtime piling up on a few people. Per-doctor stats — hours worked, day/night shifts, delta vs norm — are shown next to the calendar grid."
+        },
+        {
+          "id": "leave-bridge",
+          "title": "Leave and bridge day management",
+          "body": "Mark each doctor's leave days from a simple calendar. The algorithm excludes those doctors from scheduling and adjusts the monthly norm. Bridge days — weekends and public holidays caught between leave periods — are detected and can be treated either as extra rest or as workdays, by preference. Each doctor sees how many leave days they have left, with validation to prevent exceeding the legal limit. National holidays are imported automatically for the current year."
+        },
+        {
+          "id": "export",
+          "title": "PDF and Excel export",
+          "body": "Export the monthly schedule with one click as PDF (for posting on the bulletin board) or Excel (for HR reporting). The PDF includes department name, month, doctor list and color-coded grids per team. Excel exports the data in tabular form, easy to filter and sort. Both formats follow pagination rules for A4 or A3 print. You can also export per-doctor stats: hours worked, day/night shifts and norm deltas for monthly reporting."
+        },
+        {
+          "id": "email",
+          "title": "Email delivery with personal view link",
+          "body": "With a single click you send the monthly schedule to all doctors — each gets an email with a personal view link. The link doesn't require login: the doctor opens it and sees their own shifts for the month, in mobile-friendly format. Links are unique per doctor, cryptographically signed and expire at the end of the month. This way doctors stop calling the coordinator asking 'when am I working?'. You update the schedule, they instantly receive the new details."
+        },
+        {
+          "id": "rotating-teams",
+          "title": "Rotating team configuration",
+          "body": "Define how many teams you want, the color of each and their rotation order. The algorithm applies a staggered day-night-rest-rest cadence: team A starts Monday morning, team B Monday night, team C Tuesday morning and so on. This way you cover days with the fixed number of doctors per shift without unwanted overlap. You can define constrained teams (only senior members, for instance) or flexible teams with free rotation. Each team has its own set of doctors, color and rules."
+        },
+        {
+          "id": "floating-doctors",
+          "title": "Floating doctors",
+          "body": "Floating doctors don't belong to a fixed team — the algorithm uses them to fill the gaps left after the main rotation finishes. Ideal for residents, part-time doctors or specialists who cover several departments. You configure each one's availability (preferred days, days to avoid) and the algorithm distributes them automatically where needed, prioritizing norm balance. This way you cover gaps without disrupting main team rotation and without overloading a few doctors."
+        },
+        {
+          "id": "click-drag",
+          "title": "Click & drag editing",
+          "body": "Edit the grid like a spreadsheet: hold the mouse button on a cell, drag across multiple days or doctors and apply the same shift to the entire selected area. For quick changes at the week or team level, click & drag is far faster than editing cell by cell. The same gesture works for deletion: select the area and clear it in one move. Ideal when reorganizing the schedule after last-minute changes, when a whole team swaps rotation or when marking long leave periods."
+        },
+        {
+          "id": "undo-redo",
+          "title": "Undo / redo history",
+          "body": "Every manual change is saved to history. Press Ctrl+Z to undo the last change, Ctrl+Y to redo it. Works for individual edits, for selections made via click & drag and for full schedule regenerations. You can experiment freely: try a variant, if you don't like it revert to the previous one without losing the hours of work invested. History persists for the session and covers tens of steps back, enough for any monthly planning task."
+        }
+      ],
+      "ctaSectionTitle": "Ready to try PlanGarzi?",
+      "ctaSectionSubtitle": "90-day free trial. No card. Cancel anytime."
     },
     "consent": {
       "banner": {
