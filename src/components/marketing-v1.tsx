@@ -84,6 +84,12 @@ export default function MarketingV1() {
                 <p className="text-gray-700 dark:text-gray-300 text-lg leading-relaxed">
                   {t('marketing.seo.garziDesc')}
                 </p>
+                <Link
+                  href="/features"
+                  className="inline-flex items-center mt-3 text-[#0F6E56] hover:text-[#0A3D31] font-medium"
+                >
+                  {t('marketing.seo.linkFeatures')}
+                </Link>
               </article>
               <article>
                 <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-3">
@@ -92,6 +98,12 @@ export default function MarketingV1() {
                 <p className="text-gray-700 dark:text-gray-300 text-lg leading-relaxed">
                   {t('marketing.seo.tureDesc')}
                 </p>
+                <Link
+                  href="/demo"
+                  className="inline-flex items-center mt-3 text-[#0F6E56] hover:text-[#0A3D31] font-medium"
+                >
+                  {t('marketing.seo.linkDemo')}
+                </Link>
               </article>
               <article>
                 <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-3">
@@ -100,6 +112,12 @@ export default function MarketingV1() {
                 <p className="text-gray-700 dark:text-gray-300 text-lg leading-relaxed">
                   {t('marketing.seo.legeDesc')}
                 </p>
+                <Link
+                  href="/blog/cum-faci-planificare-garzi"
+                  className="inline-flex items-center mt-3 text-[#0F6E56] hover:text-[#0A3D31] font-medium"
+                >
+                  {t('marketing.seo.linkBlog')}
+                </Link>
               </article>
             </div>
           </div>

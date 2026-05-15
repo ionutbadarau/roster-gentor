@@ -311,9 +311,9 @@
     "appName": "PlanGarzi",
     "hero": {
       "v1": {
-        "headline": "Doctor Shift & On-Call Scheduling,",
-        "headlineAccent": "Generated Automatically in Seconds",
-        "subheadline": "The simplest way to plan hospital on-call duty and shifts. Configure your teams, set the rules, and let PlanGarzi build a fair, compliant monthly schedule — ready to export.",
+        "headline": "Automated Shift & On-Call Scheduling,",
+        "headlineAccent": "Generated in Seconds",
+        "subheadline": "Shift scheduling software for any team that works rotating shifts — hospitals, fire stations, paramedic crews, nurses, security agencies, 24/7 dispatch centers. Configure your teams, set the rules, and let PlanGarzi build a fair, compliant monthly schedule — ready to export.",
         "cta": "Start Scheduling",
         "check1": "Automatic conflict detection",
         "check2": "Fair shift distribution",
@@ -322,13 +322,16 @@
       }
     },
     "seo": {
-      "sectionTitle": "The complete solution for medical on-call scheduling",
-      "garziTitle": "Medical on-call scheduling",
-      "garziDesc": "PlanGarzi automates on-call planning for any hospital department. You define teams, mark leave days, and the algorithm builds the monthly schedule while respecting mandatory rest periods (24h after day shifts, 48h after night shifts) and the 48h weekly cap. Building the on-call rota takes seconds, not hours in Excel.",
-      "tureTitle": "Hospital shift planning",
-      "tureDesc": "Whether you run 12-hour day/night shifts or 24-hour on-call duty, PlanGarzi distributes shifts fairly across doctors. It accounts for the monthly minimum norm (7h × working days), individual preferences and rotating teams. The result: a transparent, conflict-free shift plan that's easy to adjust manually when needed.",
+      "sectionTitle": "The complete solution for teams with rotating shifts",
+      "garziTitle": "On-call & shift scheduling for any team",
+      "garziDesc": "PlanGarzi automates on-call planning for any team that works rotating shifts — hospital departments, fire stations, paramedic crews, nurse rotations, security agencies or 24/7 dispatch centers. You define teams, mark leave days, and the algorithm builds the monthly schedule while respecting mandatory rest periods (24h after day shifts, 48h after night shifts) and the 48h weekly cap. Building the rota takes seconds, not hours in Excel.",
+      "tureTitle": "Planning 12-hour and 24-hour shifts",
+      "tureDesc": "Whether you run 12-hour day/night shifts or 24-hour on-call duty, PlanGarzi distributes shifts fairly across team members. It accounts for the monthly minimum norm (7h × working days), individual preferences and rotating teams. The result: a transparent, conflict-free shift plan that's easy to adjust manually when needed.",
       "legeTitle": "Compliant on-call schedule generator",
-      "legeDesc": "The algorithm follows the rules common in hospitals: team rotation, floating doctors filling gaps, automatic norm equalization and clear reporting of conflicts or understaffed days. Export the schedule as PDF for posting or as Excel for reporting, and email each doctor a personal view link."
+      "legeDesc": "The algorithm follows the rules common to any rotating-shift organization: team rotation, floating members filling gaps, automatic norm equalization and clear reporting of conflicts or understaffed days. Export the schedule as PDF for posting or as Excel for reporting, and email each team member a personal view link.",
+      "linkFeatures": "See all on-call scheduling features →",
+      "linkDemo": "Request a live demo →",
+      "linkBlog": "Read the complete on-call planning guide →"
     },
     "demo": {
       "gridCaption": "The monthly grid view — see every doctor's shifts at a glance",

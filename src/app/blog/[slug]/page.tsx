@@ -66,18 +66,24 @@ export default async function BlogPostPage({ params }: PageProps) {
   const isLoggedIn = !!user;
 
   const url = `${SITE_URL}/blog/${post.slug}`;
+  const ogImage = `${SITE_URL}/opengraph-image`;
   const blogPostingJsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'BlogPosting',
+    '@type': ['BlogPosting', 'Article'],
     headline: post.title,
     description: post.description,
+    image: ogImage,
     datePublished: post.publishedAt,
     dateModified: post.updatedAt,
-    author: { '@type': 'Organization', name: post.author },
+    author: { '@type': 'Organization', name: post.author, url: SITE_URL },
     publisher: {
       '@type': 'Organization',
       name: 'PlanGarzi',
       url: SITE_URL,
+      logo: {
+        '@type': 'ImageObject',
+        url: `${SITE_URL}/icon.svg`,
+      },
     },
     mainEntityOfPage: {
       '@type': 'WebPage',
@@ -88,11 +94,40 @@ export default async function BlogPostPage({ params }: PageProps) {
     keywords: post.tags.join(', '),
   };
 
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: 'PlanGarzi',
+        item: SITE_URL,
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: 'Blog',
+        item: `${SITE_URL}/blog`,
+      },
+      {
+        '@type': 'ListItem',
+        position: 3,
+        name: post.title,
+        item: url,
+      },
+    ],
+  };
+
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 flex flex-col">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(blogPostingJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
       <Navbar />
       <main className="flex-1">

@@ -15,14 +15,18 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   metadataBase: new URL("https://plangarzi.ro"),
   title: {
-    default: "PlanGarzi — Planificare Gărzi și Ture pentru Medici",
+    default: "Planificare Gărzi — Software Automat pentru Programul Lunar | PlanGarzi",
     template: "%s | PlanGarzi",
   },
   description:
-    "Planificare gărzi și ture medicale automat. Generează programul lunar al spitalului în câteva secunde — distribuție echitabilă, conform legii, export PDF și Excel.",
+    "Planificare gărzi automată pentru orice echipă cu program de tură — spitale, pompieri, paramedici, asistenți medicali, securitate, dispecerat. Generează programul lunar de gărzi în câteva secunde — distribuție echitabilă, conform legii, export PDF și Excel. Probă gratuită 90 de zile.",
   keywords: [
     "planificare garzi",
     "planificare gărzi",
+    "planificare garzi excel",
+    "planificare garzi spital",
+    "software planificare garzi",
+    "program garzi spital",
     "planificare ture",
     "program garzi medici",
     "program ture spital",
@@ -40,15 +44,15 @@ export const metadata: Metadata = {
     locale: "ro_RO",
     url: "https://plangarzi.ro",
     siteName: "PlanGarzi",
-    title: "PlanGarzi — Planificare Gărzi și Ture pentru Medici",
+    title: "Planificare Gărzi — Software Automat pentru Programul Lunar | PlanGarzi",
     description:
-      "Aplicație web pentru planificarea gărzilor și turelor medicale. Generează programul lunar automat — echitabil, conform legii, export PDF și Excel.",
+      "Planificare gărzi automată pentru orice echipă cu program de tură — spitale, pompieri, paramedici, securitate, dispecerat. Generează programul lunar de gărzi în câteva secunde — echitabil, conform legii, export PDF și Excel.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "PlanGarzi — Planificare Gărzi și Ture",
+    title: "Planificare Gărzi — Software Automat | PlanGarzi",
     description:
-      "Planifică gărzile și turele medicale automat. Distribuție echitabilă, conform legii, export PDF și Excel în câteva secunde.",
+      "Software de planificare gărzi automat pentru orice echipă cu program de tură. Distribuție echitabilă, conform legii, export PDF și Excel în câteva secunde.",
   },
   robots: {
     index: true,

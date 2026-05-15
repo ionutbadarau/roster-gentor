@@ -19,18 +19,18 @@ export type BlogPost = {
 export const blogPosts: BlogPost[] = [
   {
     slug: 'cum-faci-planificare-garzi',
-    title: 'Cum faci planificarea gărzilor într-o secție de spital — ghid complet 2026',
+    title: 'Cum faci planificarea gărzilor pentru o echipă cu program de tură — ghid complet 2026',
     description:
-      'Ghid practic pentru medici-șefi și coordonatori de secție: cum construiești programul lunar de gărzi pas cu pas, ce reguli legale trebuie să respecți și cum eviți erorile clasice.',
+      'Ghid practic pentru coordonatori de echipă — medici-șefi, comandanți de stație, șefi de tură din dispecerat, paramedici, securitate: cum construiești programul lunar de gărzi pas cu pas, ce reguli legale trebuie să respecți și cum eviți erorile clasice.',
     publishedAt: '2026-05-05',
     updatedAt: '2026-05-05',
     author: 'Echipa PlanGarzi',
-    readingMinutes: 8,
-    tags: ['planificare gărzi', 'secție spital', 'ghid'],
+    readingMinutes: 9,
+    tags: ['planificare gărzi', 'ture rotative', 'ghid'],
     body: [
       {
         type: 'p',
-        text: 'Planificarea gărzilor într-o secție de spital este una dintre cele mai consumatoare sarcini administrative ale unui medic-șef. Trebuie să acoperi fiecare zi cu numărul corect de medici, să respecți perioadele de odihnă în funcție de tipul turei, să iei în calcul concediile aprobate și, în plus, să distribui echitabil turele grele de noapte și de weekend. Făcută manual, planificarea unei secții cu 15–25 de medici poate dura între 4 și 12 ore pe lună. Acest ghid trece prin pașii corecți, prin tipurile uzuale de ture și prin greșelile pe care un coordonator de secție le poate evita încă din prima lună.',
+        text: 'Planificarea gărzilor pentru o echipă cu program rotativ — fie că vorbim de o secție de spital, o stație de pompieri, un echipaj SMURD, o tură de asistenți medicali, o agenție de securitate sau un dispecerat 24/7 — este una dintre cele mai consumatoare sarcini administrative ale unui coordonator de echipă. Indiferent de specialitate, trebuie să acoperi fiecare zi cu numărul corect de persoane, să respecți perioadele de odihnă în funcție de tipul turei, să iei în calcul concediile aprobate și, în plus, să distribui echitabil turele grele de noapte și de weekend. Făcută manual, planificarea unei echipe cu 15–25 de membri poate dura între 4 și 12 ore pe lună. Acest ghid trece prin pașii corecți, prin tipurile uzuale de ture și prin greșelile pe care un coordonator le poate evita încă din prima lună — exemplele se referă în special la secțiile medicale, însă principiile se aplică identic oricărei organizații cu ture rotative.',
       },
       {
         type: 'h2',
@@ -128,11 +128,11 @@ export const blogPosts: BlogPost[] = [
       },
       {
         type: 'p',
-        text: '[PlanGarzi](/) a fost construit special pentru coordonatori de secție. Configurezi echipele, regulile de odihnă și disponibilitatea fiecărui medic, iar algoritmul care prioritizează cadența generează programul lunar în câteva secunde. Conflictele de odihnă sunt detectate automat și marcate vizual pe celulele afectate. Egalizarea turelor distribuie corect turele de noapte și de zi între medicii cu normă echivalentă. Concediile și zilele punte sunt gestionate într-un calendar simplu, cu validare a numărului de zile rămase.',
+        text: '[PlanGarzi](/) a fost construit pentru coordonatori de echipă care lucrează cu ture rotative — fie că este vorba de o secție medicală, o stație de pompieri, un echipaj de paramedici, o tură de asistenți medicali, o agenție de securitate sau un dispecerat 24/7. Configurezi echipele, regulile de odihnă și disponibilitatea fiecărui membru, iar algoritmul care prioritizează cadența generează programul lunar în câteva secunde. Conflictele de odihnă sunt detectate automat și marcate vizual pe celulele afectate. Egalizarea turelor distribuie corect turele de noapte și de zi între membrii cu normă echivalentă. Concediile și zilele punte sunt gestionate într-un calendar simplu, cu validare a numărului de zile rămase.',
       },
       {
         type: 'p',
-        text: 'La final exporți programul în PDF (pentru avizier) sau Excel (pentru raportare la HR), sau îl trimiți pe email cu link personal pentru fiecare medic. Linkul nu cere autentificare: doctorul îl deschide și vede direct turele lui din luna respectivă. Vezi [prețurile transparente](/pricing) — 90 de zile probă gratuită, fără card de credit.',
+        text: 'La final exporți programul în PDF (pentru avizier) sau Excel (pentru raportare la HR), sau îl trimiți pe email cu link personal pentru fiecare membru al echipei. Linkul nu cere autentificare: destinatarul îl deschide și vede direct turele lui din luna respectivă. Vezi [prețurile transparente](/pricing) — 90 de zile probă gratuită, fără card de credit.',
       },
     ],
   },

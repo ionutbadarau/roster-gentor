@@ -311,9 +311,9 @@
     "appName": "PlanGarzi",
     "hero": {
       "v1": {
-        "headline": "Programul lunar de ture,",
-        "headlineAccent": "generat \u00een c\u00e2teva secunde",
-        "subheadline": "Nu mai pierde ore \u00een Excel. Configureaz\u0103-\u021bi echipele, stabile\u0219te regulile \u0219i las\u0103 PlanGarzi s\u0103 creeze un program echitabil \u0219i conform automat.",
+        "headline": "Planificare g\u0103rzi automat\u0103,",
+        "headlineAccent": "\u00een c\u00e2teva secunde",
+        "subheadline": "Software de planificare g\u0103rzi pentru orice echip\u0103 cu program de tur\u0103 \u2014 spitale, pompieri, paramedici, asisten\u021bi medicali, agen\u021bii de securitate, dispecerate 24/7. Configureaz\u0103 echipele, stabile\u0219te regulile \u0219i genereaz\u0103 programul lunar \u2014 distribu\u021bie echitabil\u0103, conform legii, export PDF \u0219i Excel. Alternativ\u0103 modern\u0103 la planificarea g\u0103rzilor \u00een Excel.",
         "cta": "\u00cencepe Planificarea",
         "check1": "Detectare automat\u0103 a conflictelor",
         "check2": "Distribu\u021bie echitabil\u0103 a turelor",
@@ -322,13 +322,16 @@
       }
     },
     "seo": {
-      "sectionTitle": "Solu\u021bia complet\u0103 pentru planificarea g\u0103rzilor medicale",
-      "garziTitle": "Planificarea g\u0103rzilor medicale",
-      "garziDesc": "PlanGarzi automatizeaz\u0103 planificarea g\u0103rzilor pentru orice sec\u021bie de spital. Define\u0219ti echipele, marchezi zilele de concediu, iar algoritmul construie\u0219te programul lunar respect\u00e2nd perioadele obligatorii de odihn\u0103 (24h dup\u0103 turele de zi, 48h dup\u0103 turele de noapte) \u0219i plafonul s\u0103pt\u0103m\u00e2nal de 48h. Construirea pontajului de g\u0103rzi dureaz\u0103 secunde, nu ore \u00een Excel.",
-      "tureTitle": "Planificarea turelor \u00een spital",
-      "tureDesc": "Fie c\u0103 folose\u0219ti ture de 12 ore zi/noapte sau g\u0103rzi de 24 de ore, PlanGarzi distribuie turele echitabil \u00eentre doctori. \u021aine cont de norma lunar\u0103 minim\u0103 (7h \u00d7 zile lucr\u0103toare), preferin\u021bele individuale \u0219i rota\u021bia echipelor. Rezultatul: un program transparent, f\u0103r\u0103 conflicte, u\u0219or de ajustat manual c\u00e2nd e nevoie.",
+      "sectionTitle": "Planificare g\u0103rzi: solu\u021bia complet\u0103 pentru echipe cu program de tur\u0103",
+      "garziTitle": "Planificarea g\u0103rzilor pentru orice echip\u0103",
+      "garziDesc": "PlanGarzi automatizeaz\u0103 planificarea g\u0103rzilor pentru orice echip\u0103 care lucreaz\u0103 \u00een ture \u2014 sec\u021bii de spital, sta\u021bii de pompieri, echipaje de paramedici, ture de asisten\u021bi medicali, agen\u021bii de securitate sau dispecerate 24/7. Define\u0219ti echipele, marchezi zilele de concediu, iar algoritmul construie\u0219te programul lunar respect\u00e2nd perioadele obligatorii de odihn\u0103 (24h dup\u0103 turele de zi, 48h dup\u0103 turele de noapte) \u0219i plafonul s\u0103pt\u0103m\u00e2nal de 48h. Construirea pontajului de g\u0103rzi dureaz\u0103 secunde, nu ore \u00een Excel.",
+      "tureTitle": "Planificarea turelor de 12 sau 24 de ore",
+      "tureDesc": "Fie c\u0103 folose\u0219ti ture de 12 ore zi/noapte sau g\u0103rzi de 24 de ore, PlanGarzi distribuie turele echitabil \u00eentre membrii echipei. \u021aine cont de norma lunar\u0103 minim\u0103 (7h \u00d7 zile lucr\u0103toare), preferin\u021bele individuale \u0219i rota\u021bia echipelor. Rezultatul: un program transparent, f\u0103r\u0103 conflicte, u\u0219or de ajustat manual c\u00e2nd e nevoie.",
       "legeTitle": "Generator de program de g\u0103rzi conform",
-      "legeDesc": "Algoritmul urmeaz\u0103 regulile uzuale din spitale: rota\u021bia echipelor, doctori flotan\u021bi care acoper\u0103 golurile, egalizarea automat\u0103 a normei \u0219i raportarea clar\u0103 a conflictelor sau a zilelor cu personal insuficient. Export\u0103 programul \u00een PDF pentru afi\u0219are sau \u00een Excel pentru raportare \u0219i trimite fiec\u0103rui doctor un link personal de vizualizare."
+      "legeDesc": "Algoritmul urmeaz\u0103 regulile uzuale \u00een orice organiza\u021bie cu ture rotative: rota\u021bia echipelor, membri flotan\u021bi care acoper\u0103 golurile, egalizarea automat\u0103 a normei \u0219i raportarea clar\u0103 a conflictelor sau a zilelor cu personal insuficient. Export\u0103 programul \u00een PDF pentru afi\u0219are sau \u00een Excel pentru raportare \u0219i trimite fiec\u0103rui membru al echipei un link personal de vizualizare.",
+      "linkFeatures": "Vezi toate func\u021bionalit\u0103\u021bile de planificare g\u0103rzi \u2192",
+      "linkDemo": "Cere o demonstra\u021bie live \u2192",
+      "linkBlog": "Cite\u0219te ghidul complet de planificare g\u0103rzi \u2192"
     },
     "demo": {
       "gridCaption": "Vizualizarea lunar\u0103 \u00een gril\u0103 \u2014 vezi turele fiec\u0103rui doctor dintr-o singur\u0103 privire",
@@ -368,7 +371,7 @@
       "multiLanguage": "Suport multilingv (rom\u00e2n\u0103 \u0219i englez\u0103)"
     },
     "cta": {
-      "v1": "Gata s\u0103-\u021bi simplifici planificarea?",
+      "v1": "\u00cencepe planificarea g\u0103rzilor acum",
       "openDashboard": "Deschide dashboard",
       "subscribeNow": "Aboneaz\u0103-te acum"
     },
