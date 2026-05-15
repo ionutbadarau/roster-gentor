@@ -732,9 +732,9 @@ export default function ShiftGridCalendar({
 
   const selectionHasBridgeCandidates = useMemo(() => {
     if (!selectionPopup) return false;
-    const { days: selectedDays } = selectionPopup;
-    return selectedDays.some(day => isNonWorkingDay(day));
-  }, [selectionPopup, currentYear, currentMonth, nationalHolidays]);
+    const { doctorId, days: selectedDays } = selectionPopup;
+    return selectedDays.some(day => !isBridgeDay(doctorId, day));
+  }, [selectionPopup, leaveDays, currentYear, currentMonth, nationalHolidays]);
 
   const selectionHasBridgeRemoveCandidates = useMemo(() => {
     if (!selectionPopup) return false;
@@ -761,7 +761,6 @@ export default function ShiftGridCalendar({
       for (const day of selectedDays) {
         const dateStr = formatDateString(currentYear, currentMonth, day);
 
-        if (action === 'bridge' && !isNonWorkingDay(day)) continue;
         if (action === 'remove_bridge' && !isBridgeDay(doctorId, day)) continue;
 
         const existingShift = updatedShifts.find(s => s.doctor_id === doctorId && s.shift_date === dateStr);

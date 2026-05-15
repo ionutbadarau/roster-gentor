@@ -58,7 +58,7 @@ The scheduling engine lives in **`src/lib/scheduling/`** (re-exported from `src/
 | `scheduling-engine.ts` | Cadence-first engine: constructor, `generateSchedule()`, static method delegates |
 | `constants.ts` | `SCHEDULING_CONSTANTS`, `ScheduleGenerationOptions`, `EngineContext` interface |
 | `calendar-utils.ts` | Pure date/time helpers: `formatDate`, `utcMs`, `getDaysInMonth`, etc. |
-| `bridge-days.ts` | Bridge day computation (weekends/holidays between leave periods) |
+| `bridge-days.ts` | Bridge day auto-computation (weekends/holidays between leave periods). Manual "bridge / free day" entries (`leave_type='bridge'`) may also be set on working days — same behavior: blocks shifts, does not reduce norm. |
 | `constraints.ts` | `canDoctorWork`, `canDoctorWorkWithTimeline` — all constraint checking |
 | `stats.ts` | Shift recording, counter management, per-doctor statistics |
 | `validation.ts` | Static utilities: `detectConflicts`, `validateLeaveDays`, `computeUnderstaffedDays` |
