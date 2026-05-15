@@ -38,7 +38,13 @@ export async function exportScheduleExcel(options: ExportPdfOptions): Promise<vo
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-  const sortedDoctors = [...doctors].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+  const teamOrderMap = new Map(teams.map((t) => [t.id, t.order ?? 0]));
+  const sortedDoctors = [...doctors].sort((a, b) => {
+    const teamA = a.team_id ? (teamOrderMap.get(a.team_id) ?? 999) : 999;
+    const teamB = b.team_id ? (teamOrderMap.get(b.team_id) ?? 999) : 999;
+    if (teamA !== teamB) return teamA - teamB;
+    return (a.display_order ?? 0) - (b.display_order ?? 0);
+  });
 
   const isWeekend = (day: number): boolean => {
     const date = new Date(currentYear, currentMonth, day);
