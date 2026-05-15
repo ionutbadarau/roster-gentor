@@ -51,7 +51,7 @@ const softwareJsonLd = {
   offers: {
     '@type': 'Offer',
     price: '7.00',
-    priceCurrency: 'USD',
+    priceCurrency: 'EUR',
     url: `${SITE_URL}/pricing`,
   },
   featureList: items.map((i) => i.title).join(', '),

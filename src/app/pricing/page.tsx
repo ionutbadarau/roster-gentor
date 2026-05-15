@@ -39,18 +39,23 @@ const faqJsonLd = {
   })),
 };
 
-const productJsonLd = {
+const softwareJsonLd = {
   '@context': 'https://schema.org',
-  '@type': 'Product',
+  '@type': 'SoftwareApplication',
   name: 'PlanGarzi',
   description: ro.marketing.pricing.metaDescription,
-  brand: { '@type': 'Brand', name: 'PlanGarzi' },
+  applicationCategory: 'BusinessApplication',
+  applicationSubCategory: 'Healthcare Scheduling',
+  operatingSystem: 'Web',
+  url: `${SITE_URL}/pricing`,
+  image: `${SITE_URL}/opengraph-image`,
+  publisher: { '@type': 'Organization', name: 'PlanGarzi', url: SITE_URL },
   offers: [
     {
       '@type': 'Offer',
       name: 'Plan Lunar',
       price: '7.00',
-      priceCurrency: 'USD',
+      priceCurrency: 'EUR',
       url: `${SITE_URL}/pricing`,
       availability: 'https://schema.org/InStock',
     },
@@ -58,7 +63,7 @@ const productJsonLd = {
       '@type': 'Offer',
       name: 'Plan Anual',
       price: '60.00',
-      priceCurrency: 'USD',
+      priceCurrency: 'EUR',
       url: `${SITE_URL}/pricing`,
       availability: 'https://schema.org/InStock',
     },
@@ -84,7 +89,7 @@ export default async function PricingPage() {
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
       />
       <Navbar />
       <main className="flex-1">

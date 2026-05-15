@@ -6,7 +6,7 @@ const nextConfig = {
     },
     // Tempo platform configuration
     experimental: {
-        allowedOrigins: process.env.TEMPO === "true" ? ["*"] : undefined
+        serverActions: process.env.TEMPO === "true" ? { allowedOrigins: ["*"] } : undefined
     }
 };
 

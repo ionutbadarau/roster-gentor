@@ -124,7 +124,7 @@ export default function SubscribeClient({
               </p>
               {plan === "monthly" ? (
                 <p className="text-4xl font-bold">
-                  $7
+                  €7
                   <span className="text-base font-normal text-muted-foreground">
                     /{t("billing.month")}
                   </span>
@@ -132,7 +132,7 @@ export default function SubscribeClient({
               ) : (
                 <>
                   <p className="text-4xl font-bold">
-                    $5
+                    €5
                     <span className="text-base font-normal text-muted-foreground">
                       /{t("billing.month")}
                     </span>

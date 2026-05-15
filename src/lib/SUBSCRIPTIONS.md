@@ -58,7 +58,7 @@ Row lookup key in webhook handlers: `stripe_customer_id` (not `user_id`).
 
 ## Pricing
 
-Hardcoded display: $7/mo or $5/mo billed yearly. Real prices come from Stripe price IDs in env. Public business name shown on Checkout = Stripe Dashboard → Settings → Public details.
+Hardcoded display: €7/mo or €5/mo billed yearly. Real prices come from Stripe price IDs in env. Public business name shown on Checkout = Stripe Dashboard → Settings → Public details.
 
 ## Env vars
 

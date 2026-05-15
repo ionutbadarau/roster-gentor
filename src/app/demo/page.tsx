@@ -36,8 +36,8 @@ const softwareJsonLd = {
   url: `${SITE_URL}/demo`,
   offers: {
     '@type': 'Offer',
-    price: '5.00',
-    priceCurrency: 'USD',
+    price: '7.00',
+    priceCurrency: 'EUR',
     url: `${SITE_URL}/pricing`,
     availability: 'https://schema.org/InStock',
   },

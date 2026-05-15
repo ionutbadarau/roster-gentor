@@ -108,7 +108,7 @@ export default function PricingContent({
               <div className="text-center space-y-1">
                 <p className="text-sm text-gray-500 dark:text-gray-400">PlanGarzi</p>
                 <p className="text-5xl font-bold text-gray-900 dark:text-white">
-                  {plan === 'monthly' ? '$7' : '$5'}
+                  {plan === 'monthly' ? '€7' : '€5'}
                   <span className="text-base font-normal text-gray-500 dark:text-gray-400">
                     {t('marketing.pricing.perMonth')}
                   </span>
