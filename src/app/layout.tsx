@@ -72,6 +72,11 @@ export default function RootLayout({
     <html lang="ro" suppressHydrationWarning>
 
       <body className={inter.className}>
+        {process.env.NODE_ENV !== "production" && (
+          <div className="sticky top-0 z-[9999] w-full bg-yellow-400 text-black text-center text-xs font-semibold py-1 border-b border-yellow-600">
+            DEV ENVIRONMENT
+          </div>
+        )}
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
