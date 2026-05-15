@@ -116,6 +116,29 @@ export function useConfigMutations(
     }
   }, [supabase, queryClient, onUpdate, toast, t]);
 
+  const toggleSmallLetters = useCallback(async (teamId: string, enabled: boolean) => {
+    // Optimistic update for instant UI feedback
+    queryClient.setQueryData<Team[]>(queryKeys.teams, (old) =>
+      old?.map(t => t.id === teamId ? { ...t, use_small_shift_letters: enabled } : t)
+    );
+    try {
+      const { error } = await supabase
+        .from('teams')
+        .update({ use_small_shift_letters: enabled })
+        .eq('id', teamId);
+      if (error) throw error;
+      toast({ title: t('common.success'), description: t('scheduling.config.smallLettersChanged') });
+      await onUpdate();
+    } catch (error) {
+      console.error('Error updating small shift letters:', error);
+      // Rollback on failure
+      queryClient.setQueryData<Team[]>(queryKeys.teams, (old) =>
+        old?.map(t => t.id === teamId ? { ...t, use_small_shift_letters: !enabled } : t)
+      );
+      toast({ title: t('common.error'), description: t('scheduling.config.smallLettersError'), variant: 'destructive' });
+    }
+  }, [supabase, queryClient, onUpdate, toast, t]);
+
   // ── Doctors ────────────────────────────────────────────
 
   const addDoctor = useCallback(async (name: string, teamId: string, doctors: Doctor[], email?: string) => {
@@ -302,7 +325,7 @@ export function useConfigMutations(
   }, [supabase, userId, onUpdate, toast, t]);
 
   return {
-    addTeam, deleteTeam, renameTeam, reorderTeams, toggleMaxPerShift,
+    addTeam, deleteTeam, renameTeam, reorderTeams, toggleMaxPerShift, toggleSmallLetters,
     addDoctor, deleteDoctor, renameDoctor, reorderDoctors,
     changeTeam, changeShiftMode, toggleOptional, toggleDispatch, updateEmail,
     saveShiftSettings,

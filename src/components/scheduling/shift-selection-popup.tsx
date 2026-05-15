@@ -9,6 +9,8 @@ interface SelectionPopupData {
   y: number;
 }
 
+type BatchShiftAction = 'day' | 'night' | '24h' | 'leave' | 'bridge' | 'remove_bridge';
+
 interface ShiftSelectionPopupProps {
   popup: SelectionPopupData;
   hasAssignments: boolean;
@@ -16,7 +18,7 @@ interface ShiftSelectionPopupProps {
   hasBridgeRemoveCandidates: boolean;
   activeDispatchTypes: Set<'day' | 'night'>;
   shiftTypes: Set<string>;
-  onBatchAction: (action: 'day' | 'night' | '24h' | 'leave' | 'bridge' | 'remove_bridge') => void;
+  onBatchAction: (action: BatchShiftAction, options?: { small?: boolean }) => void;
   onDispatchAction: (dispatchType: 'day' | 'night') => void;
   onBatchClear: () => void;
 }
@@ -29,7 +31,8 @@ const ShiftSelectionPopup = forwardRef<HTMLDivElement, ShiftSelectionPopupProps>
     const canDispatchNight = hasAssignments && (shiftTypes.has('night') || shiftTypes.has('24h'));
     const dispatchCount = (canDispatchDay ? 1 : 0) + (canDispatchNight ? 1 : 0);
     const POPUP_W = 190;
-    let baseH = 196;
+    // 3 shift types x 2 casings (uppercase + lowercase) + leave = 7 main rows
+    let baseH = 304;
     if (hasBridgeCandidates) baseH += 36;
     if (hasBridgeRemoveCandidates) baseH += 36;
     if (dispatchCount > 0) baseH += 4 + dispatchCount * 36; // separator + buttons
@@ -49,24 +52,45 @@ const ShiftSelectionPopup = forwardRef<HTMLDivElement, ShiftSelectionPopupProps>
         </div>
         <button
           className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
-          onClick={() => onBatchAction('day')}
+          onClick={() => onBatchAction('day', { small: false })}
         >
           <span className="w-4 h-4 rounded bg-blue-500 flex-shrink-0" />
           {t('scheduling.grid.dayShiftLabel')}
         </button>
         <button
           className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
-          onClick={() => onBatchAction('night')}
+          onClick={() => onBatchAction('day', { small: true })}
+        >
+          <span className="w-4 h-4 rounded bg-blue-300 flex-shrink-0" />
+          {t('scheduling.grid.dayShiftLabelSmall')}
+        </button>
+        <button
+          className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
+          onClick={() => onBatchAction('night', { small: false })}
         >
           <span className="w-4 h-4 rounded bg-indigo-500 flex-shrink-0" />
           {t('scheduling.grid.nightShiftLabel')}
         </button>
         <button
           className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
-          onClick={() => onBatchAction('24h')}
+          onClick={() => onBatchAction('night', { small: true })}
+        >
+          <span className="w-4 h-4 rounded bg-indigo-300 flex-shrink-0" />
+          {t('scheduling.grid.nightShiftLabelSmall')}
+        </button>
+        <button
+          className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
+          onClick={() => onBatchAction('24h', { small: false })}
         >
           <span className="w-4 h-4 rounded bg-purple-500 flex-shrink-0" />
           {t('scheduling.grid.shift24hLabel')}
+        </button>
+        <button
+          className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"
+          onClick={() => onBatchAction('24h', { small: true })}
+        >
+          <span className="w-4 h-4 rounded bg-purple-300 flex-shrink-0" />
+          {t('scheduling.grid.shift24hLabelSmall')}
         </button>
         <button
           className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer"

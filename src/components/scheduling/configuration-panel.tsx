@@ -100,6 +100,7 @@ export default function ConfigurationPanel({ doctors, teams, shiftsPerDay, shift
               onRenameTeam={mutations.renameTeam}
               onDeleteTeam={mutations.deleteTeam}
               onToggleMaxPerShift={mutations.toggleMaxPerShift}
+              onToggleSmallLetters={mutations.toggleSmallLetters}
               onRenameDoctor={mutations.renameDoctor}
               onDeleteDoctor={mutations.deleteDoctor}
               onChangeTeam={mutations.changeTeam}

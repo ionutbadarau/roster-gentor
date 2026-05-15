@@ -99,32 +99,44 @@ export async function exportScheduleExcel(options: ExportPdfOptions): Promise<vo
     }
   });
 
+  const shiftChars = new Set([labels.dayShiftLetter, labels.nightShiftLetter]);
+  const lowercaseShiftLetters = (text: string): string =>
+    text.split('').map(c => shiftChars.has(c) ? c.toLowerCase() : c).join('');
+
   // --- Body rows ---
   for (const doctor of sortedDoctors) {
+    const team = teams.find(t => t.id === doctor.team_id);
+    const useSmallLetters = !!team?.use_small_shift_letters;
     const doctorLabel = doctor.name + (doctor.is_floating ? ' (F)' : '') + (doctor.is_optional ? ' (OPT)' : '');
 
+    const matchValues: string[] = [];
     const cellValues = days.map(day => {
       const dateStr = formatDateString(currentYear, currentMonth, day);
       const shift = shifts.find(s => s.doctor_id === doctor.id && s.shift_date === dateStr);
       const isLeave = leaveDays.some(l => l.doctor_id === doctor.id && l.leave_date === dateStr && l.leave_type !== 'bridge' && l.leave_type !== 'no_bridge');
       const bridge = isBridgeDay(doctor.id, day);
 
+      let text = '';
       if (shift) {
         if (shift.shift_type === '24h') {
-          if (shift.dispatch_type === 'day') return `X${labels.nightShiftLetter}`;
-          if (shift.dispatch_type === 'night') return `${labels.dayShiftLetter}Y`;
-          return labels.shift24hLetter;
+          if (shift.dispatch_type === 'day') text = `X${labels.nightShiftLetter}`;
+          else if (shift.dispatch_type === 'night') text = `${labels.dayShiftLetter}Y`;
+          else text = labels.shift24hLetter;
+        } else if (shift.shift_type === 'day') {
+          text = shift.dispatch_type === 'day' ? 'X' : labels.dayShiftLetter;
+        } else if (shift.shift_type === 'night') {
+          text = shift.dispatch_type === 'night' ? 'Y' : labels.nightShiftLetter;
         }
-        if (shift.shift_type === 'day') {
-          return shift.dispatch_type === 'day' ? 'X' : labels.dayShiftLetter;
-        }
-        if (shift.shift_type === 'night') {
-          return shift.dispatch_type === 'night' ? 'Y' : labels.nightShiftLetter;
-        }
+      } else if (isLeave) {
+        text = labels.leaveLetter;
+      } else if (bridge) {
+        text = '·';
       }
-      if (isLeave) return labels.leaveLetter;
-      if (bridge) return '·';
-      return '';
+
+      matchValues.push(text);
+      if (!text || text === labels.leaveLetter || text === '·') return text;
+      const effectiveSmall = shift ? (shift.is_small_letter ?? useSmallLetters) : useSmallLetters;
+      return effectiveSmall ? lowercaseShiftLetters(text) : text;
     });
 
     const row = ws.addRow([doctorLabel, ...cellValues]);
@@ -144,7 +156,9 @@ export async function exportScheduleExcel(options: ExportPdfOptions): Promise<vo
       const dayIdx = colNumber - 2;
       if (dayIdx < 0 || dayIdx >= days.length) return;
       const day = days[dayIdx];
-      const cellText = String(cell.value || '');
+      // Use the uppercase match text for styling — cell.value may be lowercase
+      // when this team has use_small_shift_letters enabled.
+      const cellText = matchValues[dayIdx] ?? '';
 
       // Color shift cells
       const is24hDispatch = cellText === `X${labels.nightShiftLetter}` || cellText === `${labels.dayShiftLetter}Y`;

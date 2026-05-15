@@ -266,6 +266,7 @@ export default function ReadOnlyScheduleView({
                   nightShiftLetter={nightShiftLetter}
                   leaveLetter={leaveLetter}
                   shift24hLetter={shift24hLetter}
+                  useSmallLetters={!!teams.find(t => t.id === doctor.team_id)?.use_small_shift_letters}
                   getShiftForDay={(day) => getShiftForDoctorAndDay(doctor.id, day)}
                   getShiftsForDay={(day) => getShiftsForDoctorAndDay(doctor.id, day)}
                   isLeaveDay={(day) => isLeaveDay(doctor.id, day)}

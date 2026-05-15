@@ -11,6 +11,7 @@ export async function upsertShift(
   doctorId: string,
   dateStr: string,
   shiftType: 'day' | 'night' | '24h',
+  isSmallLetter: boolean | null = null,
 ): Promise<Shift> {
   const startTime = shiftType === 'night' ? '20:00' : '08:00';
   const endTime = shiftType === 'day' ? '20:00' : '08:00'; // night and 24h both end at 08:00
@@ -24,6 +25,7 @@ export async function upsertShift(
         start_time: startTime,
         end_time: endTime,
         is_manual: true,
+        is_small_letter: isSmallLetter,
       },
       { onConflict: 'doctor_id,shift_date' },
     )
@@ -98,6 +100,7 @@ export async function restoreShift(
         end_time: shift.end_time,
         is_manual: shift.is_manual ?? true,
         dispatch_type: shift.dispatch_type ?? null,
+        is_small_letter: shift.is_small_letter ?? null,
       },
       { onConflict: 'doctor_id,shift_date' },
     )

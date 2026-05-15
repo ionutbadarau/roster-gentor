@@ -26,6 +26,7 @@ interface ConfigTeamGroupProps {
   onRenameTeam: (teamId: string, newName: string) => void;
   onDeleteTeam: (teamId: string) => void;
   onToggleMaxPerShift: (teamId: string, enabled: boolean) => void;
+  onToggleSmallLetters: (teamId: string, enabled: boolean) => void;
   onRenameDoctor: (doctorId: string, newName: string) => void;
   onDeleteDoctor: (doctorId: string) => void;
   onChangeTeam: (doctorId: string, teamId: string) => void;
@@ -60,6 +61,7 @@ export default function ConfigTeamGroup({
   onRenameTeam,
   onDeleteTeam,
   onToggleMaxPerShift,
+  onToggleSmallLetters,
   onRenameDoctor,
   onDeleteDoctor,
   onChangeTeam,
@@ -178,6 +180,27 @@ export default function ConfigTeamGroup({
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>{t('scheduling.config.maxPerShiftTooltip')}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1.5">
+                    <Switch
+                      id={`small-letters-${team.id}`}
+                      checked={!!team.use_small_shift_letters}
+                      onCheckedChange={(checked) => onToggleSmallLetters(team.id, checked)}
+                      className="scale-75"
+                    />
+                    <label htmlFor={`small-letters-${team.id}`} className="text-xs text-muted-foreground cursor-pointer whitespace-nowrap">
+                      {t('scheduling.config.smallLettersLabel')}
+                    </label>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{t('scheduling.config.smallLettersTooltip')}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

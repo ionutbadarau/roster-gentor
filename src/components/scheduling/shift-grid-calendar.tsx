@@ -743,7 +743,7 @@ export default function ShiftGridCalendar({
   }, [selectionPopup, leaveDays, currentYear, currentMonth, nationalHolidays]);
 
   // --- Batch actions ---
-  const handleBatchAction = async (action: 'day' | 'night' | '24h' | 'leave' | 'bridge' | 'remove_bridge') => {
+  const handleBatchAction = async (action: 'day' | 'night' | '24h' | 'leave' | 'bridge' | 'remove_bridge', options?: { small?: boolean }) => {
     if (!selectionPopup) return;
     const { doctorId, days: selectedDays } = selectionPopup;
     setSelectionPopup(null);
@@ -766,8 +766,11 @@ export default function ShiftGridCalendar({
         const existingShift = updatedShifts.find(s => s.doctor_id === doctorId && s.shift_date === dateStr);
         const existingLeave = updatedLeaveDays.find(l => l.doctor_id === doctorId && l.leave_date === dateStr);
 
+        const desiredSmall = options?.small ?? null;
         if (existingShift) {
-          if (action !== 'leave' && action !== 'bridge' && action !== 'remove_bridge' && action === existingShift.shift_type) continue;
+          if (action !== 'leave' && action !== 'bridge' && action !== 'remove_bridge'
+              && action === existingShift.shift_type
+              && desiredSmall === (existingShift.is_small_letter ?? null)) continue;
           snapshotShifts.push(existingShift);
           await deleteRecord(supabase, 'shifts', existingShift.id);
           updatedShifts = updatedShifts.filter(s => s.id !== existingShift.id);
@@ -794,7 +797,7 @@ export default function ShiftGridCalendar({
           createdLeaves.push(data);
           updatedLeaveDays = [...updatedLeaveDays, data];
         } else {
-          const data = await upsertShift(supabase, doctorId, dateStr, action);
+          const data = await upsertShift(supabase, doctorId, dateStr, action, desiredSmall);
           createdShifts.push(data);
           updatedShifts = [...updatedShifts, data];
         }
@@ -1272,6 +1275,7 @@ export default function ShiftGridCalendar({
                   nightShiftLetter={nightShiftLetter}
                   leaveLetter={leaveLetter}
                   shift24hLetter={shift24hLetter}
+                  useSmallLetters={!!teams.find(t => t.id === doctor.team_id)?.use_small_shift_letters}
                   getShiftForDay={(day) => getShiftForDoctorAndDay(doctor.id, day)}
                   getShiftsForDay={(day) => getShiftsForDoctorAndDay(doctor.id, day)}
                   isLeaveDay={(day) => isLeaveDay(doctor.id, day)}

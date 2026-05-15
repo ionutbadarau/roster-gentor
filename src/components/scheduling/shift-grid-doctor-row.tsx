@@ -19,6 +19,7 @@ interface ShiftGridDoctorRowProps {
   nightShiftLetter: string;
   leaveLetter: string;
   shift24hLetter: string;
+  useSmallLetters?: boolean;
   getShiftForDay: (day: number) => Shift | undefined;
   getShiftsForDay: (day: number) => Shift[];
   isLeaveDay: (day: number) => boolean;
@@ -89,6 +90,7 @@ function ShiftGridDoctorRow({
   nightShiftLetter,
   leaveLetter,
   shift24hLetter,
+  useSmallLetters,
   getShiftForDay,
   getShiftsForDay,
   isLeaveDay,
@@ -162,6 +164,12 @@ function ShiftGridDoctorRow({
           cellLabel = shift.shift_type === '24h' ? `X${nightShiftLetter}` : 'X';
         } else if (shift?.dispatch_type === 'night') {
           cellLabel = shift.shift_type === '24h' ? `${dayShiftLetter}Y` : 'Y';
+        }
+
+        const effectiveSmall = shift?.is_small_letter ?? !!useSmallLetters;
+        if (effectiveSmall && cellLabel && cellLabel !== leaveLetter && cellLabel !== '·') {
+          const shiftChars = new Set([dayShiftLetter, nightShiftLetter]);
+          cellLabel = cellLabel.split('').map(c => shiftChars.has(c) ? c.toLowerCase() : c).join('');
         }
 
         return (

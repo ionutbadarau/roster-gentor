@@ -44,6 +44,7 @@ export interface Team {
   color: string;
   order: number;
   max_doctors_per_shift?: number;
+  use_small_shift_letters?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -59,6 +60,7 @@ export interface Shift {
   is_forced_coverage?: boolean;
   dispatch_type?: 'day' | 'night' | null;
   is_manual_dispatch?: boolean;
+  is_small_letter?: boolean | null;
   created_at?: string;
   updated_at?: string;
 }
