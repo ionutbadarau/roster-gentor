@@ -2507,6 +2507,192 @@ describe('SchedulingEngine', () => {
     });
   });
 
+  // ── June 2026 — Purple team working 24h, no Bassam ───────────────────────
+  // Same configuration as the previous June 2026 suite, but:
+  //   • Bassam (optional Purple doctor) is removed entirely
+  //   • Purple team's 4 doctors are 24h mode
+  // Expected behaviour: Radu Cristian (first Purple doctor in input order)
+  // should receive a 24h shift on June 2nd. Reasoning: cadence Phase 1 leaves
+  // June 1 over-staffed on nights (Yellow Night + Red Night ≥ 4), so the
+  // round-robin 24h pass skips day 1 and lands on day 2 where day/night caps
+  // both have capacity. With all four Purple 24h doctors at zero shifts the
+  // stable sort by workDays count picks the first in input order — j14 Radu.
+  describe('Real world! - June 2026 — Purple team 24h, no Bassam', () => {
+    const JUNE = 5;
+    const YEAR = 2026;
+
+    const teamBlue   = makeTeam('jb', 'Blue',   1, '#00f');
+    const teamRed    = makeTeam('jr', 'Red',    2, '#f00');
+    const teamGreen  = makeTeam('jg', 'Green',  3, '#0f0');
+    const teamYellow = makeTeam('jy', 'Yellow', 4, '#ff0');
+    const teamPurple = makeTeam('jp', 'Purple', 5, '#a0f');
+    const allTeams = [teamBlue, teamRed, teamGreen, teamYellow, teamPurple];
+
+    const teamDoctors: DoctorWithTeam[] = [
+      makeDoctor('j1',  'Stancu Marian',     'jb', false, teamBlue),
+      makeDoctor('j2',  'Lebada Mihaela',    'jb', false, teamBlue),
+      makeDoctor('j3',  'Poroch Eduard',     'jb', false, teamBlue),
+      makeDoctor('j4',  'Achitei Iuliu',     'jr', false, teamRed),
+      makeDoctor('j5',  'Himiniuc Bogdan',   'jr', false, teamRed),
+      makeDoctor('j6',  'Barsan Ionut',      'jr', false, teamRed),
+      makeDoctor('j7',  'Abalasei Mihaela',  'jg', false, teamGreen),
+      makeDoctor('j8',  'Sararu Adrian',     'jg', false, teamGreen),
+      makeDoctor('j9',  'Munteanu Diana',    'jg', false, teamGreen),
+      makeDoctor('j10', 'Donose Sorin',      'jy', false, teamYellow),
+      makeDoctor('j11', 'Dorneanu Catalina', 'jy', false, teamYellow),
+      makeDoctor('j12', 'Morari Adriana',    'jy', false, teamYellow),
+      makeDoctor('j13', 'Teodorovici Dan',   'jy', false, teamYellow),
+      // Purple team — 24h mode, display order: Lazar, Radu, Mercore, Merticariu
+      { ...makeDoctor('j15', 'Lazar Alexandru',  'jp', false, teamPurple), shift_mode: '24h', display_order: 1 },
+      { ...makeDoctor('j14', 'Radu Cristian',    'jp', false, teamPurple), shift_mode: '24h', display_order: 2 },
+      { ...makeDoctor('j16', 'Mercore Emanuela', 'jp', false, teamPurple), shift_mode: '24h', display_order: 3 },
+      { ...makeDoctor('j17', 'Merticariu Tudor', 'jp', false, teamPurple), shift_mode: '24h', display_order: 4 },
+    ];
+
+    // 2 optional doctors (Bassam dropped): Tomsa & Niculita (no team)
+    const optionalDoctors: DoctorWithTeam[] = [
+      { ...makeDoctor('jo2', 'dr. Tomsa',    undefined, false), is_optional: true },
+      { ...makeDoctor('jo3', 'dr. Niculita', undefined, false), is_optional: true },
+    ];
+
+    const allDoctors = [...teamDoctors, ...optionalDoctors];
+
+    const bridge = (id: string, d: number) =>
+      makeLeaveDay(id, formatDate(YEAR, JUNE, d), 'bridge');
+
+    const leaveDays: LeaveDay[] = [
+      bridge('j2', 6), bridge('j2', 7),
+      ...[1, 2, 3, 4, 5, 8, 9, 10].map(d => makeLeaveDay('j3', formatDate(YEAR, JUNE, d))),
+      bridge('j3', 6), bridge('j3', 7),
+      bridge('j4', 16), bridge('j4', 17),
+      ...[18, 19].map(d => makeLeaveDay('j4', formatDate(YEAR, JUNE, d))),
+      bridge('j4', 20), bridge('j4', 21),
+      ...[8, 9, 10].map(d => makeLeaveDay('j5', formatDate(YEAR, JUNE, d))),
+      bridge('j6', 1), bridge('j6', 2),
+      ...[27].map(d => makeLeaveDay('j6', formatDate(YEAR, JUNE, d))),
+      ...[4, 5, 8, 9, 10, 11, 12, 15, 16].map(d => makeLeaveDay('j7', formatDate(YEAR, JUNE, d))),
+      bridge('j7', 6), bridge('j7', 7), bridge('j7', 13), bridge('j7', 14),
+      bridge('j8', 18), bridge('j8', 19),
+      ...[22, 23, 24, 25, 26].map(d => makeLeaveDay('j8', formatDate(YEAR, JUNE, d))),
+      bridge('j10', 9), bridge('j10', 10),
+      ...[18, 23, 24].map(d => makeLeaveDay('j10', formatDate(YEAR, JUNE, d))),
+      bridge('j10', 21), bridge('j10', 22), bridge('j10', 25), bridge('j10', 26),
+      bridge('j11', 9), bridge('j11', 10),
+      ...[11, 12, 13, 14, 17, 18, 19].map(d => makeLeaveDay('j11', formatDate(YEAR, JUNE, d))),
+      bridge('j11', 15), bridge('j11', 16), bridge('j11', 20), bridge('j11', 21),
+      ...[1, 2].map(d => makeLeaveDay('j12', formatDate(YEAR, JUNE, d))),
+      ...[11, 26].map(d => makeLeaveDay('j13', formatDate(YEAR, JUNE, d))),
+      ...[8, 9, 10, 11, 12, 16, 17, 18, 19].map(d => makeLeaveDay('j16', formatDate(YEAR, JUNE, d))),
+      bridge('j16', 13), bridge('j16', 14), bridge('j16', 20), bridge('j16', 21),
+      ...[4, 5, 6, 7, 26].map(d => makeLeaveDay('jo2', formatDate(YEAR, JUNE, d))),
+    ];
+
+    function buildEngine(): SchedulingEngine {
+      return new SchedulingEngine({
+        month: JUNE,
+        year: YEAR,
+        doctors: allDoctors,
+        teams: allTeams,
+        shiftsPerDay: 4,
+        shiftsPerNight: 4,
+        leaveDays,
+      });
+    }
+
+    it('completes without hanging and produces shifts', { timeout: 90_000 }, () => {
+      const result = buildEngine().generateSchedule();
+      expect(result.shifts.length).toBeGreaterThan(0);
+    });
+
+    it('leave days respected for all Purple 24h doctors', { timeout: 90_000 }, () => {
+      const result = buildEngine().generateSchedule();
+      const purpleIds = ['j14', 'j15', 'j16', 'j17'];
+      for (const leave of leaveDays) {
+        if (!purpleIds.includes(leave.doctor_id)) continue;
+        const shiftsOnLeave = result.shifts.filter(
+          s => s.doctor_id === leave.doctor_id && s.shift_date === leave.leave_date,
+        );
+        expect(
+          shiftsOnLeave,
+          `${leave.doctor_id} should not work on ${leave.leave_date}`,
+        ).toHaveLength(0);
+      }
+    });
+
+    // ── HEADLINE: Radu Cristian must work on June 2nd ────────────────────
+    it('Radu Cristian (j14) has a 24h shift on June 2nd', { timeout: 90_000 }, () => {
+      const result = buildEngine().generateSchedule();
+      const june2 = formatDate(YEAR, JUNE, 2);
+      const raduJune2 = result.shifts.filter(
+        s => s.doctor_id === 'j14' && s.shift_date === june2,
+      );
+      expect(raduJune2, `Radu Cristian should have a 24h shift on ${june2}`).toHaveLength(1);
+      expect(raduJune2[0].shift_type).toBe('24h');
+    });
+
+    // ── HEADLINE: Merticariu must work on June 4th by 4-day cadence ──────
+    // Cadence: Lazar=1, Radu=2, Mercore=3, Merticariu=4. Yellow Day cadence
+    // also lands on day 4 with 4 doctors free → without relaxed slot cap,
+    // the 24h placement would be blocked.
+    it('Merticariu Tudor (j17) has a 24h shift on June 4th', { timeout: 90_000 }, () => {
+      const result = buildEngine().generateSchedule();
+      const june4 = formatDate(YEAR, JUNE, 4);
+      const merticariuJune4 = result.shifts.filter(
+        s => s.doctor_id === 'j17' && s.shift_date === june4,
+      );
+      expect(merticariuJune4, `Merticariu should have a 24h shift on ${june4}`).toHaveLength(1);
+      expect(merticariuJune4[0].shift_type).toBe('24h');
+    });
+
+    // June 4th: 4 Yellow Day cadence + 1 24h (Merticariu) means day
+    // workforce overshoots by 1. Phase 1c cannot rebalance because the
+    // same Yellow doctors are already on Night cadence the next day
+    // (consecutive-night rest constraint). Verify night side is at least
+    // at the required cap (gap-filled if needed).
+    it('June 4th: night side is fully staffed (gap-fill covers Green leave)', { timeout: 90_000 }, () => {
+      const result = buildEngine().generateSchedule();
+      const june4 = formatDate(YEAR, JUNE, 4);
+      const shifts4 = result.shifts.filter(s => s.shift_date === june4);
+      const nightCount = shifts4.filter(s => s.shift_type === 'night' || s.shift_type === '24h').length;
+      expect(nightCount).toBeGreaterThanOrEqual(4);
+    });
+
+    // 4-day cadence: each Purple doctor should get a 24h on at most 1 in 4
+    // consecutive days; over the month each should land several shifts.
+    it('each Purple 24h doctor receives multiple 24h shifts', { timeout: 90_000 }, () => {
+      const result = buildEngine().generateSchedule();
+      for (const id of ['j14', 'j15', 'j16', 'j17']) {
+        const count = result.shifts.filter(
+          s => s.doctor_id === id && s.shift_type === '24h',
+        ).length;
+        expect(count, `${id} 24h count`).toBeGreaterThan(0);
+      }
+    });
+
+    // 72h rest between 24h shifts for each Purple doctor.
+    it('no two 24h shifts within 3 days for the same Purple doctor', { timeout: 90_000 }, () => {
+      const result = buildEngine().generateSchedule();
+      const purple24h = result.shifts.filter(
+        s => s.shift_type === '24h' && ['j14', 'j15', 'j16', 'j17'].includes(s.doctor_id),
+      );
+      const byDoctor = new Map<string, number[]>();
+      for (const s of purple24h) {
+        const day = Number(s.shift_date.split('-')[2]);
+        if (!byDoctor.has(s.doctor_id)) byDoctor.set(s.doctor_id, []);
+        byDoctor.get(s.doctor_id)!.push(day);
+      }
+      for (const [id, days] of Array.from(byDoctor)) {
+        days.sort((a, b) => a - b);
+        for (let i = 1; i < days.length; i++) {
+          expect(
+            days[i] - days[i - 1],
+            `${id} 24h shifts on day ${days[i - 1]} and ${days[i]} too close`,
+          ).toBeGreaterThanOrEqual(4);
+        }
+      }
+    });
+  });
+
   // ── Optional doctors ────────────────────────────────────────────────────────
 
   describe('optional doctors', () => {

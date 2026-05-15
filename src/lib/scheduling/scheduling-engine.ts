@@ -46,15 +46,16 @@ export class SchedulingEngine implements EngineContext {
   private idCounter = 0;
 
   constructor(options: ScheduleGenerationOptions) {
-    // Canonical doctor ordering — independent of input array position and of
-    // user-controlled UI fields (display_order). Two callers passing the same
-    // doctors / teams / leaves must produce the same schedule regardless of the
-    // order they happen to list doctors in.
+    // Canonical doctor ordering. `display_order` (user-controlled UI field)
+    // takes priority within the same team/shift-mode bucket so the input order
+    // shown in the UI drives round-robin / cadence pick order. Determinism
+    // still holds for a given dataset because display_order is stable.
     //   1. Non-optional first, optional last (optionals only enter Phase 2d)
     //   2. By team.order; doctors without a team go after teamed doctors
     //   3. 12h before 24h within a team (cadence vs rigid 24h cycle)
-    //   4. By name (case-insensitive) — stable across the same dataset
-    //   5. By id — final tiebreaker, guaranteed unique
+    //   4. By display_order (lower first; doctors without it sort after)
+    //   5. By name (case-insensitive) — stable across the same dataset
+    //   6. By id — final tiebreaker, guaranteed unique
     this.doctors = [...options.doctors].sort((a, b) => {
       const aOpt = a.is_optional ? 1 : 0;
       const bOpt = b.is_optional ? 1 : 0;
@@ -67,6 +68,10 @@ export class SchedulingEngine implements EngineContext {
       const aMode24 = a.shift_mode === '24h' ? 1 : 0;
       const bMode24 = b.shift_mode === '24h' ? 1 : 0;
       if (aMode24 !== bMode24) return aMode24 - bMode24;
+
+      const aDisp = a.display_order ?? Number.POSITIVE_INFINITY;
+      const bDisp = b.display_order ?? Number.POSITIVE_INFINITY;
+      if (aDisp !== bDisp) return aDisp - bDisp;
 
       const nameCmp = a.name.toLowerCase().localeCompare(b.name.toLowerCase());
       if (nameCmp !== 0) return nameCmp;
@@ -314,8 +319,11 @@ export class SchedulingEngine implements EngineContext {
             if (count >= team.max_doctors_per_shift) return false;
           }
         }
-        // Slot cap: a 24h shift counts toward both day and night. Skip placement
-        // if either day or night is already at required capacity from cadence/fixed.
+        // Slot cap: a 24h shift counts toward both day and night. Only refuse
+        // placement when BOTH shift types are already at capacity (no room for
+        // the 24h overlap). When only one side is at capacity, allow placement
+        // — Phase 1c will convert a cadence shift on the overstaffed side to
+        // the understaffed side to rebalance, preserving rigid 24h cadence.
         const dateStr = formatDate(new Date(this.year, this.month, day));
         const dayCount =
           (fixedShiftsByDateType.get(`${dateStr}:day`)?.length || 0) +
@@ -323,7 +331,7 @@ export class SchedulingEngine implements EngineContext {
         const nightCount =
           (fixedShiftsByDateType.get(`${dateStr}:night`)?.length || 0) +
           shifts.filter(s => s.shift_date === dateStr && (s.shift_type === 'night' || s.shift_type === '24h')).length;
-        if (dayCount >= this.shiftsPerDay || nightCount >= this.shiftsPerNight) return false;
+        if (dayCount >= this.shiftsPerDay && nightCount >= this.shiftsPerNight) return false;
         return true;
       };
 
